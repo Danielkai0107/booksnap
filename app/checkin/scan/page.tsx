@@ -58,19 +58,30 @@ export default function ScanPage() {
     }
   }, []);
 
+  const attachStreamToVideo = useCallback(async () => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
+    }
+    try {
+      await video.play();
+    } catch (err) {
+      console.warn("[scan] video.play() rejected", err);
+    }
+  }, []);
+
   const startCamera = useCallback(async () => {
     setErrorMsg(null);
+    setMode("camera");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" } },
         audio: false,
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(() => undefined);
-      }
-      setMode("camera");
+      await attachStreamToVideo();
     } catch (err) {
       console.error("camera error", err);
       const name = err instanceof Error ? err.name : "";
@@ -96,7 +107,7 @@ export default function ScanPage() {
       setErrorMsg(msg);
       setMode("camera");
     }
-  }, []);
+  }, [attachStreamToVideo]);
 
   useEffect(() => {
     if (!adminName) return;
@@ -105,6 +116,14 @@ export default function ScanPage() {
       stopStream();
     };
   }, [adminName, startCamera, stopStream]);
+
+  // Re-attach stream whenever the video element re-mounts (e.g. after returning
+  // from "processing" -> "camera"), in case the ref changed identity.
+  useEffect(() => {
+    if (mode === "camera" && streamRef.current) {
+      void attachStreamToVideo();
+    }
+  }, [mode, attachStreamToVideo]);
 
   const handleCapture = useCallback(async () => {
     const video = videoRef.current;
