@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import QRCode from "qrcode";
 import JsBarcode from "jsbarcode";
-import { generateBookId } from "@/lib/bookId";
+import { formatDateYMD, generateBookId } from "@/lib/bookId";
+import { supabase } from "@/lib/supabase";
 
 type StoredBook = {
   title: string;
@@ -40,20 +41,45 @@ export default function ResultPage() {
     }
     try {
       const stored: StoredBook[] = JSON.parse(raw);
-      Promise.all(
-        stored.map(async (b, idx) => {
-          const bookId = generateBookId(now, idx + 1);
-          const qrDataUrl = await QRCode.toDataURL(bookId, {
-            margin: 1,
-            width: 220,
-            color: { dark: "#0a0a0a", light: "#ffffff" },
-          });
-          return { ...b, bookId, qrDataUrl } as LabelBook;
-        })
-      ).then((arr) => {
+      (async () => {
+        // 先查當日已存在的最大序號，避免與今天先前的入庫撞號
+        const ymd = formatDateYMD(now);
+        const prefix = `LIB-${ymd}-`;
+        let startSeq = 1;
+        try {
+          const { data: existing, error } = await supabase
+            .from("books")
+            .select("book_id")
+            .like("book_id", `${prefix}%`)
+            .order("book_id", { ascending: false })
+            .limit(1);
+          if (error) throw error;
+          const lastId = existing?.[0]?.book_id as string | undefined;
+          if (lastId) {
+            const lastSeq = parseInt(lastId.slice(prefix.length), 10);
+            if (!Number.isNaN(lastSeq)) startSeq = lastSeq + 1;
+          }
+        } catch (err) {
+          console.warn(
+            "[result] failed to fetch existing book_ids, default to 001",
+            err
+          );
+        }
+
+        const arr = await Promise.all(
+          stored.map(async (b, idx) => {
+            const bookId = generateBookId(now, startSeq + idx);
+            const qrDataUrl = await QRCode.toDataURL(bookId, {
+              margin: 1,
+              width: 220,
+              color: { dark: "#0a0a0a", light: "#ffffff" },
+            });
+            return { ...b, bookId, qrDataUrl } as LabelBook;
+          })
+        );
         setBooks(arr);
         setLoading(false);
-      });
+      })();
     } catch (err) {
       console.error(err);
       setErrorMsg("讀取暫存資料失敗，請重新入庫。");

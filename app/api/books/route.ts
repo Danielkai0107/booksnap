@@ -88,8 +88,15 @@ export async function POST(req: NextRequest) {
   const { error: insertError } = await supabase.from("books").insert(rows);
   if (insertError) {
     console.error("[books] insert error", insertError);
+    const isDup =
+      insertError.code === "23505" ||
+      /duplicate key/i.test(insertError.message);
     return NextResponse.json(
-      { error: insertError.message },
+      {
+        error: isDup
+          ? "書籍編號重複（可能有另一位管理員同時入庫）。請回到掃描頁重新「結束入庫」以重新編號。"
+          : insertError.message,
+      },
       { status: 500 }
     );
   }
