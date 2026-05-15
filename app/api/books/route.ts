@@ -8,6 +8,7 @@ type IncomingBook = {
   title: string;
   bookId: string;
   imageBase64: string;
+  categoryId?: string | null;
 };
 
 type Body = {
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
     admin_name: string;
     image_url: string | null;
     status: string;
+    category_id: string | null;
   }> = [];
 
   for (const b of books) {
@@ -102,6 +104,7 @@ export async function POST(req: NextRequest) {
       admin_name: adminName,
       image_url: imageUrl,
       status: "available",
+      category_id: b.categoryId ?? null,
     });
   }
 

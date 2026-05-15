@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import CategoryTag from "@/components/CategoryTag";
 import CloseButton from "@/components/CloseButton";
 import ZoomableImage from "@/components/ZoomableImage";
-import { BookRow, BorrowRecordRow } from "@/lib/supabase";
+import { BookRow, BorrowRecordRow, type CategoryRow } from "@/lib/supabase";
 
 type Tab = "borrow" | "return";
 
@@ -14,6 +15,7 @@ export default function BookDetailPage() {
   const bookId = decodeURIComponent(params.bookId);
   const [book, setBook] = useState<BookRow | null>(null);
   const [records, setRecords] = useState<BorrowRecordRow[]>([]);
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("borrow");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -22,15 +24,20 @@ export default function BookDetailPage() {
     let alive = true;
     (async () => {
       try {
-        const res = await fetch(
-          `/api/books/${encodeURIComponent(bookId)}`,
-          { cache: "no-store" }
-        );
-        const data = await res.json();
+        const [bookRes, catRes] = await Promise.all([
+          fetch(`/api/books/${encodeURIComponent(bookId)}`, {
+            cache: "no-store",
+          }),
+          fetch("/api/categories", { cache: "no-store" })
+            .then((r) => r.json())
+            .catch(() => ({ categories: [] })),
+        ]);
+        const data = await bookRes.json();
         if (!alive) return;
-        if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+        if (!bookRes.ok) throw new Error(data.error ?? `HTTP ${bookRes.status}`);
         setBook(data.book as BookRow);
         setRecords((data.records ?? []) as BorrowRecordRow[]);
+        setCategories((catRes?.categories ?? []) as CategoryRow[]);
       } catch (err) {
         if (!alive) return;
         setErrorMsg(err instanceof Error ? err.message : String(err));
@@ -42,6 +49,11 @@ export default function BookDetailPage() {
       alive = false;
     };
   }, [bookId]);
+
+  const categoryName = useMemo(() => {
+    if (!book?.category_id) return null;
+    return categories.find((c) => c.id === book.category_id)?.name ?? null;
+  }, [book, categories]);
 
   const returnedRecords = useMemo(
     () => records.filter((r) => r.returned_at),
@@ -70,6 +82,7 @@ export default function BookDetailPage() {
                 </h1>
                 <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
                   <StatusPill status={book.status} />
+                  {categoryName && <CategoryTag name={categoryName} />}
                   {book.shelf_id && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-white text-neutral-700 border border-neutral-200">
                       書架 {book.shelf_id}
@@ -92,6 +105,11 @@ export default function BookDetailPage() {
                   <p className="text-xs text-neutral-400 font-mono">
                     {book.book_id}
                   </p>
+                  {categoryName && (
+                    <p className="mt-2">
+                      <CategoryTag name={categoryName} />
+                    </p>
+                  )}
                   <p className="mt-2 text-xs text-neutral-500">
                     入庫 · {book.admin_name}
                   </p>
@@ -207,13 +225,13 @@ function RecordList({
     );
   }
   return (
-    <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
+    <ul className="space-y-2">
       {records.map((r) => {
         const t = r[timeKey];
         return (
           <li
             key={r.id}
-            className="py-3.5 flex items-center justify-between gap-3"
+            className="px-4 py-3 flex items-center justify-between gap-3 bg-neutral-100 rounded-xl"
           >
             <Link
               href={`/members/${encodeURIComponent(r.borrower_name)}`}

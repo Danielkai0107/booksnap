@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 type RecognizeBody = {
   imageBase64?: string;
   forceClaude?: boolean;
+  categories?: string[];
 };
 
 function parseImageBase64(input: string): { mediaType: string; data: string } {
@@ -31,6 +32,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { imageBase64 } = body;
+  const categories = (body.categories ?? [])
+    .map((c) => c.trim())
+    .filter(Boolean);
   if (!imageBase64) {
     return NextResponse.json(
       { error: "imageBase64 required" },
@@ -45,6 +49,7 @@ export async function POST(req: NextRequest) {
         error:
           "ANTHROPIC_API_KEY not configured on the server. Please set it in .env.local.",
         title: "無法識別",
+        category: null,
         source: "claude",
       },
       { status: 500 }
@@ -52,6 +57,26 @@ export async function POST(req: NextRequest) {
   }
 
   const { mediaType, data } = parseImageBase64(imageBase64);
+
+  // Build a prompt that asks Claude to both recognize the title and pick
+  // the best-fitting category from the org's category list (if provided).
+  // We require strict JSON so the client can parse reliably.
+  const promptParts: string[] = [];
+  promptParts.push(
+    "你是一位圖書館員。請從這張書封圖片辨識「書名」。"
+  );
+  if (categories.length > 0) {
+    promptParts.push(
+      `另外，請從下列分類清單中挑選一個最適合此書的分類（必須完全等於清單中的某個名稱，不能自創）：\n${categories.map((c) => `- ${c}`).join("\n")}`
+    );
+    promptParts.push(
+      '請僅回傳 JSON，格式為 {"title": "書名", "category": "分類名稱"}。若無法辨識書名，title 請填「無法識別」；若無法判斷分類，category 請填 null。不要任何多餘文字或 markdown。'
+    );
+  } else {
+    promptParts.push(
+      '請僅回傳 JSON，格式為 {"title": "書名"}。若無法辨識，title 請填「無法識別」。不要任何多餘文字或 markdown。'
+    );
+  }
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -63,7 +88,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 100,
+        max_tokens: 200,
         messages: [
           {
             role: "user",
@@ -78,7 +103,7 @@ export async function POST(req: NextRequest) {
               },
               {
                 type: "text",
-                text: "請從這張書封圖片識別書名。只回傳書名文字，不需說明。無法識別則回傳：無法識別",
+                text: promptParts.join("\n\n"),
               },
             ],
           },
@@ -94,6 +119,7 @@ export async function POST(req: NextRequest) {
           error: "claude request failed",
           status: response.status,
           title: "無法識別",
+          category: null,
           source: "claude",
         },
         { status: 502 }
@@ -104,17 +130,42 @@ export async function POST(req: NextRequest) {
       content?: Array<{ type: string; text?: string }>;
       usage?: { input_tokens?: number; output_tokens?: number };
     };
-    const text =
+    const raw =
       json.content
         ?.filter((c) => c.type === "text")
         .map((c) => c.text ?? "")
         .join("")
         .trim() ?? "";
 
-    const title = text.length > 0 ? text.slice(0, 80) : "無法識別";
+    let title = "無法識別";
+    let category: string | null = null;
+    // Attempt to extract a JSON object even if Claude wrapped it.
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[0]) as {
+          title?: string;
+          category?: string | null;
+        };
+        if (typeof parsed.title === "string" && parsed.title.trim()) {
+          title = parsed.title.trim().slice(0, 80);
+        }
+        if (parsed.category && typeof parsed.category === "string") {
+          const c = parsed.category.trim();
+          // Only accept values from the provided category list.
+          if (categories.includes(c)) {
+            category = c;
+          }
+        }
+      } catch (err) {
+        console.warn("[recognize] failed to parse claude json", err, raw);
+      }
+    } else if (raw) {
+      // Backwards-compat: if Claude didn't return JSON, treat the whole
+      // body as the title (legacy behaviour).
+      title = raw.slice(0, 80);
+    }
 
-    // Log successful usage (tokens actually consumed). Done fire-and-forget
-    // so latency does not affect the user response; failure to log is non-fatal.
     void supabase
       .from("ai_usage_logs")
       .insert({
@@ -127,13 +178,14 @@ export async function POST(req: NextRequest) {
         if (error) console.error("[recognize] log insert error", error);
       });
 
-    return NextResponse.json({ title, source: "claude" });
+    return NextResponse.json({ title, category, source: "claude" });
   } catch (err) {
     console.error("[recognize] exception", err);
     return NextResponse.json(
       {
         error: "claude request exception",
         title: "無法識別",
+        category: null,
         source: "claude",
       },
       { status: 500 }

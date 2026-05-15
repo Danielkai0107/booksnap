@@ -66,7 +66,7 @@ export default function LabelsPage() {
   if (showLabels) {
     return (
       <AdminShell
-        backHref="/admin/labels"
+        onBack={() => setShowLabels(false)}
         desktopBack={{ href: "/admin/labels", label: "回選擇" }}
       >
         <div className="no-print mb-6">

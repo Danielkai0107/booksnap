@@ -34,7 +34,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { bookId } = await params;
   const supabase = await createClient();
-  let body: { title?: string; shelf_id?: string | null };
+  let body: {
+    title?: string;
+    shelf_id?: string | null;
+    category_id?: string | null;
+  };
   try {
     body = await req.json();
   } catch {
@@ -45,6 +49,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (typeof body.title === "string") patch.title = body.title.trim();
   if (body.shelf_id === null || typeof body.shelf_id === "string") {
     patch.shelf_id = body.shelf_id || null;
+  }
+  if (body.category_id === null || typeof body.category_id === "string") {
+    patch.category_id = body.category_id || null;
   }
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "nothing to update" }, { status: 400 });

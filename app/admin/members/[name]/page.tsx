@@ -352,13 +352,13 @@ function RecordList({
     );
   }
   return (
-    <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
+    <ul className="space-y-2">
       {records.map((r) => {
         const t = r[timeKey];
         return (
           <li
             key={r.id}
-            className="py-3.5 flex items-center justify-between gap-3"
+            className="px-4 py-3 flex items-center justify-between gap-3 bg-neutral-100 rounded-xl"
           >
             <Link
               href={`/admin/books/${encodeURIComponent(r.book_id)}`}

@@ -19,6 +19,11 @@ type Props = {
   backHref?: string;
   /** 桌機內容區頂端的「← 返回」連結（詳情頁用） */
   desktopBack?: { href: string; label: string };
+  /**
+   * 自訂返回鍵行為（覆蓋 backHref / desktopBack 預設導航）。
+   * 用於頁面內的 state 切換（例：標籤預覽切回選擇）。
+   */
+  onBack?: () => void;
 };
 
 export default function AdminShell({
@@ -27,6 +32,7 @@ export default function AdminShell({
   topbarRight,
   backHref,
   desktopBack,
+  onBack,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -56,6 +62,13 @@ export default function AdminShell({
             <div className="min-w-[40px] flex justify-end">{topbarRight}</div>
           </div>
         </header>
+      ) : onBack ? (
+        <CloseButton
+          onClick={onBack}
+          showLoadingOnClick={false}
+          hideOnDesktop
+          icon="arrow-left"
+        />
       ) : backHref ? (
         <CloseButton href={backHref} hideOnDesktop icon="arrow-left" />
       ) : null}
@@ -71,12 +84,22 @@ export default function AdminShell({
         >
           {desktopBack && (
             <div className="hidden md:block mb-6">
-              <Link
-                href={desktopBack.href}
-                className="text-sm text-neutral-500 hover:text-neutral-900 transition"
-              >
-                ← {desktopBack.label}
-              </Link>
+              {onBack ? (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="text-sm text-neutral-500 hover:text-neutral-900 transition"
+                >
+                  ← {desktopBack.label}
+                </button>
+              ) : (
+                <Link
+                  href={desktopBack.href}
+                  className="text-sm text-neutral-500 hover:text-neutral-900 transition"
+                >
+                  ← {desktopBack.label}
+                </Link>
+              )}
             </div>
           )}
           {children}

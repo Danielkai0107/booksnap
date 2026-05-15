@@ -10,6 +10,15 @@ export type BookRow = {
   return_time: string | null;
   current_holder: string | null;
   organization_id: string;
+  category_id: string | null;
+};
+
+export type CategoryRow = {
+  id: string;
+  organization_id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
 };
 
 export type ShelfRow = {

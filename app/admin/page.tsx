@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { supabase, BookRow } from "@/lib/supabase";
+import { supabase, BookRow, type CategoryRow } from "@/lib/supabase";
 import AdminShell from "@/components/AdminShell";
 import BookActionsMenu from "@/components/BookActionsMenu";
 import BottomSheet from "@/components/BottomSheet";
+import CategorySelect from "@/components/CategorySelect";
+import CategoryTag from "@/components/CategoryTag";
 import ZoomableImage from "@/components/ZoomableImage";
 
 type EditTarget = BookRow | null;
@@ -14,21 +16,37 @@ type EditTarget = BookRow | null;
 export default function AdminPage() {
   const router = useRouter();
   const [books, setBooks] = useState<BookRow[]>([]);
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [memberCount, setMemberCount] = useState(0);
   const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
   const [deleteTarget, setDeleteTarget] = useState<EditTarget>(null);
 
+  const categoryOptions = useMemo(
+    () => categories.map((c) => ({ value: c.id, label: c.name })),
+    [categories]
+  );
+
+  const categoryNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    categories.forEach((c) => m.set(c.id, c.name));
+    return m;
+  }, [categories]);
+
   async function fetchAll() {
     setLoading(true);
-    const [booksRes, membersRes] = await Promise.all([
+    const [booksRes, membersRes, catRes] = await Promise.all([
       supabase
         .from("books")
         .select("*")
         .order("checkin_time", { ascending: false }),
       supabase.from("members").select("*", { count: "exact", head: true }),
+      fetch("/api/categories", { cache: "no-store" })
+        .then((r) => r.json())
+        .catch(() => ({ categories: [] })),
     ]);
     if (booksRes.error) {
       setErrorMsg(booksRes.error.message);
@@ -36,6 +54,7 @@ export default function AdminPage() {
       setBooks((booksRes.data ?? []) as BookRow[]);
     }
     setMemberCount(membersRes.count ?? 0);
+    setCategories((catRes?.categories ?? []) as CategoryRow[]);
     setLoading(false);
   }
 
@@ -45,13 +64,15 @@ export default function AdminPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return books;
-    return books.filter(
-      (b) =>
+    return books.filter((b) => {
+      if (categoryFilter && b.category_id !== categoryFilter) return false;
+      if (!q) return true;
+      return (
         b.title.toLowerCase().includes(q) ||
         b.book_id.toLowerCase().includes(q)
-    );
-  }, [books, query]);
+      );
+    });
+  }, [books, query, categoryFilter]);
 
   const availableCount = books.filter((b) => b.status === "available").length;
   const borrowedCount = books.length - availableCount;
@@ -115,14 +136,23 @@ export default function AdminPage() {
         <Stat label="成員數" value={memberCount} />
       </dl>
 
-      <div className="mb-6">
+      <div className="mb-6 flex gap-2">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="搜尋書名或編號"
-          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
+          className="flex-1 min-w-0 h-[42px] px-4 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
         />
+        <div className="w-1/3 shrink-0">
+          <CategorySelect
+            sizeVariant="sm"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            options={categoryOptions}
+            placeholder="全部分類"
+          />
+        </div>
       </div>
 
       {errorMsg && (
@@ -152,21 +182,29 @@ export default function AdminPage() {
                   className="flex-1 flex gap-3 items-start min-w-0"
                 >
                   {b.image_url ? (
-                    <ZoomableImage
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
                       src={b.image_url}
                       alt={b.title}
-                      className="w-12 h-16 object-cover rounded border border-neutral-200"
+                      className="w-12 h-16 object-cover rounded border border-neutral-200 shrink-0"
                     />
                   ) : (
-                    <div className="w-12 h-16 bg-neutral-100 rounded" />
+                    <div className="w-12 h-16 bg-neutral-100 rounded shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-neutral-900 truncate">
                       {b.title}
                     </p>
-                    <p className="text-xs text-neutral-400 mt-1 font-mono">
+                    <p className="text-xs text-neutral-400 mt-1 font-mono truncate">
                       {b.book_id}
                     </p>
+                    {b.category_id && (
+                      <div className="mt-1.5">
+                        <CategoryTag
+                          name={categoryNameById.get(b.category_id)}
+                        />
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-2 mt-2.5">
                       <span className="text-xs text-neutral-500 truncate min-w-0">
                         {b.current_holder ?? ""}
@@ -216,15 +254,27 @@ export default function AdminPage() {
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         {b.image_url ? (
-                          <ZoomableImage
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
                             src={b.image_url}
                             alt={b.title}
-                            className="w-9 h-12 object-cover rounded border border-neutral-200"
+                            className="w-9 h-12 object-cover rounded border border-neutral-200 shrink-0"
                           />
                         ) : (
-                          <div className="w-9 h-12 bg-neutral-100 rounded" />
+                          <div className="w-9 h-12 bg-neutral-100 rounded shrink-0" />
                         )}
-                        <span className="text-neutral-900">{b.title}</span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-neutral-900 truncate">
+                            {b.title}
+                          </span>
+                          {b.category_id && (
+                            <span className="mt-1.5">
+                              <CategoryTag
+                                name={categoryNameById.get(b.category_id)}
+                              />
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-neutral-700">
@@ -294,6 +344,7 @@ export default function AdminPage() {
       {editTarget && (
         <EditBookSheet
           book={editTarget}
+          categories={categories}
           onClose={() => setEditTarget(null)}
           onSaved={() => {
             setEditTarget(null);
@@ -382,16 +433,24 @@ function StatusPill({ status }: { status: string }) {
 
 function EditBookSheet({
   book,
+  categories,
   onClose,
   onSaved,
 }: {
   book: BookRow;
+  categories: CategoryRow[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [title, setTitle] = useState(book.title);
   const [shelfId, setShelfId] = useState(book.shelf_id ?? "");
+  const [categoryId, setCategoryId] = useState<string>(book.category_id ?? "");
   const [saving, setSaving] = useState(false);
+
+  const categoryOptions = useMemo(
+    () => categories.map((c) => ({ value: c.id, label: c.name })),
+    [categories]
+  );
 
   async function handleSave() {
     setSaving(true);
@@ -404,6 +463,7 @@ function EditBookSheet({
           body: JSON.stringify({
             title: title.trim(),
             shelf_id: shelfId.trim() || null,
+            category_id: categoryId || null,
           }),
         }
       );
@@ -447,12 +507,12 @@ function EditBookSheet({
           <ZoomableImage
             src={book.image_url}
             alt={book.title}
-            className="w-20 h-28 object-cover rounded-md border border-neutral-100"
+            className="w-20 h-28 object-cover rounded-md border border-neutral-100 shrink-0"
           />
         ) : (
-          <div className="w-20 h-28 rounded-md bg-neutral-100" />
+          <div className="w-20 h-28 rounded-md bg-neutral-100 shrink-0" />
         )}
-        <div className="flex-1 space-y-3">
+        <div className="flex-1 min-w-0 space-y-3">
           <div>
             <label className="block text-xs font-medium text-neutral-500 mb-1.5">
               書名
@@ -462,6 +522,22 @@ function EditBookSheet({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-500 mb-1.5">
+              分類
+            </label>
+            <CategorySelect
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              options={categoryOptions}
+              placeholder={
+                categoryOptions.length === 0
+                  ? "尚無分類，請先至分類管理新增"
+                  : "未分類"
+              }
+              disabled={categoryOptions.length === 0}
             />
           </div>
           <div>

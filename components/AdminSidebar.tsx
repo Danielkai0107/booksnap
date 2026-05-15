@@ -6,9 +6,10 @@ import { usePathname } from "next/navigation";
 import { signOutAction } from "@/app/auth/actions";
 
 const items = [
-  { href: "/admin", label: "書籍", matchExact: true },
-  { href: "/admin/members", label: "成員", matchExact: false },
-  { href: "/admin/labels", label: "標籤", matchExact: false },
+  { href: "/admin", label: "書籍管理", matchExact: true },
+  { href: "/admin/members", label: "成員管理", matchExact: false },
+  { href: "/admin/categories", label: "分類管理", matchExact: false },
+  { href: "/admin/labels", label: "標籤列印", matchExact: false },
 ];
 
 const bottomItemClass =

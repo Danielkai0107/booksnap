@@ -23,6 +23,7 @@ export type {
   ProfileRow,
   ProfileRole,
   OrgStatus,
+  CategoryRow,
 } from "./supabase/types";
 
 let _client: SupabaseClient | null = null;

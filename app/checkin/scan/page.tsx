@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { recognizeBookCover } from "@/lib/ocr";
 import { formatDateYMD, generateBookId } from "@/lib/bookId";
-import { supabase } from "@/lib/supabase";
+import { supabase, type CategoryRow } from "@/lib/supabase";
 import BottomSheet from "@/components/BottomSheet";
+import CategorySelect from "@/components/CategorySelect";
 import ZoomableImage from "@/components/ZoomableImage";
 
 type Mode = "loading" | "camera" | "processing" | "confirming";
@@ -13,11 +14,13 @@ type Mode = "loading" | "camera" | "processing" | "confirming";
 type ConfirmedBook = {
   title: string;
   imageDataUrl: string;
+  categoryId: string | null;
 };
 
 type CurrentCapture = {
   imageDataUrl: string;
   detectedTitle: string;
+  suggestedCategoryId: string | null;
 };
 
 type DuplicateMatch = {
@@ -39,15 +42,30 @@ export default function CheckinScanPage() {
   const [mode, setMode] = useState<Mode>("loading");
   const [confirmedBooks, setConfirmedBooks] = useState<ConfirmedBook[]>([]);
   const [currentCapture, setCurrentCapture] = useState<CurrentCapture | null>(
-    null
+    null,
   );
   const [editedTitle, setEditedTitle] = useState("");
+  const [editedCategoryId, setEditedCategoryId] = useState<string>("");
   const [adminName, setAdminName] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Categories (loaded from server for AI suggestion + manual override)
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const categoryNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    categories.forEach((c) => m.set(c.id, c.name));
+    return m;
+  }, [categories]);
+  const categoryOptions = useMemo(
+    () => categories.map((c) => ({ value: c.id, label: c.name })),
+    [categories],
+  );
+
   // 重複偵測
   const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([]);
+  const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>(
+    [],
+  );
   const [duplicateBase, setDuplicateBase] = useState("");
 
   // 書單彈窗
@@ -72,6 +90,26 @@ export default function CheckinScanPage() {
       }
     }
   }, [router]);
+
+  // Load categories once so the AI prompt can include them and the
+  // confirming step can offer manual override.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/categories", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { categories?: CategoryRow[] };
+        if (!alive) return;
+        setCategories(data.categories ?? []);
+      } catch (err) {
+        console.warn("[checkin] load categories failed", err);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const stopStream = useCallback(() => {
     if (streamRef.current) {
@@ -159,36 +197,62 @@ export default function CheckinScanPage() {
 
     stopStream();
     setMode("processing");
-    setCurrentCapture({ imageDataUrl: base64, detectedTitle: "" });
+    setCurrentCapture({
+      imageDataUrl: base64,
+      detectedTitle: "",
+      suggestedCategoryId: null,
+    });
 
     try {
-      const { title } = await recognizeBookCover(base64);
+      const categoryNames = categories.map((c) => c.name);
+      const { title, category } = await recognizeBookCover(
+        base64,
+        categoryNames,
+      );
       const finalTitle = title?.trim() ?? "";
-      setCurrentCapture({ imageDataUrl: base64, detectedTitle: finalTitle });
+      const suggested = category
+        ? (categories.find((c) => c.name === category) ?? null)
+        : null;
+      setCurrentCapture({
+        imageDataUrl: base64,
+        detectedTitle: finalTitle,
+        suggestedCategoryId: suggested?.id ?? null,
+      });
       setEditedTitle(finalTitle);
+      setEditedCategoryId(suggested?.id ?? "");
       setMode("confirming");
     } catch (err) {
       console.error("recognize error", err);
-      setCurrentCapture({ imageDataUrl: base64, detectedTitle: "" });
+      setCurrentCapture({
+        imageDataUrl: base64,
+        detectedTitle: "",
+        suggestedCategoryId: null,
+      });
       setEditedTitle("");
+      setEditedCategoryId("");
       setMode("confirming");
     }
-  }, [stopStream]);
+  }, [stopStream, categories]);
 
   const addBook = useCallback(
     (title: string) => {
       if (!currentCapture) return;
       const next: ConfirmedBook[] = [
         ...confirmedBooks,
-        { title, imageDataUrl: currentCapture.imageDataUrl },
+        {
+          title,
+          imageDataUrl: currentCapture.imageDataUrl,
+          categoryId: editedCategoryId || null,
+        },
       ];
       setConfirmedBooks(next);
       sessionStorage.setItem(BOOKS_KEY, JSON.stringify(next));
       setCurrentCapture(null);
       setEditedTitle("");
+      setEditedCategoryId("");
       startCamera();
     },
-    [confirmedBooks, currentCapture, startCamera]
+    [confirmedBooks, currentCapture, editedCategoryId, startCamera],
   );
 
   const handleConfirm = useCallback(async () => {
@@ -197,7 +261,7 @@ export default function CheckinScanPage() {
     try {
       const res = await fetch(
         `/api/books/check-title?title=${encodeURIComponent(raw)}`,
-        { cache: "no-store" }
+        { cache: "no-store" },
       );
       const data = (await res.json()) as {
         base?: string;
@@ -218,6 +282,7 @@ export default function CheckinScanPage() {
   const handleRetake = useCallback(() => {
     setCurrentCapture(null);
     setEditedTitle("");
+    setEditedCategoryId("");
     startCamera();
   }, [startCamera]);
 
@@ -227,6 +292,7 @@ export default function CheckinScanPage() {
     setDuplicateBase("");
     setCurrentCapture(null);
     setEditedTitle("");
+    setEditedCategoryId("");
     startCamera();
   }, [startCamera]);
 
@@ -269,6 +335,7 @@ export default function CheckinScanPage() {
           title: b.title,
           bookId: generateBookId(now, startSeq + idx),
           imageBase64: b.imageDataUrl,
+          categoryId: b.categoryId ?? null,
         })),
       };
 
@@ -324,7 +391,7 @@ export default function CheckinScanPage() {
               </div>
             </div>
             {errorMsg && !streamRef.current && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center px-6">
+              <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-center justify-center px-6">
                 <div className="bg-white text-neutral-900 max-w-sm w-full rounded-2xl p-6 shadow-2xl">
                   <p className="text-sm leading-relaxed text-neutral-700 mb-5">
                     {errorMsg}
@@ -368,7 +435,7 @@ export default function CheckinScanPage() {
               </>
             )}
             {mode === "processing" && currentCapture && (
-              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center text-center px-6">
+              <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center text-center px-6">
                 <ZoomableImage
                   src={currentCapture.imageDataUrl}
                   alt="captured"
@@ -382,27 +449,52 @@ export default function CheckinScanPage() {
         )}
 
         {mode === "confirming" && currentCapture && (
-          <div className="absolute inset-0 bg-black/50 flex items-end z-30">
+          <div className="fixed inset-0 bg-black/50 flex items-end z-40">
             <div className="w-full bg-white text-neutral-900 rounded-t-3xl px-6 pt-6 pb-8 animate-slide-up max-h-[90vh] overflow-y-auto shadow-2xl">
               <div className="w-10 h-1 bg-neutral-200 rounded-full mx-auto mb-5" />
               <div className="flex gap-4 items-start">
                 <ZoomableImage
                   src={currentCapture.imageDataUrl}
                   alt="cover"
-                  className="w-20 h-28 object-cover rounded-md border border-neutral-200"
+                  className="w-20 h-28 object-cover rounded-md border border-neutral-200 shrink-0"
                 />
-                <div className="flex-1 min-w-0">
-                  <label className="block text-xs font-medium text-neutral-500 mb-1.5">
-                    書名
-                  </label>
-                  <input
-                    type="text"
-                    value={editedTitle}
-                    onChange={(e) => setEditedTitle(e.target.value)}
-                    className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-base focus:outline-none focus:border-neutral-900 transition"
-                    placeholder="輸入書名"
-                    autoFocus
-                  />
+                <div className="flex-1 min-w-0 space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-500 mb-1.5">
+                      書名
+                    </label>
+                    <input
+                      type="text"
+                      value={editedTitle}
+                      onChange={(e) => setEditedTitle(e.target.value)}
+                      className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-base focus:outline-none focus:border-neutral-900 transition"
+                      placeholder="輸入書名"
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-500 mb-1.5">
+                      分類
+                      {currentCapture.suggestedCategoryId &&
+                        editedCategoryId ===
+                          currentCapture.suggestedCategoryId && (
+                          <span className="ml-1.5 inline-flex items-center text-[10px] text-neutral-400 font-normal">
+                            · AI 推薦
+                          </span>
+                        )}
+                    </label>
+                    <CategorySelect
+                      value={editedCategoryId}
+                      onChange={(e) => setEditedCategoryId(e.target.value)}
+                      options={categoryOptions}
+                      placeholder={
+                        categoryOptions.length === 0
+                          ? "尚無分類，請先至後台新增"
+                          : "未分類"
+                      }
+                      disabled={categoryOptions.length === 0}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -417,7 +509,7 @@ export default function CheckinScanPage() {
                   onClick={handleConfirm}
                   className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
                 >
-                  加入書單
+                  加入入庫書單
                 </button>
               </div>
             </div>
@@ -467,7 +559,7 @@ export default function CheckinScanPage() {
               onClick={handleDuplicateNewCopy}
               className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
             >
-              新添購（加入 ({duplicateMatches.length + 1})）
+              新添購（序號 {duplicateMatches.length + 1}）
             </button>
           </div>
         }
@@ -522,35 +614,47 @@ export default function CheckinScanPage() {
           </p>
         ) : (
           <ul className="space-y-3 pb-2">
-            {confirmedBooks.map((b, idx) => (
-              <li
-                key={idx}
-                className="flex gap-3 items-center border border-neutral-100 rounded-xl p-3"
-              >
-                <ZoomableImage
-                  src={b.imageDataUrl}
-                  alt={b.title}
-                  className="w-12 h-16 object-cover rounded-md border border-neutral-100"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-neutral-900 truncate">
-                    {b.title}
-                  </p>
-                  <p className="text-xs text-neutral-400 mt-1">#{idx + 1}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = confirmedBooks.filter((_, i) => i !== idx);
-                    setConfirmedBooks(next);
-                    sessionStorage.setItem(BOOKS_KEY, JSON.stringify(next));
-                  }}
-                  className="text-xs text-neutral-400 hover:text-red-500 transition"
+            {confirmedBooks.map((b, idx) => {
+              const categoryName = b.categoryId
+                ? (categoryNameById.get(b.categoryId) ?? null)
+                : null;
+              return (
+                <li
+                  key={idx}
+                  className="flex gap-3 items-center border border-neutral-100 rounded-xl p-3"
                 >
-                  移除
-                </button>
-              </li>
-            ))}
+                  <ZoomableImage
+                    src={b.imageDataUrl}
+                    alt={b.title}
+                    className="w-12 h-16 object-cover rounded-md border border-neutral-100"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-neutral-900 truncate">
+                      {b.title}
+                    </p>
+                    <p className="text-xs text-neutral-400 mt-1">
+                      #{idx + 1}
+                      {categoryName && (
+                        <span className="ml-2 text-neutral-500">
+                          · {categoryName}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = confirmedBooks.filter((_, i) => i !== idx);
+                      setConfirmedBooks(next);
+                      sessionStorage.setItem(BOOKS_KEY, JSON.stringify(next));
+                    }}
+                    className="text-xs text-neutral-400 hover:text-red-500 transition"
+                  >
+                    移除
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </BottomSheet>
