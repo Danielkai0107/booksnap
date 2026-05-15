@@ -73,17 +73,9 @@ export default function HomeClient({ orgName, aiRecognizeCount }: Props) {
   return (
     <main className="relative min-h-screen flex flex-col items-center justify-center px-6 sm:px-10">
       <div
-        className="fixed top-4 inset-x-0 px-4 flex items-center justify-between gap-3 pointer-events-none"
+        className="fixed top-4 inset-x-0 px-4 flex items-center justify-end gap-3 pointer-events-none"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
-        <button
-          type="button"
-          onClick={() => handleNavigate("/admin")}
-          className="pointer-events-auto h-9 px-4 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs hover:bg-white/95 hover:text-neutral-900 transition inline-flex items-center gap-1.5"
-        >
-          管理後台
-        </button>
-
         <div className="pointer-events-auto h-9 px-4 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs inline-flex items-center gap-2 min-w-0">
           <span className="truncate max-w-[40vw]">{orgName}</span>
           <span className="text-neutral-300 shrink-0">·</span>
@@ -223,8 +215,19 @@ export default function HomeClient({ orgName, aiRecognizeCount }: Props) {
         </div>
       )}
 
-      <div className="fixed bottom-4 inset-x-0 flex justify-center pointer-events-none">
-        <div className="h-9 px-4 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs inline-flex items-center gap-1.5">
+      <div
+        className="fixed bottom-4 inset-x-0 px-4 flex items-center justify-between gap-3 pointer-events-none"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <button
+          type="button"
+          onClick={() => handleNavigate("/admin")}
+          className="pointer-events-auto h-9 px-4 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs hover:bg-white/95 hover:text-neutral-900 transition inline-flex items-center gap-1.5"
+        >
+          管理後台
+        </button>
+
+        <div className="pointer-events-auto h-9 px-4 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs inline-flex items-center gap-1.5">
           <span>智能 AI 辨識次數</span>
           <span className="font-semibold tabular-nums text-neutral-900">
             {aiRecognizeCount.toLocaleString()}
