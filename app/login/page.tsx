@@ -21,8 +21,8 @@ export default async function LoginPage({
       : null;
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6 sm:px-10 bg-white">
-      <div className="w-full max-w-sm">
+    <main className="min-h-screen flex flex-col px-6 sm:px-10 pt-20 md:pt-0 md:items-center md:justify-center bg-white">
+      <div className="w-full max-w-sm mx-auto pb-32 md:pb-0">
         <h1 className="text-center text-2xl font-semibold tracking-tight text-neutral-900">
           booksnap
         </h1>

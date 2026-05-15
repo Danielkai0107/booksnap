@@ -3,16 +3,20 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function SuperAdminDashboard() {
   const admin = createAdminClient();
-  const [{ data: orgs }, { count: usersCount }] = await Promise.all([
-    admin
-      .from("organizations")
-      .select("status")
-      .order("created_at", { ascending: false }),
-    admin
-      .from("profiles")
-      .select("*", { count: "exact", head: true })
-      .eq("role", "unit"),
-  ]);
+  const [{ data: orgs }, { count: usersCount }, { count: aiCount }] =
+    await Promise.all([
+      admin
+        .from("organizations")
+        .select("status")
+        .order("created_at", { ascending: false }),
+      admin
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .eq("role", "unit"),
+      admin
+        .from("ai_usage_logs")
+        .select("*", { count: "exact", head: true }),
+    ]);
 
   const counts = {
     total: orgs?.length ?? 0,
@@ -52,6 +56,17 @@ export default async function SuperAdminDashboard() {
         >
           前往審核
         </Link>
+      </div>
+
+      <div className="mt-10 p-5 border border-neutral-200 rounded-2xl bg-white">
+        <p className="text-sm font-medium text-neutral-900">AI 識別用量</p>
+        <p className="mt-1 text-xs text-neutral-500">
+          所有單位累計呼叫 Claude 識別書名的次數（消耗 token 的次數）。
+        </p>
+        <p className="mt-3 text-3xl font-semibold tabular-nums text-neutral-900">
+          {(aiCount ?? 0).toLocaleString()}
+          <span className="ml-1 text-sm font-normal text-neutral-500">次</span>
+        </p>
       </div>
 
       <p className="mt-6 text-xs text-neutral-400">

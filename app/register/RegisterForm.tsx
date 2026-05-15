@@ -135,17 +135,24 @@ export default function RegisterForm() {
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition"
-      >
-        {pending ? "送出中…" : "送出註冊申請"}
-      </button>
-
       <p className="text-xs text-neutral-500 leading-relaxed">
         送出後，會由營運方人工審核。審核通過後即可使用此 Email 與密碼登入。
       </p>
+
+      <div
+        className="fixed inset-x-0 bottom-0 z-10 px-6 pt-4 bg-white md:static md:p-0 md:bg-transparent"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 16px)" }}
+      >
+        <div className="max-w-sm mx-auto">
+          <button
+            type="submit"
+            disabled={pending}
+            className="w-full h-[46px] bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium rounded-lg transition"
+          >
+            {pending ? "送出中…" : "送出註冊申請"}
+          </button>
+        </div>
+      </div>
     </form>
   );
 }

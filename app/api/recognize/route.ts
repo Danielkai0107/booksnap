@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,12 @@ function parseImageBase64(input: string): { mediaType: string; data: string } {
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   let body: RecognizeBody;
   try {
     body = (await req.json()) as RecognizeBody;
@@ -95,6 +102,7 @@ export async function POST(req: NextRequest) {
 
     const json = (await response.json()) as {
       content?: Array<{ type: string; text?: string }>;
+      usage?: { input_tokens?: number; output_tokens?: number };
     };
     const text =
       json.content
@@ -104,6 +112,21 @@ export async function POST(req: NextRequest) {
         .trim() ?? "";
 
     const title = text.length > 0 ? text.slice(0, 80) : "無法識別";
+
+    // Log successful usage (tokens actually consumed). Done fire-and-forget
+    // so latency does not affect the user response; failure to log is non-fatal.
+    void supabase
+      .from("ai_usage_logs")
+      .insert({
+        user_id: userData.user.id,
+        kind: "recognize_book_cover",
+        input_tokens: json.usage?.input_tokens ?? null,
+        output_tokens: json.usage?.output_tokens ?? null,
+      })
+      .then(({ error }) => {
+        if (error) console.error("[recognize] log insert error", error);
+      });
+
     return NextResponse.json({ title, source: "claude" });
   } catch (err) {
     console.error("[recognize] exception", err);

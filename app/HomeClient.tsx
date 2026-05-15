@@ -8,9 +8,10 @@ import { signOutAction } from "./auth/actions";
 
 type Props = {
   orgName: string;
+  aiRecognizeCount: number;
 };
 
-export default function HomeClient({ orgName }: Props) {
+export default function HomeClient({ orgName, aiRecognizeCount }: Props) {
   const router = useRouter();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [target, setTarget] = useState<"borrow" | "return" | null>(null);
@@ -28,6 +29,34 @@ export default function HomeClient({ orgName }: Props) {
 
   return (
     <main className="relative min-h-screen flex flex-col items-center justify-center px-6 sm:px-10">
+      <div
+        className="fixed top-4 inset-x-0 flex justify-center pointer-events-none"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        <div className="px-4 py-2 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs inline-flex items-center gap-1.5">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-neutral-500"
+            aria-hidden
+          >
+            <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Z" />
+            <path d="M12 7v5l3 2" />
+          </svg>
+          <span>AI 識別累計</span>
+          <span className="font-semibold tabular-nums text-neutral-900">
+            {aiRecognizeCount.toLocaleString()}
+          </span>
+          <span>次</span>
+        </div>
+      </div>
+
       <div className="w-full max-w-sm mx-auto">
         <h1 className="text-center text-2xl font-semibold tracking-tight text-neutral-900 mb-10">
           booksnap

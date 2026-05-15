@@ -54,6 +54,16 @@ export default async function OrganizationsPage({
   const { data, error } = await query;
   const orgs = (data ?? []) as OrganizationRow[];
 
+  // AI 識別次數（per org）— 一次撈所有 logs 的 organization_id，前端聚合計數
+  const { data: aiRows } = await admin
+    .from("ai_usage_logs")
+    .select("organization_id");
+  const aiCountByOrg = new Map<string, number>();
+  (aiRows ?? []).forEach((r) => {
+    const id = (r as { organization_id: string }).organization_id;
+    aiCountByOrg.set(id, (aiCountByOrg.get(id) ?? 0) + 1);
+  });
+
   return (
     <div>
       <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
@@ -130,6 +140,10 @@ export default async function OrganizationsPage({
                     {o.rejected_reason && (
                       <Pair k="退回原因" v={o.rejected_reason} />
                     )}
+                    <Pair
+                      k="AI 識別累計"
+                      v={`${(aiCountByOrg.get(o.id) ?? 0).toLocaleString()} 次`}
+                    />
                   </dl>
                 </div>
                 <OrgRowActions

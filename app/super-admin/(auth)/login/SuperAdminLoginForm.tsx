@@ -47,13 +47,20 @@ export default function SuperAdminLoginForm() {
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition"
+      <div
+        className="fixed inset-x-0 bottom-0 z-10 px-6 pt-4 bg-white md:static md:p-0 md:bg-transparent"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 16px)" }}
       >
-        {pending ? "登入中…" : "登入"}
-      </button>
+        <div className="max-w-sm mx-auto">
+          <button
+            type="submit"
+            disabled={pending}
+            className="w-full h-[46px] bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium rounded-lg transition"
+          >
+            {pending ? "登入中…" : "登入"}
+          </button>
+        </div>
+      </div>
     </form>
   );
 }
