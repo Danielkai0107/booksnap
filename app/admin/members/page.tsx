@@ -129,7 +129,7 @@ export default function MembersPage() {
               <li key={m.name}>
                 <Link
                   href={`/admin/members/${encodeURIComponent(m.name)}`}
-                  className="flex items-center justify-between gap-3 px-4 py-3.5 border border-neutral-200 rounded-xl bg-white hover:border-neutral-300 transition"
+                  className="flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl bg-neutral-100 hover:bg-neutral-200/70 transition"
                 >
                   <div>
                     <p className="font-medium text-neutral-900">{m.name}</p>
