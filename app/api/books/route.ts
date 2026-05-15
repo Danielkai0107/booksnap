@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
       title: b.title,
       admin_name: adminName,
       image_url: imageUrl,
-      status: "in",
+      status: "available",
     });
   }
 

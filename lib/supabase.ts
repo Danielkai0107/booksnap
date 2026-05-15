@@ -33,12 +33,27 @@ export type BookRow = {
   admin_name: string;
   checkin_time: string;
   image_url: string | null;
-  status: "in" | "out" | string;
+  status: "available" | "borrowed" | string;
   shelf_id: string | null;
   return_time: string | null;
+  current_holder: string | null;
 };
 
 export type ShelfRow = {
   id: string;
   label: string | null;
+};
+
+export type MemberRow = {
+  id: string;
+  name: string;
+  created_at: string;
+};
+
+export type BorrowRecordRow = {
+  id: string;
+  book_id: string;
+  borrower_name: string;
+  borrowed_at: string;
+  returned_at: string | null;
 };

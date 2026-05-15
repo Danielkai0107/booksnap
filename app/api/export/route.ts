@@ -23,11 +23,9 @@ export async function GET() {
     入庫時間: b.checkin_time
       ? new Date(b.checkin_time).toLocaleString("zh-TW")
       : "",
-    狀態: b.status === "in" ? "在庫" : "已借出",
+    狀態: b.status === "available" ? "在庫" : "已借出",
+    目前持有人: b.current_holder ?? "",
     書架位置: b.shelf_id ?? "",
-    還書時間: b.return_time
-      ? new Date(b.return_time).toLocaleString("zh-TW")
-      : "",
   }));
 
   const headerOrder = [
@@ -36,8 +34,8 @@ export async function GET() {
     "入庫人員",
     "入庫時間",
     "狀態",
+    "目前持有人",
     "書架位置",
-    "還書時間",
   ];
 
   const worksheet =

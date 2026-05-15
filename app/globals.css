@@ -2,8 +2,8 @@
 
 @theme {
   --font-sans:
-    var(--font-noto-tc), "Noto Sans TC", -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
+    var(--font-dm), var(--font-noto-tc), "DM Sans", "Noto Sans TC",
+    -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 }
 
 :root {

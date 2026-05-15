@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
-import { Noto_Sans_TC } from "next/font/google";
+import { DM_Sans, Noto_Sans_TC } from "next/font/google";
 import "./globals.css";
+
+const dmSans = DM_Sans({
+  variable: "--font-dm",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
 
 const notoSansTC = Noto_Sans_TC({
   variable: "--font-noto-tc",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "700"],
   display: "swap",
 });
 
@@ -22,7 +29,7 @@ export default function RootLayout({
   return (
     <html
       lang="zh-Hant"
-      className={`${notoSansTC.variable} h-full antialiased`}
+      className={`${dmSans.variable} ${notoSansTC.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-white text-neutral-900 font-sans flex flex-col">
         {children}

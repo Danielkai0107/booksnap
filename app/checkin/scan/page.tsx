@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { recognizeBookCover } from "@/lib/ocr";
+import { formatDateYMD, generateBookId } from "@/lib/bookId";
+import { supabase } from "@/lib/supabase";
+import BottomSheet from "@/components/BottomSheet";
 
 type Mode = "loading" | "camera" | "processing" | "confirming";
 
@@ -17,10 +19,19 @@ type CurrentCapture = {
   detectedTitle: string;
 };
 
+type DuplicateMatch = {
+  book_id: string;
+  title: string;
+  image_url: string | null;
+  checkin_time: string;
+  status: string;
+  current_holder: string | null;
+};
+
 const BOOKS_KEY = "books";
 const ADMIN_KEY = "adminName";
 
-export default function ScanPage() {
+export default function CheckinScanPage() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -32,6 +43,15 @@ export default function ScanPage() {
   const [editedTitle, setEditedTitle] = useState("");
   const [adminName, setAdminName] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // 重複偵測
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>([]);
+  const [duplicateBase, setDuplicateBase] = useState("");
+
+  // 書單彈窗
+  const [listOpen, setListOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -62,9 +82,7 @@ export default function ScanPage() {
     const video = videoRef.current;
     const stream = streamRef.current;
     if (!video || !stream) return;
-    if (video.srcObject !== stream) {
-      video.srcObject = stream;
-    }
+    if (video.srcObject !== stream) video.srcObject = stream;
     try {
       await video.play();
     } catch (err) {
@@ -117,8 +135,6 @@ export default function ScanPage() {
     };
   }, [adminName, startCamera, stopStream]);
 
-  // Re-attach stream whenever the video element re-mounts (e.g. after returning
-  // from "processing" -> "camera"), in case the ref changed identity.
   useEffect(() => {
     if (mode === "camera" && streamRef.current) {
       void attachStreamToVideo();
@@ -145,7 +161,7 @@ export default function ScanPage() {
 
     try {
       const { title } = await recognizeBookCover(base64);
-      const finalTitle = title && title.trim().length > 0 ? title.trim() : "";
+      const finalTitle = title?.trim() ?? "";
       setCurrentCapture({ imageDataUrl: base64, detectedTitle: finalTitle });
       setEditedTitle(finalTitle);
       setMode("confirming");
@@ -157,21 +173,45 @@ export default function ScanPage() {
     }
   }, [stopStream]);
 
-  const handleConfirm = useCallback(() => {
-    if (!currentCapture) return;
-    const next: ConfirmedBook[] = [
-      ...confirmedBooks,
-      {
-        title: editedTitle.trim() || "未命名書籍",
-        imageDataUrl: currentCapture.imageDataUrl,
-      },
-    ];
-    setConfirmedBooks(next);
-    sessionStorage.setItem(BOOKS_KEY, JSON.stringify(next));
-    setCurrentCapture(null);
-    setEditedTitle("");
-    startCamera();
-  }, [confirmedBooks, currentCapture, editedTitle, startCamera]);
+  const addBook = useCallback(
+    (title: string) => {
+      if (!currentCapture) return;
+      const next: ConfirmedBook[] = [
+        ...confirmedBooks,
+        { title, imageDataUrl: currentCapture.imageDataUrl },
+      ];
+      setConfirmedBooks(next);
+      sessionStorage.setItem(BOOKS_KEY, JSON.stringify(next));
+      setCurrentCapture(null);
+      setEditedTitle("");
+      startCamera();
+    },
+    [confirmedBooks, currentCapture, startCamera]
+  );
+
+  const handleConfirm = useCallback(async () => {
+    const raw = editedTitle.trim() || "未命名書籍";
+
+    try {
+      const res = await fetch(
+        `/api/books/check-title?title=${encodeURIComponent(raw)}`,
+        { cache: "no-store" }
+      );
+      const data = (await res.json()) as {
+        base?: string;
+        matches?: DuplicateMatch[];
+      };
+      if (data.matches && data.matches.length > 0) {
+        setDuplicateBase(data.base ?? raw);
+        setDuplicateMatches(data.matches);
+        setDuplicateOpen(true);
+        return;
+      }
+    } catch (err) {
+      console.warn("[checkin] check-title failed, proceeding", err);
+    }
+    addBook(raw);
+  }, [editedTitle, addBook]);
 
   const handleRetake = useCallback(() => {
     setCurrentCapture(null);
@@ -179,39 +219,103 @@ export default function ScanPage() {
     startCamera();
   }, [startCamera]);
 
-  const handleFinish = useCallback(() => {
-    stopStream();
-    sessionStorage.setItem(BOOKS_KEY, JSON.stringify(confirmedBooks));
-    router.push("/checkin/result");
-  }, [confirmedBooks, router, stopStream]);
+  const handleDuplicateCancel = useCallback(() => {
+    setDuplicateOpen(false);
+    setDuplicateMatches([]);
+    setDuplicateBase("");
+    setCurrentCapture(null);
+    setEditedTitle("");
+    startCamera();
+  }, [startCamera]);
+
+  const handleDuplicateNewCopy = useCallback(() => {
+    const nextNum = duplicateMatches.length + 1;
+    const suffixed = `${duplicateBase} (${nextNum})`;
+    setDuplicateOpen(false);
+    setDuplicateMatches([]);
+    setDuplicateBase("");
+    addBook(suffixed);
+  }, [duplicateBase, duplicateMatches.length, addBook]);
+
+  const handleSubmit = useCallback(async () => {
+    if (confirmedBooks.length === 0 || submitting) return;
+    setSubmitting(true);
+    try {
+      const now = new Date();
+      const ymd = formatDateYMD(now);
+      const prefix = `LIB-${ymd}-`;
+      let startSeq = 1;
+      try {
+        const { data: existing } = await supabase
+          .from("books")
+          .select("book_id")
+          .like("book_id", `${prefix}%`)
+          .order("book_id", { ascending: false })
+          .limit(1);
+        const lastId = existing?.[0]?.book_id as string | undefined;
+        if (lastId) {
+          const lastSeq = parseInt(lastId.slice(prefix.length), 10);
+          if (!Number.isNaN(lastSeq)) startSeq = lastSeq + 1;
+        }
+      } catch (err) {
+        console.warn("[checkin] failed to fetch existing book_ids", err);
+      }
+
+      const payload = {
+        adminName,
+        books: confirmedBooks.map((b, idx) => ({
+          title: b.title,
+          bookId: generateBookId(now, startSeq + idx),
+          imageBase64: b.imageDataUrl,
+        })),
+      };
+
+      const res = await fetch("/api/books", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `HTTP ${res.status}`);
+      }
+      sessionStorage.removeItem(BOOKS_KEY);
+      sessionStorage.removeItem(ADMIN_KEY);
+      router.push("/admin");
+    } catch (err) {
+      console.error("[checkin] submit failed", err);
+      alert(`入庫失敗：${err instanceof Error ? err.message : String(err)}`);
+      setSubmitting(false);
+    }
+  }, [adminName, confirmedBooks, router, submitting]);
 
   return (
     <div className="fixed inset-0 bg-black text-white flex flex-col">
-      <header className="flex items-center justify-between px-5 py-3.5 bg-black/85 backdrop-blur-md z-20 border-b border-white/5 gap-3">
-        <Link
-          href="/"
-          onClick={stopStream}
-          className="text-[13px] text-white/60 hover:text-white transition shrink-0"
-        >
-          返回
-        </Link>
-        <div className="text-[13px] flex items-center gap-2 min-w-0 flex-1 justify-center">
-          <span className="text-white/50">管理員</span>
-          <span className="text-white font-medium truncate max-w-[6em]">
-            {adminName || "—"}
-          </span>
-          <span className="text-white/20">·</span>
-          <span className="text-white/50">已確認</span>
-          <span className="text-white font-medium tabular-nums">
-            {confirmedBooks.length}
-          </span>
-        </div>
+      <header className="flex items-center justify-between px-4 py-3 bg-black/60 backdrop-blur-md z-20 gap-3">
         <button
-          onClick={handleFinish}
-          className="bg-white text-neutral-900 text-[13px] font-medium px-4 py-1.5 rounded-md disabled:opacity-30 disabled:cursor-not-allowed hover:bg-neutral-100 transition shrink-0"
-          disabled={confirmedBooks.length === 0}
+          type="button"
+          onClick={() => setListOpen(true)}
+          className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white text-[13px] font-medium px-3.5 py-1.5 rounded-full transition"
         >
-          結束入庫
+          入庫 ({confirmedBooks.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            stopStream();
+            router.push("/admin");
+          }}
+          className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md flex items-center justify-center transition"
+          aria-label="關閉"
+        >
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+            <path
+              d="M1 1L13 13M13 1L1 13"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+          </svg>
         </button>
       </header>
 
@@ -241,13 +345,10 @@ export default function ScanPage() {
             {errorMsg && !streamRef.current && (
               <div className="absolute inset-0 z-10 flex items-center justify-center px-6">
                 <div className="bg-white text-neutral-900 max-w-sm w-full rounded-2xl p-6 shadow-2xl">
-                  <p className="text-xs uppercase tracking-[0.16em] text-neutral-400 mb-2">
-                    無法開啟相機
-                  </p>
-                  <p className="text-sm leading-relaxed text-neutral-700">
+                  <p className="text-sm leading-relaxed text-neutral-700 mb-5">
                     {errorMsg}
                   </p>
-                  <div className="flex gap-3 mt-5">
+                  <div className="flex gap-3">
                     <button
                       onClick={() => {
                         stopStream();
@@ -265,11 +366,6 @@ export default function ScanPage() {
                     </button>
                   </div>
                 </div>
-              </div>
-            )}
-            {errorMsg && streamRef.current && (
-              <div className="absolute top-3 inset-x-3 z-10 text-xs bg-black/80 text-white px-3 py-2 rounded-md border border-white/10">
-                {errorMsg}
               </div>
             )}
             {mode === "camera" && !errorMsg && (
@@ -321,11 +417,6 @@ export default function ScanPage() {
                     placeholder="輸入書名"
                     autoFocus
                   />
-                  {currentCapture.detectedTitle && (
-                    <p className="text-xs text-neutral-400 mt-1.5">
-                      辨識結果：{currentCapture.detectedTitle}
-                    </p>
-                  )}
                 </div>
               </div>
 
@@ -347,6 +438,113 @@ export default function ScanPage() {
           </div>
         )}
       </div>
+
+      <BottomSheet
+        open={duplicateOpen}
+        onClose={handleDuplicateCancel}
+        title="這本書好像已經在館藏中"
+        subtitle={`已找到 ${duplicateMatches.length} 本同名書`}
+        footer={
+          <div className="flex gap-3">
+            <button
+              onClick={handleDuplicateCancel}
+              className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
+            >
+              是同一本（取消）
+            </button>
+            <button
+              onClick={handleDuplicateNewCopy}
+              className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+            >
+              新添購（加入 ({duplicateMatches.length + 1})）
+            </button>
+          </div>
+        }
+      >
+        <ul className="space-y-3 pb-2">
+          {duplicateMatches.map((m) => (
+            <li
+              key={m.book_id}
+              className="flex gap-3 items-start border border-neutral-100 rounded-xl p-3"
+            >
+              {m.image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={m.image_url}
+                  alt=""
+                  className="w-14 h-20 object-cover rounded-md border border-neutral-100"
+                />
+              ) : (
+                <div className="w-14 h-20 rounded-md bg-neutral-100" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-neutral-900 truncate">
+                  {m.title}
+                </p>
+                <p className="text-xs text-neutral-500 mt-1">{m.book_id}</p>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  {new Date(m.checkin_time).toLocaleString("zh-TW")}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </BottomSheet>
+
+      <BottomSheet
+        open={listOpen}
+        onClose={() => setListOpen(false)}
+        title={`已掃 ${confirmedBooks.length} 本書`}
+        subtitle={adminName ? `負責人：${adminName}` : undefined}
+        footer={
+          <button
+            onClick={handleSubmit}
+            disabled={confirmedBooks.length === 0 || submitting}
+            className="w-full bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-lg transition disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
+          >
+            {submitting ? "送出中…" : "完成入庫"}
+          </button>
+        }
+      >
+        {confirmedBooks.length === 0 ? (
+          <p className="py-10 text-center text-sm text-neutral-500">
+            尚未掃描任何書本
+          </p>
+        ) : (
+          <ul className="space-y-3 pb-2">
+            {confirmedBooks.map((b, idx) => (
+              <li
+                key={idx}
+                className="flex gap-3 items-center border border-neutral-100 rounded-xl p-3"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={b.imageDataUrl}
+                  alt=""
+                  className="w-12 h-16 object-cover rounded-md border border-neutral-100"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-neutral-900 truncate">
+                    {b.title}
+                  </p>
+                  <p className="text-xs text-neutral-400 mt-1">#{idx + 1}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = confirmedBooks.filter((_, i) => i !== idx);
+                    setConfirmedBooks(next);
+                    sessionStorage.setItem(BOOKS_KEY, JSON.stringify(next));
+                  }}
+                  className="text-xs text-neutral-400 hover:text-red-500 transition"
+                >
+                  移除
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </BottomSheet>
     </div>
   );
 }
