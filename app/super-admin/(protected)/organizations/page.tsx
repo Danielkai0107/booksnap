@@ -136,6 +136,9 @@ export default async function OrganizationsPage({
                   orgId={o.id}
                   orgName={o.name}
                   status={o.status}
+                  city={o.city}
+                  contactEmail={o.contact_email}
+                  contactPhone={o.contact_phone}
                 />
               </div>
             </li>

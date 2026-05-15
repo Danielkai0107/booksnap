@@ -44,7 +44,7 @@ export default function LoginForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium px-4 py-3 rounded-2xl transition"
+        className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition"
       >
         {pending ? "登入中…" : "登入"}
       </button>

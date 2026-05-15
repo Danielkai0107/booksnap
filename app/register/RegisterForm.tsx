@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { registerAction, type RegisterState } from "./actions";
 
 const initial: RegisterState = {};
@@ -33,25 +33,45 @@ const CITIES = [
 export default function RegisterForm() {
   const [state, formAction, pending] = useActionState(registerAction, initial);
   const v = state?.values ?? {};
+  const [city, setCity] = useState<string>(v.city ?? "");
 
   return (
     <form action={formAction} className="mt-8 space-y-4">
       <Field label="縣市">
-        <select
-          name="city"
-          defaultValue={v.city ?? ""}
-          required
-          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
-        >
-          <option value="" disabled>
-            請選擇縣市
-          </option>
-          {CITIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
+        <div className="relative">
+          <select
+            name="city"
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            required
+            className={`w-full appearance-none pl-4 pr-10 py-2.5 rounded-lg border border-neutral-200 bg-white focus:outline-none focus:border-neutral-900 transition ${
+              city === "" ? "text-neutral-400" : "text-neutral-900"
+            }`}
+          >
+            <option value="" disabled>
+              請選擇縣市
             </option>
-          ))}
-        </select>
+            {CITIES.map((c) => (
+              <option key={c} value={c} className="text-neutral-900">
+                {c}
+              </option>
+            ))}
+          </select>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400"
+            aria-hidden
+          >
+            <path d="M3 5l3 3 3-3" />
+          </svg>
+        </div>
       </Field>
 
       <Field label="單位名稱">
@@ -61,7 +81,7 @@ export default function RegisterForm() {
           required
           defaultValue={v.name ?? ""}
           placeholder="例：示範幼兒園"
-          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
+          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
         />
       </Field>
 
@@ -72,7 +92,7 @@ export default function RegisterForm() {
           required
           defaultValue={v.email ?? ""}
           autoComplete="email"
-          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
+          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
         />
       </Field>
 
@@ -83,7 +103,7 @@ export default function RegisterForm() {
           required
           defaultValue={v.phone ?? ""}
           placeholder="例：02-1234-5678"
-          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
+          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
         />
       </Field>
 
@@ -94,7 +114,7 @@ export default function RegisterForm() {
           required
           minLength={8}
           autoComplete="new-password"
-          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
+          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
         />
       </Field>
 
@@ -105,7 +125,7 @@ export default function RegisterForm() {
           required
           minLength={8}
           autoComplete="new-password"
-          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
+          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
         />
       </Field>
 
@@ -118,7 +138,7 @@ export default function RegisterForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium px-4 py-3 rounded-2xl transition"
+        className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition"
       >
         {pending ? "送出中…" : "送出註冊申請"}
       </button>

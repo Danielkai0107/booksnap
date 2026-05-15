@@ -72,6 +72,101 @@ export async function reactivateOrganization(orgId: string): Promise<void> {
   revalidatePath("/super-admin/organizations");
 }
 
+const TW_CITIES = new Set([
+  "台北市",
+  "新北市",
+  "桃園市",
+  "台中市",
+  "台南市",
+  "高雄市",
+  "基隆市",
+  "新竹市",
+  "嘉義市",
+  "新竹縣",
+  "苗栗縣",
+  "彰化縣",
+  "南投縣",
+  "雲林縣",
+  "嘉義縣",
+  "屏東縣",
+  "宜蘭縣",
+  "花蓮縣",
+  "台東縣",
+  "澎湖縣",
+  "金門縣",
+  "連江縣",
+]);
+
+export type UpdateOrgInput = {
+  name: string;
+  city: string;
+  contactEmail: string;
+  contactPhone: string;
+};
+
+export async function updateOrganization(
+  orgId: string,
+  input: UpdateOrgInput
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await assertSuperAdmin();
+
+  const name = input.name.trim();
+  const city = input.city.trim();
+  const contactEmail = input.contactEmail.trim().toLowerCase();
+  const contactPhone = input.contactPhone.trim();
+
+  if (!name) return { ok: false, error: "請填寫單位名稱" };
+  if (!TW_CITIES.has(city)) return { ok: false, error: "縣市不在允許清單" };
+  if (!contactEmail) return { ok: false, error: "請填寫 Email" };
+  if (!contactPhone) return { ok: false, error: "請填寫聯絡電話" };
+
+  const admin = createAdminClient();
+
+  // Read current org to detect email change
+  const { data: current, error: readErr } = await admin
+    .from("organizations")
+    .select("contact_email, owner_user_id")
+    .eq("id", orgId)
+    .maybeSingle();
+  if (readErr || !current) {
+    return { ok: false, error: readErr?.message ?? "找不到單位" };
+  }
+
+  const { error: updateErr } = await admin
+    .from("organizations")
+    .update({
+      name,
+      city,
+      contact_email: contactEmail,
+      contact_phone: contactPhone,
+    })
+    .eq("id", orgId);
+  if (updateErr) {
+    return { ok: false, error: updateErr.message };
+  }
+
+  // Keep the auth user's login email in sync with contact_email
+  if (
+    current.contact_email !== contactEmail &&
+    current.owner_user_id
+  ) {
+    const { error: authErr } = await admin.auth.admin.updateUserById(
+      current.owner_user_id,
+      { email: contactEmail, email_confirm: true }
+    );
+    if (authErr) {
+      return {
+        ok: false,
+        error: `單位資料已更新，但登入 Email 同步失敗：${authErr.message}`,
+      };
+    }
+  }
+
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/organizations");
+  return { ok: true };
+}
+
 export async function resetOrganizationPassword(
   orgId: string,
   newPassword: string
