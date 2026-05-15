@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { recognizeBookCover } from "@/lib/ocr";
 
 type Mode = "loading" | "camera" | "processing" | "confirming";
@@ -167,10 +168,19 @@ export default function ScanPage() {
 
   return (
     <div className="fixed inset-0 bg-black text-white flex flex-col">
-      <header className="flex items-center justify-between px-5 py-3.5 bg-black/85 backdrop-blur-md z-20 border-b border-white/5">
-        <div className="text-[13px] flex items-center gap-3">
+      <header className="flex items-center justify-between px-5 py-3.5 bg-black/85 backdrop-blur-md z-20 border-b border-white/5 gap-3">
+        <Link
+          href="/"
+          onClick={stopStream}
+          className="text-[13px] text-white/60 hover:text-white transition shrink-0"
+        >
+          返回
+        </Link>
+        <div className="text-[13px] flex items-center gap-2 min-w-0 flex-1 justify-center">
           <span className="text-white/50">管理員</span>
-          <span className="text-white font-medium">{adminName || "—"}</span>
+          <span className="text-white font-medium truncate max-w-[6em]">
+            {adminName || "—"}
+          </span>
           <span className="text-white/20">·</span>
           <span className="text-white/50">已確認</span>
           <span className="text-white font-medium tabular-nums">
@@ -179,7 +189,7 @@ export default function ScanPage() {
         </div>
         <button
           onClick={handleFinish}
-          className="bg-white text-neutral-900 text-[13px] font-medium px-4 py-1.5 rounded-md disabled:opacity-30 disabled:cursor-not-allowed hover:bg-neutral-100 transition"
+          className="bg-white text-neutral-900 text-[13px] font-medium px-4 py-1.5 rounded-md disabled:opacity-30 disabled:cursor-not-allowed hover:bg-neutral-100 transition shrink-0"
           disabled={confirmedBooks.length === 0}
         >
           結束入庫
@@ -221,12 +231,23 @@ export default function ScanPage() {
                   <p className="text-sm leading-relaxed text-neutral-700">
                     {errorMsg}
                   </p>
-                  <button
-                    onClick={() => startCamera()}
-                    className="mt-5 w-full bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
-                  >
-                    重新嘗試
-                  </button>
+                  <div className="flex gap-3 mt-5">
+                    <button
+                      onClick={() => {
+                        stopStream();
+                        router.push("/");
+                      }}
+                      className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
+                    >
+                      回首頁
+                    </button>
+                    <button
+                      onClick={() => startCamera()}
+                      className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+                    >
+                      重新嘗試
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
