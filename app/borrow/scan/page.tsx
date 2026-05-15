@@ -220,6 +220,13 @@ export default function BorrowScanPage() {
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
       sessionStorage.removeItem("currentMember");
+      sessionStorage.setItem(
+        "pendingToast",
+        JSON.stringify({
+          message: `已成功借出 ${books.length} 本書`,
+          kind: "success",
+        })
+      );
       setNavigating(true);
       router.push("/");
     } catch (err) {

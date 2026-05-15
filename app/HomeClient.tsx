@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import MemberPicker from "@/components/MemberPicker";
+import Toast, { type ToastKind } from "@/components/Toast";
 import { signOutAction } from "./auth/actions";
 
 type Props = {
@@ -15,13 +16,41 @@ export default function HomeClient({ orgName, aiRecognizeCount }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [target, setTarget] = useState<"borrow" | "return" | null>(null);
   const [navigating, setNavigating] = useState(false);
+  const [toast, setToast] = useState<{
+    open: boolean;
+    message: string;
+    kind: ToastKind;
+  }>({ open: false, message: "", kind: "success" });
 
   useEffect(() => {
     router.prefetch("/borrow/scan");
     router.prefetch("/return/scan");
     router.prefetch("/members");
     router.prefetch("/books");
+    router.prefetch("/admin");
   }, [router]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = sessionStorage.getItem("pendingToast");
+    if (!stored) return;
+    sessionStorage.removeItem("pendingToast");
+    try {
+      const parsed = JSON.parse(stored) as {
+        message?: string;
+        kind?: ToastKind;
+      };
+      if (parsed.message) {
+        setToast({
+          open: true,
+          message: parsed.message,
+          kind: parsed.kind ?? "success",
+        });
+      }
+    } catch {
+      // ignore malformed payload
+    }
+  }, []);
 
   function openPicker(t: "borrow" | "return") {
     setTarget(t);
@@ -44,30 +73,28 @@ export default function HomeClient({ orgName, aiRecognizeCount }: Props) {
   return (
     <main className="relative min-h-screen flex flex-col items-center justify-center px-6 sm:px-10">
       <div
-        className="fixed top-4 inset-x-0 flex justify-center pointer-events-none"
+        className="fixed top-4 inset-x-0 px-4 flex items-center justify-between gap-3 pointer-events-none"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
-        <div className="px-4 py-2 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs inline-flex items-center gap-1.5">
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-neutral-500"
-            aria-hidden
-          >
-            <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Z" />
-            <path d="M12 7v5l3 2" />
-          </svg>
-          <span>AI 識別累計</span>
-          <span className="font-semibold tabular-nums text-neutral-900">
-            {aiRecognizeCount.toLocaleString()}
-          </span>
-          <span>次</span>
+        <button
+          type="button"
+          onClick={() => handleNavigate("/admin")}
+          className="pointer-events-auto px-4 py-2 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs hover:bg-white/95 hover:text-neutral-900 transition inline-flex items-center gap-1.5"
+        >
+          <span className="leading-none">管理後台</span>
+        </button>
+
+        <div className="pointer-events-auto px-4 py-2 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs flex items-center gap-2 min-w-0">
+          <span className="truncate max-w-[40vw]">{orgName}</span>
+          <span className="text-neutral-300 shrink-0">·</span>
+          <form action={signOutAction} className="shrink-0">
+            <button
+              type="submit"
+              className="text-neutral-500 hover:text-neutral-900 transition"
+            >
+              登出
+            </button>
+          </form>
         </div>
       </div>
 
@@ -176,6 +203,13 @@ export default function HomeClient({ orgName, aiRecognizeCount }: Props) {
         </div>
       </div>
 
+      <Toast
+        open={toast.open}
+        message={toast.message}
+        kind={toast.kind}
+        onClose={() => setToast((t) => ({ ...t, open: false }))}
+      />
+
       <MemberPicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
@@ -189,18 +223,13 @@ export default function HomeClient({ orgName, aiRecognizeCount }: Props) {
         </div>
       )}
 
-      <div className="fixed bottom-4 inset-x-0 flex justify-center">
-        <div className="px-4 py-2 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs flex items-center gap-2">
-          <span>{orgName} 使用</span>
-          <span className="text-neutral-300">·</span>
-          <form action={signOutAction}>
-            <button
-              type="submit"
-              className="text-neutral-500 hover:text-neutral-900 transition"
-            >
-              登出
-            </button>
-          </form>
+      <div className="fixed bottom-4 inset-x-0 flex justify-center pointer-events-none">
+        <div className="px-4 py-2 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs inline-flex items-center gap-1.5">
+          <span>智能 AI 辨識次數</span>
+          <span className="font-semibold tabular-nums text-neutral-900">
+            {aiRecognizeCount.toLocaleString()}
+          </span>
+          <span>次</span>
         </div>
       </div>
     </main>
