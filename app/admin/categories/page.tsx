@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminShell from "@/components/AdminShell";
 import BottomSheet from "@/components/BottomSheet";
+import Toast, { type ToastKind } from "@/components/Toast";
 import type { CategoryRow } from "@/lib/supabase";
 
 export default function CategoriesPage() {
@@ -13,6 +14,11 @@ export default function CategoriesPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<CategoryRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CategoryRow | null>(null);
+  const [toast, setToast] = useState<{
+    open: boolean;
+    message: string;
+    kind: ToastKind;
+  }>({ open: false, message: "", kind: "success" });
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -176,9 +182,14 @@ export default function CategoriesPage() {
       {addOpen && (
         <CategoryEditSheet
           onClose={() => setAddOpen(false)}
-          onSaved={() => {
+          onSaved={(name) => {
             setAddOpen(false);
             void fetchAll();
+            setToast({
+              open: true,
+              message: `已新增分類「${name}」`,
+              kind: "success",
+            });
           }}
         />
       )}
@@ -239,6 +250,13 @@ export default function CategoriesPage() {
           </p>
         </BottomSheet>
       )}
+
+      <Toast
+        open={toast.open}
+        message={toast.message}
+        kind={toast.kind}
+        onClose={() => setToast((t) => ({ ...t, open: false }))}
+      />
     </AdminShell>
   );
 }
@@ -250,7 +268,7 @@ function CategoryEditSheet({
 }: {
   category?: CategoryRow;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (name: string) => void;
 }) {
   const isEdit = !!category;
   const [name, setName] = useState(category?.name ?? "");
@@ -273,7 +291,7 @@ function CategoryEditSheet({
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
-      onSaved();
+      onSaved(trimmed);
     } catch (err) {
       alert(`儲存失敗：${err instanceof Error ? err.message : String(err)}`);
       setSaving(false);

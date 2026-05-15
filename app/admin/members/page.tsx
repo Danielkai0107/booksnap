@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AdminShell from "@/components/AdminShell";
 import BottomSheet from "@/components/BottomSheet";
+import Toast, { type ToastKind } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 
 type Member = {
@@ -18,6 +19,11 @@ export default function MembersPage() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [toast, setToast] = useState<{
+    open: boolean;
+    message: string;
+    kind: ToastKind;
+  }>({ open: false, message: "", kind: "success" });
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -230,12 +236,24 @@ export default function MembersPage() {
       {addOpen && (
         <AddMemberSheet
           onClose={() => setAddOpen(false)}
-          onAdded={() => {
+          onAdded={(name) => {
             setAddOpen(false);
             void fetchAll();
+            setToast({
+              open: true,
+              message: `已新增成員「${name}」`,
+              kind: "success",
+            });
           }}
         />
       )}
+
+      <Toast
+        open={toast.open}
+        message={toast.message}
+        kind={toast.kind}
+        onClose={() => setToast((t) => ({ ...t, open: false }))}
+      />
     </AdminShell>
   );
 }
@@ -245,7 +263,7 @@ function AddMemberSheet({
   onAdded,
 }: {
   onClose: () => void;
-  onAdded: () => void;
+  onAdded: (name: string) => void;
 }) {
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -264,7 +282,7 @@ function AddMemberSheet({
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
-      onAdded();
+      onAdded(trimmed);
     } catch (err) {
       alert(`新增失敗：${err instanceof Error ? err.message : String(err)}`);
       setSaving(false);

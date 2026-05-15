@@ -10,6 +10,7 @@ import BottomSheet from "@/components/BottomSheet";
 import CategorySelect from "@/components/CategorySelect";
 import CategoryTag from "@/components/CategoryTag";
 import EditBookSheet from "@/components/EditBookSheet";
+import Toast, { type ToastKind } from "@/components/Toast";
 
 type EditTarget = BookRow | null;
 
@@ -27,6 +28,11 @@ export default function AdminPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
   const [deleteTarget, setDeleteTarget] = useState<EditTarget>(null);
+  const [toast, setToast] = useState<{
+    open: boolean;
+    message: string;
+    kind: ToastKind;
+  }>({ open: false, message: "", kind: "success" });
 
   const categoryOptions = useMemo(
     () => categories.map((c) => ({ value: c.id, label: c.name })),
@@ -63,6 +69,28 @@ export default function AdminPage() {
 
   useEffect(() => {
     void fetchAll();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = sessionStorage.getItem("pendingToast");
+    if (!stored) return;
+    sessionStorage.removeItem("pendingToast");
+    try {
+      const parsed = JSON.parse(stored) as {
+        message?: string;
+        kind?: ToastKind;
+      };
+      if (parsed.message) {
+        setToast({
+          open: true,
+          message: parsed.message,
+          kind: parsed.kind ?? "success",
+        });
+      }
+    } catch {
+      // ignore malformed payload
+    }
   }, []);
 
   const filtered = useMemo(() => {
@@ -157,7 +185,7 @@ export default function AdminPage() {
           />
         </div>
       </div>
-      <div className="mb-6 flex gap-2">
+      <div className="mb-6 flex items-center gap-2">
         <StatusFilterChip
           active={statusFilter === ""}
           onClick={() => setStatusFilter("")}
@@ -178,6 +206,9 @@ export default function AdminPage() {
         >
           已借出
         </StatusFilterChip>
+        <span className="ml-auto text-xs text-neutral-400">
+          共 {filtered.length} 本
+        </span>
       </div>
 
       {errorMsg && (
@@ -424,6 +455,13 @@ export default function AdminPage() {
           </p>
         </BottomSheet>
       )}
+
+      <Toast
+        open={toast.open}
+        message={toast.message}
+        kind={toast.kind}
+        onClose={() => setToast((t) => ({ ...t, open: false }))}
+      />
     </AdminShell>
   );
 }

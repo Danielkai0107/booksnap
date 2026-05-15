@@ -348,8 +348,16 @@ export default function CheckinScanPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
+      const successCount = confirmedBooks.length;
       sessionStorage.removeItem(BOOKS_KEY);
       sessionStorage.removeItem(ADMIN_KEY);
+      sessionStorage.setItem(
+        "pendingToast",
+        JSON.stringify({
+          message: `已成功入庫 ${successCount} 本新書`,
+          kind: "success",
+        })
+      );
       setNavigating(true);
       router.push("/admin");
     } catch (err) {
