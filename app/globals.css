@@ -21,6 +21,22 @@ body {
   letter-spacing: -0.005em;
 }
 
+/* Prevent iOS Safari from auto-zooming when focusing a form control:
+   any computed font-size < 16px triggers the zoom. Force 16px on mobile,
+   and restore the smaller visual size on tablets / desktop. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+@media (min-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 14px;
+  }
+}
+
 /* Tabular numerals helper */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
