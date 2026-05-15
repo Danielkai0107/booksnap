@@ -86,7 +86,7 @@ export default function MemberPicker({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="搜尋成員"
-          className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-200 bg-white text-sm focus:outline-none focus:border-neutral-900 transition"
+          className="w-full h-[46px] px-3.5 rounded-lg border border-neutral-200 bg-white text-sm focus:outline-none focus:border-neutral-900 transition"
         />
       </div>
       {errorMsg && <p className="text-sm text-red-600 mb-3">{errorMsg}</p>}
@@ -103,18 +103,18 @@ export default function MemberPicker({
           </p>
         </div>
       ) : (
-        <ul className="pb-2 divide-y divide-neutral-100">
+        <ul className="pb-2 space-y-2">
           {filtered.map((m) => {
             const active = picked === m.name;
             return (
-              <li key={m.name} className="py-1">
+              <li key={m.name}>
                 <button
                   type="button"
                   onClick={() => setPicked(m.name)}
-                  className={`w-full text-center px-4 py-3 rounded-lg transition text-base font-medium ${
+                  className={`w-full text-center px-4 py-3 rounded-lg border-2 transition text-base font-medium ${
                     active
-                      ? "bg-neutral-100 text-neutral-900"
-                      : "text-neutral-900 hover:bg-neutral-50"
+                      ? "bg-neutral-100 text-neutral-900 border-neutral-900"
+                      : "bg-neutral-100 text-neutral-900 border-transparent"
                   }`}
                 >
                   {m.name}

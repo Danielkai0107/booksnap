@@ -7,6 +7,7 @@ import { supabase, BookRow } from "@/lib/supabase";
 import AdminShell from "@/components/AdminShell";
 import BookActionsMenu from "@/components/BookActionsMenu";
 import BottomSheet from "@/components/BottomSheet";
+import ZoomableImage from "@/components/ZoomableImage";
 
 type EditTarget = BookRow | null;
 
@@ -151,8 +152,7 @@ export default function AdminPage() {
                   className="flex-1 flex gap-3 items-start min-w-0"
                 >
                   {b.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <ZoomableImage
                       src={b.image_url}
                       alt={b.title}
                       className="w-12 h-16 object-cover rounded border border-neutral-200"
@@ -167,13 +167,13 @@ export default function AdminPage() {
                     <p className="text-xs text-neutral-400 mt-1 font-mono">
                       {b.book_id}
                     </p>
-                    <div className="flex items-center gap-2 mt-2.5">
-                      <StatusPill status={b.status} />
-                      {b.current_holder && (
-                        <span className="text-xs text-neutral-500">
-                          {b.current_holder}
-                        </span>
-                      )}
+                    <div className="flex items-center justify-between gap-2 mt-2.5">
+                      <span className="text-xs text-neutral-500 truncate min-w-0">
+                        {b.current_holder ?? ""}
+                      </span>
+                      <span className="shrink-0">
+                        <StatusPill status={b.status} />
+                      </span>
                     </div>
                   </div>
                 </Link>
@@ -216,8 +216,7 @@ export default function AdminPage() {
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         {b.image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
+                          <ZoomableImage
                             src={b.image_url}
                             alt={b.title}
                             className="w-9 h-12 object-cover rounded border border-neutral-200"
@@ -445,10 +444,9 @@ function EditBookSheet({
     >
       <div className="flex gap-4 items-start pb-3">
         {book.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <ZoomableImage
             src={book.image_url}
-            alt=""
+            alt={book.title}
             className="w-20 h-28 object-cover rounded-md border border-neutral-100"
           />
         ) : (
@@ -463,7 +461,7 @@ function EditBookSheet({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-neutral-900 transition"
+              className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
             />
           </div>
           <div>
@@ -475,7 +473,7 @@ function EditBookSheet({
               value={shelfId}
               onChange={(e) => setShelfId(e.target.value)}
               placeholder="（選填）"
-              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-neutral-900 transition"
+              className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
             />
           </div>
         </div>

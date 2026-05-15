@@ -35,9 +35,9 @@ export default function BookActionsMenu({ onEdit, onDelete }: Props) {
         aria-label="更多操作"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <circle cx="3" cy="8" r="1.4" fill="currentColor" />
+          <circle cx="8" cy="3" r="1.4" fill="currentColor" />
           <circle cx="8" cy="8" r="1.4" fill="currentColor" />
-          <circle cx="13" cy="8" r="1.4" fill="currentColor" />
+          <circle cx="8" cy="13" r="1.4" fill="currentColor" />
         </svg>
       </button>
       {open && (

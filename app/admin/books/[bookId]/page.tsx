@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import AdminShell from "@/components/AdminShell";
+import ZoomableImage from "@/components/ZoomableImage";
 import { BookRow, BorrowRecordRow } from "@/lib/supabase";
 
 type Tab = "borrow" | "return";
@@ -61,8 +62,7 @@ export default function BookDetailPage() {
           <section className="bg-neutral-50/50 border border-neutral-100 rounded-2xl p-5 md:p-7 mb-8">
             <div className="flex gap-5 items-start">
               {book.image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <ZoomableImage
                   src={book.image_url}
                   alt={book.title}
                   className="w-24 h-32 md:w-32 md:h-44 object-cover rounded-lg border border-neutral-200 shrink-0"

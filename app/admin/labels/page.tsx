@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AdminShell from "@/components/AdminShell";
 import LabelCard from "@/components/LabelCard";
+import ZoomableImage from "@/components/ZoomableImage";
 import { supabase, BookRow } from "@/lib/supabase";
 
 export default function LabelsPage() {
@@ -36,13 +37,13 @@ export default function LabelsPage() {
     return books.filter(
       (b) =>
         b.title.toLowerCase().includes(q) ||
-        b.book_id.toLowerCase().includes(q)
+        b.book_id.toLowerCase().includes(q),
     );
   }, [books, query]);
 
   const selectedBooks = useMemo(
     () => books.filter((b) => selected.has(b.book_id)),
-    [books, selected]
+    [books, selected],
   );
 
   function toggle(bookId: string) {
@@ -158,7 +159,7 @@ export default function LabelsPage() {
           onClick={() => selectAll(filtered)}
           className="bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2 rounded-lg transition"
         >
-          全選顯示中
+          全選
         </button>
         <button
           type="button"
@@ -197,10 +198,9 @@ export default function LabelsPage() {
                     className="w-4 h-4 accent-neutral-900"
                   />
                   {b.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <ZoomableImage
                       src={b.image_url}
-                      alt=""
+                      alt={b.title}
                       className="w-10 h-14 object-cover rounded border border-neutral-200"
                     />
                   ) : (
@@ -220,7 +220,6 @@ export default function LabelsPage() {
           })}
         </ul>
       )}
-
     </AdminShell>
   );
 }

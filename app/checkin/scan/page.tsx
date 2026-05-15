@@ -6,6 +6,7 @@ import { recognizeBookCover } from "@/lib/ocr";
 import { formatDateYMD, generateBookId } from "@/lib/bookId";
 import { supabase } from "@/lib/supabase";
 import BottomSheet from "@/components/BottomSheet";
+import ZoomableImage from "@/components/ZoomableImage";
 
 type Mode = "loading" | "camera" | "processing" | "confirming";
 
@@ -52,6 +53,7 @@ export default function CheckinScanPage() {
   // 書單彈窗
   const [listOpen, setListOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [navigating, setNavigating] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -281,6 +283,7 @@ export default function CheckinScanPage() {
       }
       sessionStorage.removeItem(BOOKS_KEY);
       sessionStorage.removeItem(ADMIN_KEY);
+      setNavigating(true);
       router.push("/admin");
     } catch (err) {
       console.error("[checkin] submit failed", err);
@@ -289,36 +292,14 @@ export default function CheckinScanPage() {
     }
   }, [adminName, confirmedBooks, router, submitting]);
 
+  const handleClose = useCallback(() => {
+    setNavigating(true);
+    stopStream();
+    router.push("/admin");
+  }, [router, stopStream]);
+
   return (
     <div className="fixed inset-0 bg-black text-white flex flex-col">
-      <header className="flex items-center justify-between px-4 py-3 bg-black/70 backdrop-blur-md z-20 gap-3">
-        <button
-          type="button"
-          onClick={() => {
-            stopStream();
-            router.push("/admin");
-          }}
-          className="w-9 h-9 rounded-full bg-white hover:bg-neutral-100 text-neutral-900 flex items-center justify-center transition"
-          aria-label="關閉"
-        >
-          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-            <path
-              d="M1 1L13 13M13 1L1 13"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={() => setListOpen(true)}
-          className="bg-white hover:bg-neutral-100 text-neutral-900 text-[13px] font-medium px-3.5 py-1.5 rounded-full transition"
-        >
-          全部入庫 ({confirmedBooks.length})
-        </button>
-      </header>
-
       <div className="relative flex-1 overflow-hidden">
         {mode === "loading" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
@@ -369,23 +350,26 @@ export default function CheckinScanPage() {
               </div>
             )}
             {mode === "camera" && !errorMsg && (
-              <div className="absolute bottom-8 inset-x-0 flex flex-col items-center gap-6 z-10 px-6">
-                <p className="text-xs text-white/70 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
-                  對準書封拍照辨識 · {adminName || "—"}
-                </p>
-                <button
-                  onClick={handleCapture}
-                  aria-label="拍照"
-                  className="w-[68px] h-[68px] rounded-full bg-white/10 backdrop-blur-md border-2 border-white/80 active:scale-95 transition flex items-center justify-center"
-                >
-                  <span className="block w-[52px] h-[52px] rounded-full bg-white" />
-                </button>
-              </div>
+              <>
+                <div className="absolute top-4 inset-x-0 flex flex-col items-center gap-3 z-10 px-6">
+                  <p className="text-xs text-white/70 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
+                    對準書封拍照辨識 · {adminName || "—"}
+                  </p>
+                </div>
+                <div className="absolute bottom-8 inset-x-0 flex flex-col items-center z-10 px-6">
+                  <button
+                    onClick={handleCapture}
+                    aria-label="拍照"
+                    className="w-[68px] h-[68px] rounded-full bg-white/10 backdrop-blur-md border-2 border-white/80 active:scale-95 transition flex items-center justify-center"
+                  >
+                    <span className="block w-[52px] h-[52px] rounded-full bg-white" />
+                  </button>
+                </div>
+              </>
             )}
             {mode === "processing" && currentCapture && (
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center text-center px-6">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <ZoomableImage
                   src={currentCapture.imageDataUrl}
                   alt="captured"
                   className="w-36 h-48 object-cover rounded-lg mb-5 border border-white/10"
@@ -402,8 +386,7 @@ export default function CheckinScanPage() {
             <div className="w-full bg-white text-neutral-900 rounded-t-3xl px-6 pt-6 pb-8 animate-slide-up max-h-[90vh] overflow-y-auto shadow-2xl">
               <div className="w-10 h-1 bg-neutral-200 rounded-full mx-auto mb-5" />
               <div className="flex gap-4 items-start">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <ZoomableImage
                   src={currentCapture.imageDataUrl}
                   alt="cover"
                   className="w-20 h-28 object-cover rounded-md border border-neutral-200"
@@ -416,7 +399,7 @@ export default function CheckinScanPage() {
                     type="text"
                     value={editedTitle}
                     onChange={(e) => setEditedTitle(e.target.value)}
-                    className="w-full border border-neutral-200 rounded-md px-3 py-2 text-base focus:outline-none focus:border-neutral-900 transition"
+                    className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-base focus:outline-none focus:border-neutral-900 transition"
                     placeholder="輸入書名"
                     autoFocus
                   />
@@ -441,6 +424,31 @@ export default function CheckinScanPage() {
           </div>
         )}
       </div>
+
+      <footer className="flex items-center justify-between gap-3 px-4 pt-3 pb-6 bg-black/70 backdrop-blur-md z-20">
+        <button
+          type="button"
+          onClick={handleClose}
+          className="w-9 h-9 rounded-full bg-white hover:bg-neutral-100 text-neutral-900 flex items-center justify-center transition"
+          aria-label="關閉"
+        >
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+            <path
+              d="M1 1L13 13M13 1L1 13"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => setListOpen(true)}
+          className="h-9 inline-flex items-center bg-white hover:bg-neutral-100 text-neutral-900 text-[13px] font-medium px-4 rounded-full transition"
+        >
+          全部入庫 ({confirmedBooks.length})
+        </button>
+      </footer>
 
       <BottomSheet
         open={duplicateOpen}
@@ -471,10 +479,9 @@ export default function CheckinScanPage() {
               className="flex gap-3 items-start border border-neutral-100 rounded-xl p-3"
             >
               {m.image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <ZoomableImage
                   src={m.image_url}
-                  alt=""
+                  alt={m.title}
                   className="w-14 h-20 object-cover rounded-md border border-neutral-100"
                 />
               ) : (
@@ -520,10 +527,9 @@ export default function CheckinScanPage() {
                 key={idx}
                 className="flex gap-3 items-center border border-neutral-100 rounded-xl p-3"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <ZoomableImage
                   src={b.imageDataUrl}
-                  alt=""
+                  alt={b.title}
                   className="w-12 h-16 object-cover rounded-md border border-neutral-100"
                 />
                 <div className="flex-1 min-w-0">
@@ -548,6 +554,12 @@ export default function CheckinScanPage() {
           </ul>
         )}
       </BottomSheet>
+
+      {navigating && (
+        <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
+          <div className="w-9 h-9 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        </div>
+      )}
     </div>
   );
 }

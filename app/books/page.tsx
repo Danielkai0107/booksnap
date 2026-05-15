@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase, BookRow } from "@/lib/supabase";
 import CloseButton from "@/components/CloseButton";
+import ZoomableImage from "@/components/ZoomableImage";
 
 export default function BooksListPage() {
   const [books, setBooks] = useState<BookRow[]>([]);
@@ -43,11 +44,11 @@ export default function BooksListPage() {
       <CloseButton href="/" />
 
       <div className="max-w-3xl mx-auto px-5 sm:px-8 pt-20 pb-12">
-        <header className="mb-6">
+        <header className="mb-6 flex items-center justify-between gap-3">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900">
             書籍清單
           </h1>
-          <p className="mt-2 text-sm text-neutral-500">
+          <p className="text-sm text-neutral-500 shrink-0">
             共 {books.length} 本書
           </p>
         </header>
@@ -83,8 +84,7 @@ export default function BooksListPage() {
               >
                 <div className="aspect-[3/4] bg-neutral-100 relative">
                   {b.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <ZoomableImage
                       src={b.image_url}
                       alt={b.title}
                       className="absolute inset-0 w-full h-full object-cover"

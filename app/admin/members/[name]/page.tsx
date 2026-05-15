@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AdminShell from "@/components/AdminShell";
 import BottomSheet from "@/components/BottomSheet";
+import ZoomableImage from "@/components/ZoomableImage";
 import { BorrowRecordRow, MemberRow } from "@/lib/supabase";
 
 type Tab = "borrow" | "return";
@@ -27,6 +28,9 @@ export default function MemberDetailPage() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -60,6 +64,34 @@ export default function MemberDetailPage() {
   );
 
   const lastAction = records[0] ?? null;
+
+  async function handleEdit() {
+    const trimmed = editName.trim();
+    if (!trimmed || editSaving) return;
+    if (trimmed === name) {
+      setEditOpen(false);
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const res = await fetch(
+        `/api/members/${encodeURIComponent(name)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: trimmed }),
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `HTTP ${res.status}`);
+      }
+      router.replace(`/admin/members/${encodeURIComponent(trimmed)}`);
+    } catch (err) {
+      alert(`修改失敗：${err instanceof Error ? err.message : String(err)}`);
+      setEditSaving(false);
+    }
+  }
 
   async function handleDelete() {
     try {
@@ -111,13 +143,25 @@ export default function MemberDetailPage() {
                   </p>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => setDeleteOpen(true)}
-                className="text-xs text-red-600 hover:text-red-700 px-3 py-1.5 rounded-md border border-red-100 hover:border-red-200 transition"
-              >
-                刪除成員
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditName(member.name);
+                    setEditOpen(true);
+                  }}
+                  className="text-xs text-neutral-700 hover:text-neutral-900 px-3 py-1.5 rounded-md border border-neutral-200 hover:border-neutral-400 transition"
+                >
+                  編輯姓名
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteOpen(true)}
+                  className="text-xs text-red-600 hover:text-red-700 px-3 py-1.5 rounded-md border border-red-100 hover:border-red-200 transition"
+                >
+                  刪除成員
+                </button>
+              </div>
             </div>
 
             <div className="mt-5">
@@ -135,10 +179,9 @@ export default function MemberDetailPage() {
                         className="block w-20 text-center"
                       >
                         {b.image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
+                          <ZoomableImage
                             src={b.image_url}
-                            alt=""
+                            alt={b.title}
                             className="w-20 h-28 object-cover rounded-md border border-neutral-200"
                           />
                         ) : (
@@ -181,6 +224,56 @@ export default function MemberDetailPage() {
               />
             )}
           </section>
+
+          {editOpen && (
+            <BottomSheet
+              open
+              onClose={() => {
+                if (editSaving) return;
+                setEditOpen(false);
+              }}
+              title="編輯成員姓名"
+              subtitle="同步更新書本持有人與借閱紀錄"
+              footer={
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setEditOpen(false)}
+                    disabled={editSaving}
+                    className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition disabled:opacity-60"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handleEdit}
+                    disabled={
+                      editSaving ||
+                      !editName.trim() ||
+                      editName.trim() === member.name
+                    }
+                    className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition disabled:bg-neutral-300"
+                  >
+                    {editSaving ? "儲存中" : "儲存"}
+                  </button>
+                </div>
+              }
+            >
+              <div className="pb-4">
+                <label className="block text-xs font-medium text-neutral-500 mb-1.5">
+                  姓名
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void handleEdit();
+                  }}
+                />
+              </div>
+            </BottomSheet>
+          )}
 
           {deleteOpen && (
             <BottomSheet

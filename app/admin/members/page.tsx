@@ -124,12 +124,12 @@ export default function MembersPage() {
         </p>
       ) : (
         <>
-          <ul className="md:hidden divide-y divide-neutral-100 border-y border-neutral-100">
+          <ul className="md:hidden space-y-2.5">
             {filtered.map((m) => (
               <li key={m.name}>
                 <Link
                   href={`/admin/members/${encodeURIComponent(m.name)}`}
-                  className="py-4 flex items-center justify-between gap-3"
+                  className="flex items-center justify-between gap-3 px-4 py-3.5 border border-neutral-200 rounded-xl bg-white hover:border-neutral-300 transition"
                 >
                   <div>
                     <p className="font-medium text-neutral-900">{m.name}</p>
@@ -138,8 +138,8 @@ export default function MembersPage() {
                     </p>
                   </div>
                   <svg
-                    width="18"
-                    height="18"
+                    width="12"
+                    height="12"
                     viewBox="0 0 14 14"
                     fill="none"
                     className="text-neutral-400 shrink-0"
@@ -270,7 +270,7 @@ function AddMemberSheet({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="例：王小明"
-          className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-neutral-900 transition"
+          className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
           autoFocus
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
         />

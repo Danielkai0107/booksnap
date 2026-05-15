@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 type Props = {
   href?: string;
@@ -10,6 +10,8 @@ type Props = {
   hideOnDesktop?: boolean;
   icon?: "x" | "arrow-left";
   ariaLabel?: string;
+  /** 點擊後是否顯示全屏 loading（適合返回需要 server 渲染的頁面） */
+  showLoadingOnClick?: boolean;
 };
 
 export default function CloseButton({
@@ -19,8 +21,10 @@ export default function CloseButton({
   hideOnDesktop = false,
   icon = "x",
   ariaLabel,
+  showLoadingOnClick = true,
 }: Props) {
   const router = useRouter();
+  const [navigating, setNavigating] = useState(false);
 
   const base =
     "fixed top-4 left-4 z-40 w-10 h-10 rounded-full bg-white/55 backdrop-blur-md border border-white/40 shadow-sm flex items-center justify-center text-neutral-800 hover:bg-white/80 transition";
@@ -63,21 +67,32 @@ export default function CloseButton({
     );
   const label = ariaLabel ?? (icon === "arrow-left" ? "返回" : "關閉");
 
-  if (href) {
-    return (
-      <Link href={href} className={cls} aria-label={label}>
-        {Icon}
-      </Link>
-    );
-  }
+  const handleClick = () => {
+    if (showLoadingOnClick) setNavigating(true);
+    if (href) {
+      router.push(href);
+    } else if (onClick) {
+      onClick();
+    } else {
+      router.back();
+    }
+  };
+
   return (
-    <button
-      type="button"
-      onClick={onClick ?? (() => router.back())}
-      className={cls}
-      aria-label={label}
-    >
-      {Icon}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={handleClick}
+        className={cls}
+        aria-label={label}
+      >
+        {Icon}
+      </button>
+      {navigating && (
+        <div className="fixed inset-0 z-[60] bg-white flex items-center justify-center">
+          <div className="w-9 h-9 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />
+        </div>
+      )}
+    </>
   );
 }

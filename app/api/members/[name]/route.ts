@@ -40,6 +40,78 @@ export async function GET(_req: NextRequest, { params }: Params) {
   });
 }
 
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const { name: rawName } = await params;
+  const oldName = decodeURIComponent(rawName);
+  const supabase = await createClient();
+
+  let body: { name?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "invalid json" }, { status: 400 });
+  }
+
+  const newName = body.name?.trim();
+  if (!newName) {
+    return NextResponse.json({ error: "name required" }, { status: 400 });
+  }
+  if (newName === oldName) {
+    return NextResponse.json({ member: { name: newName } });
+  }
+
+  const { data: existing, error: existingErr } = await supabase
+    .from("members")
+    .select("name")
+    .eq("name", newName)
+    .maybeSingle();
+  if (existingErr) {
+    return NextResponse.json({ error: existingErr.message }, { status: 500 });
+  }
+  if (existing) {
+    return NextResponse.json({ error: "成員名稱已存在" }, { status: 409 });
+  }
+
+  const { data: updated, error: updateErr } = await supabase
+    .from("members")
+    .update({ name: newName })
+    .eq("name", oldName)
+    .select("name, created_at")
+    .single();
+  if (updateErr) {
+    const isDup =
+      updateErr.code === "23505" || /duplicate key/i.test(updateErr.message);
+    return NextResponse.json(
+      { error: isDup ? "成員名稱已存在" : updateErr.message },
+      { status: isDup ? 409 : 500 }
+    );
+  }
+
+  const { error: booksErr } = await supabase
+    .from("books")
+    .update({ current_holder: newName })
+    .eq("current_holder", oldName);
+  if (booksErr) {
+    return NextResponse.json(
+      { error: `成員已更名，但更新書本持有人失敗：${booksErr.message}` },
+      { status: 500 }
+    );
+  }
+
+  const { error: recordsErr } = await supabase
+    .from("borrow_records")
+    .update({ borrower_name: newName })
+    .eq("borrower_name", oldName);
+  if (recordsErr) {
+    return NextResponse.json(
+      { error: `成員已更名，但更新借閱紀錄失敗：${recordsErr.message}` },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ member: updated });
+}
+
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { name: rawName } = await params;
   const name = decodeURIComponent(rawName);

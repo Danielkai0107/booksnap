@@ -7,6 +7,7 @@ import { supabase, BookRow } from "@/lib/supabase";
 import { recognizeBookCover } from "@/lib/ocr";
 import { findBookByTitle } from "@/lib/titleMatch";
 import BottomSheet from "@/components/BottomSheet";
+import ZoomableImage from "@/components/ZoomableImage";
 
 export default function BorrowScanPage() {
   const router = useRouter();
@@ -25,6 +26,7 @@ export default function BorrowScanPage() {
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [navigating, setNavigating] = useState(false);
 
   const excludeIds = useMemo(
     () => new Set(books.map((b) => b.book_id)),
@@ -218,6 +220,7 @@ export default function BorrowScanPage() {
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
       sessionStorage.removeItem("currentMember");
+      setNavigating(true);
       router.push("/");
     } catch (err) {
       alert(`借書失敗：${err instanceof Error ? err.message : String(err)}`);
@@ -225,36 +228,14 @@ export default function BorrowScanPage() {
     }
   }, [books, member, router, submitting]);
 
+  const handleClose = useCallback(() => {
+    setNavigating(true);
+    stopScanner();
+    router.push("/");
+  }, [router, stopScanner]);
+
   return (
     <div className="fixed inset-0 bg-black text-white flex flex-col">
-      <header className="flex items-center justify-between px-4 py-3 bg-black/70 backdrop-blur-md z-20 gap-3">
-        <button
-          type="button"
-          onClick={() => {
-            stopScanner();
-            router.push("/");
-          }}
-          className="w-9 h-9 rounded-full bg-white hover:bg-neutral-100 text-neutral-900 flex items-center justify-center transition"
-          aria-label="關閉"
-        >
-          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-            <path
-              d="M1 1L13 13M13 1L1 13"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={() => setListOpen(true)}
-          className="bg-white hover:bg-neutral-100 text-neutral-900 text-[13px] font-medium px-3.5 py-1.5 rounded-full transition"
-        >
-          前往借書 ({books.length})
-        </button>
-      </header>
-
       <div className="relative flex-1 overflow-hidden">
         <video
           ref={videoRef}
@@ -270,7 +251,7 @@ export default function BorrowScanPage() {
           </div>
         </div>
 
-        <div className="absolute bottom-8 inset-x-0 flex flex-col items-center gap-6 z-10 px-6">
+        <div className="absolute top-4 inset-x-0 flex flex-col items-center gap-3 z-10 px-6">
           <p className="text-xs text-white/70 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
             {busy
               ? "查詢中…"
@@ -281,6 +262,9 @@ export default function BorrowScanPage() {
               {errorMsg}
             </p>
           )}
+        </div>
+
+        <div className="absolute bottom-8 inset-x-0 flex flex-col items-center z-10 px-6">
           <button
             type="button"
             onClick={handlePhotoCapture}
@@ -298,6 +282,31 @@ export default function BorrowScanPage() {
           </div>
         )}
       </div>
+
+      <footer className="flex items-center justify-between gap-3 px-4 pt-3 pb-6 bg-black/70 backdrop-blur-md z-20">
+        <button
+          type="button"
+          onClick={handleClose}
+          className="w-9 h-9 rounded-full bg-white hover:bg-neutral-100 text-neutral-900 flex items-center justify-center transition"
+          aria-label="關閉"
+        >
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+            <path
+              d="M1 1L13 13M13 1L1 13"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => setListOpen(true)}
+          className="h-9 inline-flex items-center bg-white hover:bg-neutral-100 text-neutral-900 text-[13px] font-medium px-4 rounded-full transition"
+        >
+          前往借書 ({books.length})
+        </button>
+      </footer>
 
       {pending && (
         <BookConfirmSheet
@@ -355,10 +364,9 @@ export default function BorrowScanPage() {
                 className="flex gap-3 items-center border border-neutral-100 rounded-xl p-3"
               >
                 {b.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <ZoomableImage
                     src={b.image_url}
-                    alt=""
+                    alt={b.title}
                     className="w-12 h-16 object-cover rounded-md border border-neutral-100"
                   />
                 ) : (
@@ -382,6 +390,12 @@ export default function BorrowScanPage() {
           </ul>
         )}
       </BottomSheet>
+
+      {navigating && (
+        <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
+          <div className="w-9 h-9 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        </div>
+      )}
     </div>
   );
 }
@@ -429,10 +443,9 @@ function BookConfirmSheet({
     >
       <div className="flex gap-4 items-start pb-3">
         {book.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <ZoomableImage
             src={book.image_url}
-            alt=""
+            alt={book.title}
             className="w-20 h-28 object-cover rounded-md border border-neutral-100"
           />
         ) : (
