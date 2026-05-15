@@ -222,9 +222,9 @@ export default function HomeClient({ orgName, aiRecognizeCount }: Props) {
         <button
           type="button"
           onClick={() => handleNavigate("/admin")}
-          className="pointer-events-auto h-9 px-4 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs hover:bg-white/95 hover:text-neutral-900 transition inline-flex items-center gap-1.5"
+          className="pointer-events-auto h-9 px-4 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs font-normal hover:bg-white/95 hover:text-neutral-900 transition inline-flex items-center gap-1.5"
         >
-          管理後台
+          <span>管理後台</span>
         </button>
 
         <div className="pointer-events-auto h-9 px-4 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs inline-flex items-center gap-1.5">
