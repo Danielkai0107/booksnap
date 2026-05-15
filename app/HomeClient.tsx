@@ -79,15 +79,15 @@ export default function HomeClient({ orgName, aiRecognizeCount }: Props) {
         <button
           type="button"
           onClick={() => handleNavigate("/admin")}
-          className="pointer-events-auto px-4 py-2 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs hover:bg-white/95 hover:text-neutral-900 transition inline-flex items-center gap-1.5"
+          className="pointer-events-auto h-9 px-4 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs hover:bg-white/95 hover:text-neutral-900 transition inline-flex items-center gap-1.5"
         >
-          <span className="leading-none">管理後台</span>
+          管理後台
         </button>
 
-        <div className="pointer-events-auto px-4 py-2 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs flex items-center gap-2 min-w-0">
+        <div className="pointer-events-auto h-9 px-4 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs inline-flex items-center gap-2 min-w-0">
           <span className="truncate max-w-[40vw]">{orgName}</span>
           <span className="text-neutral-300 shrink-0">·</span>
-          <form action={signOutAction} className="shrink-0">
+          <form action={signOutAction} className="shrink-0 flex">
             <button
               type="submit"
               className="text-neutral-500 hover:text-neutral-900 transition"
@@ -224,7 +224,7 @@ export default function HomeClient({ orgName, aiRecognizeCount }: Props) {
       )}
 
       <div className="fixed bottom-4 inset-x-0 flex justify-center pointer-events-none">
-        <div className="px-4 py-2 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs inline-flex items-center gap-1.5">
+        <div className="h-9 px-4 rounded-full bg-white/80 backdrop-blur-md border border-neutral-200 text-neutral-700 text-xs inline-flex items-center gap-1.5">
           <span>智能 AI 辨識次數</span>
           <span className="font-semibold tabular-nums text-neutral-900">
             {aiRecognizeCount.toLocaleString()}
