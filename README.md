@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# booksnap — 小型圖書館入庫管理系統
 
-## Getting Started
+Next.js 14 (App Router) + Supabase + Tesseract OCR + Claude vision fallback。
+支援批次拍照入庫、QR/條碼產生與列印、QR 掃描還書、後台管理與 Excel 匯出。
 
-First, run the development server:
+## 快速開始
+
+> Supabase 後端、資料表、預設書架、`book-covers` Storage bucket 已透過 MCP 預先建立並寫入 `.env.local`。
 
 ```bash
+# 1. 安裝依賴（已執行）
+npm install
+
+# 2. 在 .env.local 補上 Anthropic API key（可選；不填則僅用 Tesseract 辨識）
+#    ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
+
+# 3. 啟動開發伺服器
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+打開 [http://localhost:3000](http://localhost:3000) 即可使用。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 環境變數（`.env.local`）
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Key | 預先填入 | 說明 |
+| --- | :---: | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase 專案 URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Supabase anon key |
+| `ANTHROPIC_API_KEY` | ❌ | 信心度 < 70% 時 fallback 用 |
 
-## Learn More
+## 頁面導覽
 
-To learn more about Next.js, take a look at the following resources:
+| 路徑 | 功能 |
+| --- | --- |
+| `/` | 首頁（入庫 / 還書 / 後台入口） |
+| `/checkin` | 輸入管理員名稱 |
+| `/checkin/scan` | 相機拍照 + OCR 批次辨識書封 |
+| `/checkin/result` | 結算頁：產生 `LIB-YYYYMMDD-NNN`、QR、條碼、列印標籤、送出 |
+| `/return` | 兩階段 QR 掃描還書（先書架、後書本） |
+| `/admin` | 書籍列表 + 搜尋 + 下載 Excel |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## API
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Method & Path | 功能 |
+| --- | --- |
+| `POST /api/recognize` | 呼叫 Claude vision（`claude-sonnet-4-20250514`）辨識書封 |
+| `POST /api/books` | 批次上傳書封到 Storage bucket，並 insert 到 `books` |
+| `POST /api/return` | 更新書籍為「已借出」並記錄書架與時間 |
+| `GET /api/export` | 將 `books` 表匯出為 Excel（xlsx） |
 
-## Deploy on Vercel
+## Supabase 結構
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+兩張 table：
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `books` — 主資料表（PK `id`，唯一鍵 `book_id`）
+- `shelves` — 書架字典表，預設四筆：`A1 / A2 / B1 / B2`
+
+Storage bucket `book-covers`（public），上傳路徑 `{book_id}.jpg`。
+
+> 目前 RLS 為 demo 用，全部 policy 開放讀寫。正式環境請改為 service role + 私有 bucket。
+
+## 注意事項
+
+- **HTTPS**：手機相機僅在 `https://` 或 `localhost` 環境下可用，部署到 Vercel 會自動 HTTPS。
+- **Tesseract 首次載入**：中文語言包約 5–10 MB，首次辨識會稍慢，掃描頁有 loading 顯示。
+- **列印標籤**：`/checkin/result` 的「列印標籤」按鈕透過 `window.print()`，CSS `@media print` 只顯示標籤卡。
+- **書架 QR**：請自行用任何 QR 工具產生 `A1` / `A2` / `B1` / `B2` 字串的 QR Code 貼在實體書架上。
+- **書本 QR**：在 `/checkin/result` 頁列印的標籤卡，QR 內容就是 `book_id`，可直接掃描還書。
+
+## 技術棧
+
+- Next.js 16 (App Router) + TypeScript
+- Tailwind CSS v4
+- `@supabase/supabase-js`
+- `tesseract.js`（client OCR，`chi_tra + eng`）
+- Anthropic Claude vision（OCR fallback）
+- `qrcode`、`jsbarcode`
+- `@zxing/browser`（QR 掃描）
+- `xlsx`（Excel 匯出）
+
+## NPM scripts
+
+```bash
+npm run dev    # 開發伺服器
+npm run build  # 產生 production build
+npm run start  # 跑 production server
+npm run lint   # ESLint 檢查
+```
+# booksnap
