@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
-import { supabase, BookRow } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
+import type { BookRow } from "@/lib/supabase/types";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("books")
     .select("*")

@@ -65,22 +65,39 @@ export default function MembersPage() {
 
   return (
     <AdminShell backHref="/admin">
-      <header className="mb-6 flex items-end justify-between gap-3">
-        <div>
+      <header className="mb-6">
+        <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
             成員管理
           </h1>
-          <p className="mt-1 text-sm text-neutral-500">
-            目前共 {members.length} 位成員
-          </p>
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="shrink-0 inline-flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-3 rounded-xl transition"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0"
+              aria-hidden
+            >
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <line x1="19" y1="8" x2="19" y2="14" />
+              <line x1="22" y1="11" x2="16" y2="11" />
+            </svg>
+            <span className="leading-none">新增成員</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setAddOpen(true)}
-          className="bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition"
-        >
-          新增成員
-        </button>
+        <p className="mt-2 text-sm text-neutral-500">
+          目前共 {members.length} 位成員
+        </p>
       </header>
 
       <input
@@ -120,7 +137,22 @@ export default function MembersPage() {
                       目前持有 {m.holdingCount} 本
                     </p>
                   </div>
-                  <span className="text-neutral-300">›</span>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 14 14"
+                    fill="none"
+                    className="text-neutral-400 shrink-0"
+                    aria-hidden
+                  >
+                    <path
+                      d="M5 2L10 7L5 12"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </Link>
               </li>
             ))}

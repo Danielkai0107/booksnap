@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("members")
     .select("name, created_at")
@@ -16,6 +17,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = await createClient();
   let body: { name?: string };
   try {
     body = await req.json();

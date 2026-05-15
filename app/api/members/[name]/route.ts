@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -8,6 +8,7 @@ type Params = { params: Promise<{ name: string }> };
 export async function GET(_req: NextRequest, { params }: Params) {
   const { name: rawName } = await params;
   const name = decodeURIComponent(rawName);
+  const supabase = await createClient();
 
   const [memberRes, holdingRes, recordsRes] = await Promise.all([
     supabase.from("members").select("*").eq("name", name).maybeSingle(),
@@ -42,6 +43,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { name: rawName } = await params;
   const name = decodeURIComponent(rawName);
+  const supabase = await createClient();
 
   const { count } = await supabase
     .from("books")

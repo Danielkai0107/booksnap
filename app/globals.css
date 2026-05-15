@@ -43,7 +43,57 @@ body {
   animation: slide-up 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Camera focus frame: 4 minimal corner brackets */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-right {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-right {
+  animation: slide-right 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (min-width: 768px) {
+  .md\:animate-fade-in {
+    animation: fade-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
+
+/* Thin neutral scrollbar */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d4 transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #d4d4d4;
+  border-radius: 999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: #a3a3a3;
+}
+
+/* Camera focus frame: 4 rounded corner brackets */
 .focus-frame {
   position: relative;
 }
@@ -53,30 +103,34 @@ body {
 .focus-frame > .focus-br {
   content: "";
   position: absolute;
-  width: 22px;
-  height: 22px;
-  border-color: rgba(255, 255, 255, 0.85);
+  width: 44px;
+  height: 44px;
+  border-color: rgba(255, 255, 255, 0.9);
   border-style: solid;
 }
 .focus-frame::before {
   top: 0;
   left: 0;
-  border-width: 2px 0 0 2px;
+  border-width: 3px 0 0 3px;
+  border-top-left-radius: 16px;
 }
 .focus-frame::after {
   top: 0;
   right: 0;
-  border-width: 2px 2px 0 0;
+  border-width: 3px 3px 0 0;
+  border-top-right-radius: 16px;
 }
 .focus-frame > .focus-bl {
   bottom: 0;
   left: 0;
-  border-width: 0 0 2px 2px;
+  border-width: 0 0 3px 3px;
+  border-bottom-left-radius: 16px;
 }
 .focus-frame > .focus-br {
   bottom: 0;
   right: 0;
-  border-width: 0 2px 2px 0;
+  border-width: 0 3px 3px 0;
+  border-bottom-right-radius: 16px;
 }
 
 /* Print styles */

@@ -291,21 +291,14 @@ export default function CheckinScanPage() {
 
   return (
     <div className="fixed inset-0 bg-black text-white flex flex-col">
-      <header className="flex items-center justify-between px-4 py-3 bg-black/60 backdrop-blur-md z-20 gap-3">
-        <button
-          type="button"
-          onClick={() => setListOpen(true)}
-          className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white text-[13px] font-medium px-3.5 py-1.5 rounded-full transition"
-        >
-          入庫 ({confirmedBooks.length})
-        </button>
+      <header className="flex items-center justify-between px-4 py-3 bg-black/70 backdrop-blur-md z-20 gap-3">
         <button
           type="button"
           onClick={() => {
             stopStream();
             router.push("/admin");
           }}
-          className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md flex items-center justify-center transition"
+          className="w-9 h-9 rounded-full bg-white hover:bg-neutral-100 text-neutral-900 flex items-center justify-center transition"
           aria-label="關閉"
         >
           <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
@@ -316,6 +309,13 @@ export default function CheckinScanPage() {
               strokeLinecap="round"
             />
           </svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => setListOpen(true)}
+          className="bg-white hover:bg-neutral-100 text-neutral-900 text-[13px] font-medium px-3.5 py-1.5 rounded-full transition"
+        >
+          全部入庫 ({confirmedBooks.length})
         </button>
       </header>
 
@@ -369,7 +369,10 @@ export default function CheckinScanPage() {
               </div>
             )}
             {mode === "camera" && !errorMsg && (
-              <div className="absolute bottom-10 inset-x-0 flex justify-center z-10">
+              <div className="absolute bottom-8 inset-x-0 flex flex-col items-center gap-6 z-10 px-6">
+                <p className="text-xs text-white/70 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
+                  對準書封拍照辨識 · {adminName || "—"}
+                </p>
                 <button
                   onClick={handleCapture}
                   aria-label="拍照"

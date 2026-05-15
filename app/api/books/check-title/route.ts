@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
+  const supabase = await createClient();
   const url = new URL(req.url);
   const title = url.searchParams.get("title")?.trim();
   if (!title) {

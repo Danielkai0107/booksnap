@@ -56,54 +56,72 @@ export default function AdminPage() {
   const borrowedCount = books.length - availableCount;
 
   return (
-    <AdminShell backHref="/">
-      <header className="mb-8">
+    <AdminShell mobileMode="topbar">
+      <header className="mb-6 flex items-center justify-between gap-3">
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
           書籍庫存
         </h1>
-        <dl className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Stat label="總書籍" value={books.length} />
-          <Stat label="在庫" value={availableCount} />
-          <Stat label="已借出" value={borrowedCount} />
-          <Stat label="成員數" value={memberCount} />
-        </dl>
+        <div className="flex gap-2 shrink-0">
+          <Link
+            href="/checkin"
+            className="hidden md:inline-flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-3 rounded-xl transition"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0"
+              aria-hidden
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            <span className="leading-none">新書入庫</span>
+          </Link>
+          <a
+            href="/api/export"
+            className="inline-flex items-center gap-1.5 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-3 rounded-xl transition"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0"
+              aria-hidden
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span className="leading-none">下載 Excel</span>
+          </a>
+        </div>
       </header>
 
-      <div className="mb-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Link
-          href="/checkin"
-          className="flex items-center justify-center bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-5 py-3 rounded-xl transition"
-        >
-          入庫
-        </Link>
-        <Link
-          href="/admin/members"
-          className="flex items-center justify-center bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-5 py-3 rounded-xl transition"
-        >
-          成員管理
-        </Link>
-        <Link
-          href="/admin/labels"
-          className="flex items-center justify-center bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-5 py-3 rounded-xl transition"
-        >
-          標籤管理
-        </Link>
-      </div>
+      <dl className="mb-6 grid grid-cols-4 divide-x divide-neutral-100 border border-neutral-200 rounded-xl p-3 bg-neutral-50/40">
+        <Stat label="總書籍" value={books.length} />
+        <Stat label="在庫" value={availableCount} />
+        <Stat label="已借出" value={borrowedCount} />
+        <Stat label="成員數" value={memberCount} />
+      </dl>
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+      <div className="mb-6">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="搜尋書名或編號"
-          className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
+          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
         />
-        <a
-          href="/api/export"
-          className="inline-flex items-center justify-center bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-5 py-2.5 rounded-lg transition"
-        >
-          下載 Excel
-        </a>
       </div>
 
       {errorMsg && (
@@ -244,6 +262,36 @@ export default function AdminPage() {
         </>
       )}
 
+      {/* 手機版底部留白，避免列表被浮動按鈕遮擋 */}
+      <div className="md:hidden h-24" aria-hidden />
+
+      {/* 手機版底部固定「新書入庫」按鈕 */}
+      <div
+        className="md:hidden fixed inset-x-0 bottom-0 z-40 px-5 pt-6 flex justify-center pointer-events-none bg-gradient-to-t from-white via-white/95 to-white/0"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 20px)" }}
+      >
+        <Link
+          href="/checkin"
+          className="pointer-events-auto inline-flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 text-white text-base font-medium px-7 py-4 rounded-full shadow-lg shadow-neutral-900/20 transition"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="shrink-0"
+            aria-hidden
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          <span className="leading-none">新書入庫</span>
+        </Link>
+      </div>
+
       {editTarget && (
         <EditBookSheet
           book={editTarget}
@@ -307,9 +355,9 @@ export default function AdminPage() {
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div>
-      <dt className="text-xs text-neutral-400">{label}</dt>
-      <dd className="mt-1 text-2xl font-semibold tracking-tight text-neutral-900 tabular-nums">
+    <div className="px-2 md:px-4 text-center md:text-left">
+      <dt className="text-[11px] md:text-xs text-neutral-500">{label}</dt>
+      <dd className="mt-1 text-lg md:text-2xl font-semibold tracking-tight text-neutral-900 tabular-nums">
         {value}
       </dd>
     </div>

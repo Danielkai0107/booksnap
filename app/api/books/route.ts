@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,24 @@ function dataUrlToBuffer(input: string): { buffer: Buffer; contentType: string }
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  // Resolve the caller's organization for storage path scoping.
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("organization_id")
+    .eq("id", userData.user.id)
+    .maybeSingle();
+  const orgId = profile?.organization_id;
+  if (!orgId) {
+    return NextResponse.json({ error: "no organization" }, { status: 403 });
+  }
+
   let body: Body;
   try {
     body = (await req.json()) as Body;
@@ -57,7 +76,8 @@ export async function POST(req: NextRequest) {
     let imageUrl: string | null = null;
     try {
       const { buffer, contentType } = dataUrlToBuffer(b.imageBase64 ?? "");
-      const path = `${b.bookId}.jpg`;
+      // Scope storage path per organization to avoid cross-tenant collisions.
+      const path = `${orgId}/${b.bookId}.jpg`;
       const { error: uploadError } = await supabase.storage
         .from("book-covers")
         .upload(path, buffer, {
@@ -85,6 +105,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // organization_id is auto-filled by the column DEFAULT (default_org_id())
   const { error: insertError } = await supabase.from("books").insert(rows);
   if (insertError) {
     console.error("[books] insert error", insertError);

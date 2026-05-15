@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrowserMultiFormatReader, IScannerControls } from "@zxing/browser";
 import { supabase, BookRow } from "@/lib/supabase";
+import { recognizeBookCover } from "@/lib/ocr";
+import { findBookByTitle } from "@/lib/titleMatch";
 import BottomSheet from "@/components/BottomSheet";
-
-type PendingBook = BookRow;
 
 export default function BorrowScanPage() {
   const router = useRouter();
@@ -16,12 +16,20 @@ export default function BorrowScanPage() {
   const scanningRef = useRef(false);
 
   const [member, setMember] = useState("");
+  const [candidates, setCandidates] = useState<BookRow[]>([]);
   const [books, setBooks] = useState<BookRow[]>([]);
-  const [pending, setPending] = useState<PendingBook | null>(null);
+  const [pending, setPending] = useState<BookRow | null>(null);
   const [listOpen, setListOpen] = useState(false);
+  const [notFoundOpen, setNotFoundOpen] = useState(false);
+  const [capturing, setCapturing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const excludeIds = useMemo(
+    () => new Set(books.map((b) => b.book_id)),
+    [books]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -33,6 +41,23 @@ export default function BorrowScanPage() {
     setMember(stored);
   }, [router]);
 
+  // 拉「可出借」候選清單給拍照辨識比對使用
+  useEffect(() => {
+    if (!member) return;
+    let alive = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from("books")
+        .select("*")
+        .eq("status", "available");
+      if (!alive) return;
+      if (!error) setCandidates((data ?? []) as BookRow[]);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [member]);
+
   const stopScanner = useCallback(() => {
     scanningRef.current = false;
     if (controlsRef.current) {
@@ -41,7 +66,7 @@ export default function BorrowScanPage() {
     }
   }, []);
 
-  const handleBookScanned = useCallback(
+  const handleQrScanned = useCallback(
     async (id: string) => {
       setBusy(true);
       setErrorMsg(null);
@@ -92,7 +117,7 @@ export default function BorrowScanPage() {
           if (result) {
             const text = result.getText();
             stopScanner();
-            void handleBookScanned(text);
+            void handleQrScanned(text);
           }
         }
       );
@@ -102,11 +127,11 @@ export default function BorrowScanPage() {
       const m = err instanceof Error ? err.message : String(err);
       setErrorMsg(`相機初始化失敗：${m}`);
     }
-  }, [handleBookScanned, stopScanner]);
+  }, [handleQrScanned, stopScanner]);
 
   useEffect(() => {
     if (!member) return;
-    if (!pending && !listOpen) {
+    if (!pending && !listOpen && !notFoundOpen && !capturing) {
       void startScanner();
     } else {
       stopScanner();
@@ -114,7 +139,53 @@ export default function BorrowScanPage() {
     return () => {
       stopScanner();
     };
-  }, [member, pending, listOpen, startScanner, stopScanner]);
+  }, [
+    member,
+    pending,
+    listOpen,
+    notFoundOpen,
+    capturing,
+    startScanner,
+    stopScanner,
+  ]);
+
+  const handlePhotoCapture = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0) {
+      setErrorMsg("相機尚未就緒，請稍候再試。");
+      return;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+
+    stopScanner();
+    setCapturing(true);
+    setErrorMsg(null);
+
+    try {
+      const { title } = await recognizeBookCover(dataUrl);
+      if (!title) {
+        setNotFoundOpen(true);
+        return;
+      }
+      const match = findBookByTitle(title, candidates, excludeIds);
+      if (!match) {
+        setNotFoundOpen(true);
+        return;
+      }
+      setPending(match);
+    } catch (err) {
+      console.error("recognize error", err);
+      setNotFoundOpen(true);
+    } finally {
+      setCapturing(false);
+    }
+  }, [candidates, excludeIds, stopScanner]);
 
   const handleAdd = useCallback(() => {
     if (!pending) return;
@@ -156,21 +227,14 @@ export default function BorrowScanPage() {
 
   return (
     <div className="fixed inset-0 bg-black text-white flex flex-col">
-      <header className="flex items-center justify-between px-4 py-3 bg-black/60 backdrop-blur-md z-20 gap-3">
-        <button
-          type="button"
-          onClick={() => setListOpen(true)}
-          className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white text-[13px] font-medium px-3.5 py-1.5 rounded-full transition"
-        >
-          借書 ({books.length})
-        </button>
+      <header className="flex items-center justify-between px-4 py-3 bg-black/70 backdrop-blur-md z-20 gap-3">
         <button
           type="button"
           onClick={() => {
             stopScanner();
             router.push("/");
           }}
-          className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md flex items-center justify-center transition"
+          className="w-9 h-9 rounded-full bg-white hover:bg-neutral-100 text-neutral-900 flex items-center justify-center transition"
           aria-label="關閉"
         >
           <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
@@ -181,6 +245,13 @@ export default function BorrowScanPage() {
               strokeLinecap="round"
             />
           </svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => setListOpen(true)}
+          className="bg-white hover:bg-neutral-100 text-neutral-900 text-[13px] font-medium px-3.5 py-1.5 rounded-full transition"
+        >
+          前往借書 ({books.length})
         </button>
       </header>
 
@@ -193,21 +264,39 @@ export default function BorrowScanPage() {
           className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          <div className="focus-frame w-72 h-72 max-w-[78%] max-h-[58%]">
+          <div className="focus-frame w-72 h-96 max-w-[78%] max-h-[58%]">
             <span className="focus-bl" />
             <span className="focus-br" />
           </div>
         </div>
-        <div className="absolute bottom-10 inset-x-0 flex flex-col items-center gap-3 z-10 px-6">
+
+        <div className="absolute bottom-8 inset-x-0 flex flex-col items-center gap-6 z-10 px-6">
           <p className="text-xs text-white/70 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
-            {busy ? "查詢中…" : `掃描書本 QR · ${member}`}
+            {busy
+              ? "查詢中…"
+              : `對準書本 QR 自動偵測，或點下方按鈕拍封面辨識 · ${member}`}
           </p>
           {errorMsg && (
             <p className="text-xs bg-red-500/30 text-white px-3 py-1.5 rounded-full max-w-xs text-center">
               {errorMsg}
             </p>
           )}
+          <button
+            type="button"
+            onClick={handlePhotoCapture}
+            aria-label="拍封面辨識"
+            className="w-[68px] h-[68px] rounded-full bg-white/10 backdrop-blur-md border-2 border-white/80 active:scale-95 transition flex items-center justify-center"
+          >
+            <span className="block w-[52px] h-[52px] rounded-full bg-white" />
+          </button>
         </div>
+
+        {capturing && (
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center text-center px-6 z-20">
+            <div className="w-7 h-7 border-2 border-white/20 border-t-white rounded-full animate-spin mb-3" />
+            <p className="text-sm text-white/80">辨識中</p>
+          </div>
+        )}
       </div>
 
       {pending && (
@@ -219,6 +308,25 @@ export default function BorrowScanPage() {
           onCancel={handleSkip}
         />
       )}
+
+      <BottomSheet
+        open={notFoundOpen}
+        onClose={() => setNotFoundOpen(false)}
+        title="庫存沒有此書"
+        subtitle="找不到符合的可借書本"
+        footer={
+          <button
+            onClick={() => setNotFoundOpen(false)}
+            className="w-full bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+          >
+            重新掃描
+          </button>
+        }
+      >
+        <p className="text-sm text-neutral-600 pb-4">
+          可能原因：書名拍攝不清、書本目前已被借出、或館藏中沒有這本書。請改用書本上的 QR Code 掃描，或重新拍清楚書封。
+        </p>
+      </BottomSheet>
 
       <BottomSheet
         open={listOpen}
@@ -300,7 +408,8 @@ function BookConfirmSheet({
     <BottomSheet
       open
       onClose={onCancel}
-      title={book.title}
+      title="是這本嗎？"
+      subtitle={book.title}
       footer={
         <div className="flex gap-3">
           <button

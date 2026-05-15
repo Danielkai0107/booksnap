@@ -26,9 +26,12 @@ export default function MemberPicker({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    setPicked(null);
+    setQuery("");
     let alive = true;
     setLoading(true);
     setErrorMsg(null);
@@ -58,8 +61,26 @@ export default function MemberPicker({
     : members;
 
   return (
-    <BottomSheet open={open} onClose={onClose} title={title} subtitle={subtitle}>
-      <div className="mb-3">
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      title={title}
+      subtitle={subtitle}
+      footer={
+        <button
+          type="button"
+          disabled={!picked}
+          onClick={() => {
+            if (!picked) return;
+            onSelect(picked);
+          }}
+          className="w-full bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-lg transition disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
+        >
+          {picked ? `確認：${picked}` : "請選擇成員"}
+        </button>
+      }
+    >
+      <div className="sticky top-0 z-10 -mx-6 px-6 pt-1 pb-3 bg-white">
         <input
           type="text"
           value={query}
@@ -68,9 +89,7 @@ export default function MemberPicker({
           className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-200 bg-white text-sm focus:outline-none focus:border-neutral-900 transition"
         />
       </div>
-      {errorMsg && (
-        <p className="text-sm text-red-600 mb-3">{errorMsg}</p>
-      )}
+      {errorMsg && <p className="text-sm text-red-600 mb-3">{errorMsg}</p>}
       {loading ? (
         <div className="py-10 flex justify-center">
           <div className="w-6 h-6 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />
@@ -84,25 +103,25 @@ export default function MemberPicker({
           </p>
         </div>
       ) : (
-        <ul className="pb-4">
-          {filtered.map((m) => (
-            <li key={m.name}>
-              <button
-                onClick={() => {
-                  onSelect(m.name);
-                  onClose();
-                }}
-                className="w-full text-left px-4 py-3.5 rounded-lg hover:bg-neutral-50 transition flex items-center gap-3 border-b border-neutral-100 last:border-b-0"
-              >
-                <span className="w-9 h-9 rounded-full bg-neutral-100 text-neutral-900 text-sm font-medium flex items-center justify-center">
-                  {m.name.charAt(0)}
-                </span>
-                <span className="text-base font-medium text-neutral-900">
+        <ul className="pb-2 divide-y divide-neutral-100">
+          {filtered.map((m) => {
+            const active = picked === m.name;
+            return (
+              <li key={m.name} className="py-1">
+                <button
+                  type="button"
+                  onClick={() => setPicked(m.name)}
+                  className={`w-full text-center px-4 py-3 rounded-lg transition text-base font-medium ${
+                    active
+                      ? "bg-neutral-100 text-neutral-900"
+                      : "text-neutral-900 hover:bg-neutral-50"
+                  }`}
+                >
                   {m.name}
-                </span>
-              </button>
-            </li>
-          ))}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </BottomSheet>

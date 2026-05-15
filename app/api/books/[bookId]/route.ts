@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -7,6 +7,7 @@ type Params = { params: Promise<{ bookId: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   const { bookId } = await params;
+  const supabase = await createClient();
 
   const [bookRes, recordsRes] = await Promise.all([
     supabase.from("books").select("*").eq("book_id", bookId).maybeSingle(),
@@ -32,6 +33,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { bookId } = await params;
+  const supabase = await createClient();
   let body: { title?: string; shelf_id?: string | null };
   try {
     body = await req.json();
@@ -66,6 +68,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { bookId } = await params;
+  const supabase = await createClient();
   const { error } = await supabase.from("books").delete().eq("book_id", bookId);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

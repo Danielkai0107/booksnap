@@ -68,31 +68,31 @@ export default function LabelsPage() {
         backHref="/admin/labels"
         desktopBack={{ href: "/admin/labels", label: "回選擇" }}
       >
-        <div className="no-print mb-6 flex items-center justify-between gap-3">
-          <div>
+        <div className="no-print mb-6">
+          <div className="flex items-center justify-between gap-3">
             <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-neutral-900">
               標籤預覽
             </h1>
-            <p className="mt-1 text-sm text-neutral-500">
-              共 {selectedBooks.length} 張標籤
-            </p>
+            <div className="flex gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowLabels(false)}
+                className="bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2.5 rounded-lg transition"
+              >
+                返回選擇
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition"
+              >
+                列印
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setShowLabels(false)}
-              className="bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2.5 rounded-lg transition"
-            >
-              返回選擇
-            </button>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition"
-            >
-              列印
-            </button>
-          </div>
+          <p className="mt-2 text-sm text-neutral-500">
+            共 {selectedBooks.length} 張標籤
+          </p>
         </div>
 
         <div className="print-area">
@@ -109,33 +109,61 @@ export default function LabelsPage() {
   return (
     <AdminShell backHref="/admin">
       <header className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
-          標籤管理
-        </h1>
-        <p className="mt-1 text-sm text-neutral-500">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
+            標籤管理
+          </h1>
+          <button
+            type="button"
+            onClick={() => setShowLabels(true)}
+            disabled={selected.size === 0}
+            className="shrink-0 inline-flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-3 rounded-xl transition disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0"
+              aria-hidden
+            >
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+            <span className="leading-none">
+              批次列印{selected.size > 0 ? ` (${selected.size})` : ""}
+            </span>
+          </button>
+        </div>
+        <p className="mt-2 text-sm text-neutral-500">
           選擇要產生 QR / 條碼標籤的書本
         </p>
       </header>
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-5">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="搜尋書名或編號"
-          className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
-        />
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="搜尋書名或編號"
+        className="w-full mb-3 px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
+      />
+      <div className="flex justify-end gap-2 mb-5">
         <button
           type="button"
           onClick={() => selectAll(filtered)}
-          className="bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2.5 rounded-lg transition"
+          className="bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2 rounded-lg transition"
         >
           全選顯示中
         </button>
         <button
           type="button"
           onClick={clearAll}
-          className="bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2.5 rounded-lg transition"
+          className="bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2 rounded-lg transition"
         >
           清空
         </button>
@@ -156,7 +184,7 @@ export default function LabelsPage() {
           {books.length === 0 ? "尚無書籍" : "沒有符合的書"}
         </p>
       ) : (
-        <ul className="divide-y divide-neutral-100 border-y border-neutral-100 mb-32">
+        <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
           {filtered.map((b) => {
             const checked = selected.has(b.book_id);
             return (
@@ -193,18 +221,6 @@ export default function LabelsPage() {
         </ul>
       )}
 
-      {selected.size > 0 && (
-        <div className="fixed bottom-4 inset-x-4 md:left-64 md:right-10 z-30 flex items-center justify-between gap-3 bg-neutral-900 text-white px-5 py-3.5 rounded-xl shadow-xl">
-          <p className="text-sm">已選 {selected.size} 本</p>
-          <button
-            type="button"
-            onClick={() => setShowLabels(true)}
-            className="bg-white text-neutral-900 text-sm font-medium px-4 py-2 rounded-lg hover:bg-neutral-100 transition"
-          >
-            產生標籤
-          </button>
-        </div>
-      )}
     </AdminShell>
   );
 }
