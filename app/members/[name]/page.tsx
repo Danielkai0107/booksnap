@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import BookPreviewSheet, {
+  type BookPreview,
+} from "@/components/BookPreviewSheet";
 import CloseButton from "@/components/CloseButton";
 import ZoomableImage from "@/components/ZoomableImage";
 import { BorrowRecordRow, MemberRow } from "@/lib/supabase";
@@ -14,6 +17,8 @@ type Holding = {
   image_url: string | null;
 };
 
+type BookMap = Record<string, BookPreview>;
+
 export default function MemberDetailPage() {
   const params = useParams<{ name: string }>();
   const name = decodeURIComponent(params.name);
@@ -21,6 +26,8 @@ export default function MemberDetailPage() {
   const [member, setMember] = useState<MemberRow | null>(null);
   const [holding, setHolding] = useState<Holding[]>([]);
   const [records, setRecords] = useState<BorrowRecordRow[]>([]);
+  const [books, setBooks] = useState<BookMap>({});
+  const [previewBookId, setPreviewBookId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("borrow");
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -29,16 +36,16 @@ export default function MemberDetailPage() {
     let alive = true;
     (async () => {
       try {
-        const res = await fetch(
-          `/api/members/${encodeURIComponent(name)}`,
-          { cache: "no-store" }
-        );
+        const res = await fetch(`/api/members/${encodeURIComponent(name)}`, {
+          cache: "no-store",
+        });
         const data = await res.json();
         if (!alive) return;
         if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
         setMember(data.member as MemberRow);
         setHolding((data.holding ?? []) as Holding[]);
         setRecords((data.records ?? []) as BorrowRecordRow[]);
+        setBooks((data.books ?? {}) as BookMap);
       } catch (err) {
         if (!alive) return;
         setErrorMsg(err instanceof Error ? err.message : String(err));
@@ -51,9 +58,11 @@ export default function MemberDetailPage() {
     };
   }, [name]);
 
+  const previewBook = previewBookId ? (books[previewBookId] ?? null) : null;
+
   const returnedRecords = useMemo(
     () => records.filter((r) => r.returned_at),
-    [records]
+    [records],
   );
 
   const lastAction = records[0] ?? null;
@@ -93,7 +102,7 @@ export default function MemberDetailPage() {
               </div>
 
               <div className="mt-5">
-                <p className="text-xs font-medium text-neutral-500 mb-2">
+                <p className="text-[18px] font-bold text-neutral-900 mb-4">
                   目前持有 {holding.length} 本
                 </p>
                 {holding.length === 0 ? (
@@ -123,10 +132,16 @@ export default function MemberDetailPage() {
 
             <section>
               <div className="flex gap-1 border-b border-neutral-200 mb-5">
-                <TabBtn active={tab === "borrow"} onClick={() => setTab("borrow")}>
+                <TabBtn
+                  active={tab === "borrow"}
+                  onClick={() => setTab("borrow")}
+                >
                   借書紀錄 ({records.length})
                 </TabBtn>
-                <TabBtn active={tab === "return"} onClick={() => setTab("return")}>
+                <TabBtn
+                  active={tab === "return"}
+                  onClick={() => setTab("return")}
+                >
                   還書紀錄 ({returnedRecords.length})
                 </TabBtn>
               </div>
@@ -134,19 +149,34 @@ export default function MemberDetailPage() {
               {tab === "borrow" ? (
                 <RecordList
                   records={records}
+                  books={books}
                   empty="尚無借書紀錄"
                   timeKey="borrowed_at"
                   timeLabel="借出時間"
+                  onPick={(bookId) => setPreviewBookId(bookId)}
                 />
               ) : (
                 <RecordList
                   records={returnedRecords}
+                  books={books}
                   empty="尚無還書紀錄"
                   timeKey="returned_at"
                   timeLabel="歸還時間"
+                  onPick={(bookId) => setPreviewBookId(bookId)}
                 />
               )}
             </section>
+
+            <BookPreviewSheet
+              open={!!previewBookId && !!previewBook}
+              onClose={() => setPreviewBookId(null)}
+              book={previewBook}
+              detailHref={
+                previewBookId
+                  ? `/books/${encodeURIComponent(previewBookId)}`
+                  : undefined
+              }
+            />
           </>
         ) : null}
       </div>
@@ -180,14 +210,18 @@ function TabBtn({
 
 function RecordList({
   records,
+  books,
   empty,
   timeKey,
   timeLabel,
+  onPick,
 }: {
   records: BorrowRecordRow[];
+  books: BookMap;
   empty: string;
   timeKey: "borrowed_at" | "returned_at";
   timeLabel: string;
+  onPick: (bookId: string) => void;
 }) {
   if (records.length === 0) {
     return (
@@ -198,17 +232,24 @@ function RecordList({
     <ul className="space-y-2">
       {records.map((r) => {
         const t = r[timeKey];
+        const title = books[r.book_id]?.title ?? r.book_id;
         return (
           <li
             key={r.id}
-            className="px-4 py-3 flex items-center justify-between gap-3 bg-neutral-100 rounded-xl"
+            className="px-4 py-3 flex items-start justify-between gap-3 bg-neutral-100 rounded-xl"
           >
-            <span className="text-sm font-mono text-neutral-900">
-              {r.book_id}
-            </span>
-            <div className="text-xs text-neutral-500 tabular-nums text-right">
-              <span className="text-neutral-400">{timeLabel}：</span>
-              {t ? new Date(t).toLocaleString("zh-TW") : "—"}
+            <button
+              type="button"
+              onClick={() => onPick(r.book_id)}
+              className="flex-1 min-w-0 text-left text-sm font-medium text-neutral-900 hover:underline line-clamp-2 leading-snug"
+            >
+              {title}
+            </button>
+            <div className="text-xs text-neutral-500 tabular-nums text-right shrink-0">
+              <p className="text-neutral-400">{timeLabel}</p>
+              <p className="mt-0.5">
+                {t ? new Date(t).toLocaleString("zh-TW") : "—"}
+              </p>
             </div>
           </li>
         );

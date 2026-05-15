@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import AdminShell from "@/components/AdminShell";
+import BottomSheet from "@/components/BottomSheet";
 import CategoryTag from "@/components/CategoryTag";
+import EditBookSheet from "@/components/EditBookSheet";
+import MemberPreviewSheet from "@/components/MemberPreviewSheet";
 import ZoomableImage from "@/components/ZoomableImage";
 import { BookRow, BorrowRecordRow, type CategoryRow } from "@/lib/supabase";
 
 type Tab = "borrow" | "return";
 
 export default function BookDetailPage() {
+  const router = useRouter();
   const params = useParams<{ bookId: string }>();
   const bookId = decodeURIComponent(params.bookId);
   const [book, setBook] = useState<BookRow | null>(null);
@@ -18,36 +22,50 @@ export default function BookDetailPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("borrow");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [previewMember, setPreviewMember] = useState<string | null>(null);
+
+  const fetchBook = useCallback(async () => {
+    try {
+      const [bookRes, catRes] = await Promise.all([
+        fetch(`/api/books/${encodeURIComponent(bookId)}`, {
+          cache: "no-store",
+        }),
+        fetch("/api/categories", { cache: "no-store" })
+          .then((r) => r.json())
+          .catch(() => ({ categories: [] })),
+      ]);
+      const data = await bookRes.json();
+      if (!bookRes.ok) throw new Error(data.error ?? `HTTP ${bookRes.status}`);
+      setBook(data.book as BookRow);
+      setRecords((data.records ?? []) as BorrowRecordRow[]);
+      setCategories((catRes?.categories ?? []) as CategoryRow[]);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [bookId]);
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const [bookRes, catRes] = await Promise.all([
-          fetch(`/api/books/${encodeURIComponent(bookId)}`, {
-            cache: "no-store",
-          }),
-          fetch("/api/categories", { cache: "no-store" })
-            .then((r) => r.json())
-            .catch(() => ({ categories: [] })),
-        ]);
-        const data = await bookRes.json();
-        if (!alive) return;
-        if (!bookRes.ok) throw new Error(data.error ?? `HTTP ${bookRes.status}`);
-        setBook(data.book as BookRow);
-        setRecords((data.records ?? []) as BorrowRecordRow[]);
-        setCategories((catRes?.categories ?? []) as CategoryRow[]);
-      } catch (err) {
-        if (!alive) return;
-        setErrorMsg(err instanceof Error ? err.message : String(err));
-      } finally {
-        if (alive) setLoading(false);
+    void fetchBook();
+  }, [fetchBook]);
+
+  async function handleDelete() {
+    try {
+      const res = await fetch(`/api/books/${encodeURIComponent(bookId)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `HTTP ${res.status}`);
       }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [bookId]);
+      router.push("/admin");
+    } catch (err) {
+      alert(`刪除失敗：${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 
   const categoryName = useMemo(() => {
     if (!book?.category_id) return null;
@@ -56,11 +74,15 @@ export default function BookDetailPage() {
 
   const returnedRecords = useMemo(
     () => records.filter((r) => r.returned_at),
-    [records]
+    [records],
   );
 
   return (
-    <AdminShell backHref="/admin" desktopBack={{ href: "/admin", label: "回書籍列表" }}>
+    <AdminShell
+      backHref="/admin"
+      desktopBack={{ href: "/admin", label: "回書籍列表" }}
+      scrollLifted
+    >
       {loading ? (
         <div className="py-20 flex justify-center">
           <div className="w-7 h-7 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />
@@ -72,19 +94,35 @@ export default function BookDetailPage() {
       ) : book ? (
         <>
           <section className="bg-neutral-100 border border-neutral-200 rounded-2xl p-5 md:p-7 mb-8">
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <h1 className="flex-1 min-w-0 text-xl md:text-2xl font-semibold tracking-tight text-neutral-900 leading-snug">
-                {book.title}
-              </h1>
-              <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
-                <StatusPill status={book.status} />
-                {categoryName && <CategoryTag name={categoryName} />}
-                {book.shelf_id && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-white text-neutral-700 border border-neutral-200">
-                    書架 {book.shelf_id}
-                  </span>
-                )}
-              </div>
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <StatusPill status={book.status} />
+              {categoryName && <CategoryTag name={categoryName} />}
+              {book.shelf_id && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-white text-neutral-700 border border-neutral-200">
+                  書架 {book.shelf_id}
+                </span>
+              )}
+            </div>
+            <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-neutral-900 leading-snug mb-4">
+              {book.title}
+            </h1>
+
+            {/* 桌機編輯/刪除按鈕 */}
+            <div className="hidden md:flex justify-end gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                className="text-xs text-neutral-700 hover:text-neutral-900 px-3 py-1.5 rounded-md border border-neutral-200 hover:border-neutral-400 transition"
+              >
+                編輯書本
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(true)}
+                className="text-xs text-red-600 hover:text-red-700 px-3 py-1.5 rounded-md border border-red-100 hover:border-red-200 transition"
+              >
+                刪除書本
+              </button>
             </div>
 
             <div className="flex gap-5 items-stretch">
@@ -146,6 +184,7 @@ export default function BookDetailPage() {
                 empty="尚無借書紀錄"
                 timeKey="borrowed_at"
                 timeLabel="借出時間"
+                onNameClick={setPreviewMember}
               />
             ) : (
               <RecordList
@@ -153,9 +192,86 @@ export default function BookDetailPage() {
                 empty="尚無還書紀錄"
                 timeKey="returned_at"
                 timeLabel="歸還時間"
+                onNameClick={setPreviewMember}
               />
             )}
           </section>
+
+          {/* 手機版底部留白，避免被固定按鈕遮擋 */}
+          <div className="md:hidden h-24" aria-hidden />
+
+          {/* 手機版固定底部編輯/刪除按鈕 */}
+          <div
+            className="md:hidden fixed inset-x-0 bottom-0 z-40 px-5 pt-3 flex gap-3 bg-white border-t border-neutral-100"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
+          >
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-xl transition"
+            >
+              編輯書本
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(true)}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-3 rounded-xl transition"
+            >
+              刪除書本
+            </button>
+          </div>
+
+          <MemberPreviewSheet
+            open={previewMember !== null}
+            onClose={() => setPreviewMember(null)}
+            name={previewMember}
+            detailHref={
+              previewMember
+                ? `/admin/members/${encodeURIComponent(previewMember)}`
+                : undefined
+            }
+          />
+
+          {editOpen && (
+            <EditBookSheet
+              book={book}
+              categories={categories}
+              onClose={() => setEditOpen(false)}
+              onSaved={() => {
+                setEditOpen(false);
+                void fetchBook();
+              }}
+            />
+          )}
+
+          {deleteOpen && (
+            <BottomSheet
+              open
+              onClose={() => setDeleteOpen(false)}
+              title="刪除書本？"
+              subtitle={`此操作無法復原（${book.book_id}）`}
+              footer={
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setDeleteOpen(false)}
+                    className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-3 rounded-lg transition"
+                  >
+                    確認刪除
+                  </button>
+                </div>
+              }
+            >
+              <p className="text-sm text-neutral-600 pb-4">
+                《{book.title}》將從館藏中移除，同時會刪掉相關借還紀錄。
+              </p>
+            </BottomSheet>
+          )}
         </>
       ) : null}
     </AdminShell>
@@ -208,11 +324,13 @@ function RecordList({
   empty,
   timeKey,
   timeLabel,
+  onNameClick,
 }: {
   records: BorrowRecordRow[];
   empty: string;
   timeKey: "borrowed_at" | "returned_at";
   timeLabel: string;
+  onNameClick: (name: string) => void;
 }) {
   if (records.length === 0) {
     return (
@@ -228,14 +346,15 @@ function RecordList({
             key={r.id}
             className="px-4 py-3 flex items-center justify-between gap-3 bg-neutral-100 rounded-xl"
           >
-            <a
-              href={`/admin/members/${encodeURIComponent(r.borrower_name)}`}
-              className="text-sm font-medium text-neutral-900 hover:underline"
+            <button
+              type="button"
+              onClick={() => onNameClick(r.borrower_name)}
+              className="text-sm font-medium text-neutral-900 hover:underline text-left"
             >
               {r.borrower_name}
-            </a>
+            </button>
             <div className="text-xs text-neutral-500 tabular-nums text-right">
-              <span className="text-neutral-400">{timeLabel}：</span>
+              <span className="text-neutral-400">{timeLabel}</span>
               {t ? new Date(t).toLocaleString("zh-TW") : "—"}
             </div>
           </li>

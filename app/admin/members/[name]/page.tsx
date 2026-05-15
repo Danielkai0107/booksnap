@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AdminShell from "@/components/AdminShell";
+import BookPreviewSheet, {
+  type BookPreview,
+} from "@/components/BookPreviewSheet";
 import BottomSheet from "@/components/BottomSheet";
 import ZoomableImage from "@/components/ZoomableImage";
 import { BorrowRecordRow, MemberRow } from "@/lib/supabase";
@@ -16,6 +19,8 @@ type Holding = {
   image_url: string | null;
 };
 
+type BookMap = Record<string, BookPreview>;
+
 export default function MemberDetailPage() {
   const params = useParams<{ name: string }>();
   const router = useRouter();
@@ -24,6 +29,8 @@ export default function MemberDetailPage() {
   const [member, setMember] = useState<MemberRow | null>(null);
   const [holding, setHolding] = useState<Holding[]>([]);
   const [records, setRecords] = useState<BorrowRecordRow[]>([]);
+  const [books, setBooks] = useState<BookMap>({});
+  const [previewBookId, setPreviewBookId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("borrow");
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -36,16 +43,16 @@ export default function MemberDetailPage() {
     let alive = true;
     (async () => {
       try {
-        const res = await fetch(
-          `/api/members/${encodeURIComponent(name)}`,
-          { cache: "no-store" }
-        );
+        const res = await fetch(`/api/members/${encodeURIComponent(name)}`, {
+          cache: "no-store",
+        });
         const data = await res.json();
         if (!alive) return;
         if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
         setMember(data.member as MemberRow);
         setHolding((data.holding ?? []) as Holding[]);
         setRecords((data.records ?? []) as BorrowRecordRow[]);
+        setBooks((data.books ?? {}) as BookMap);
       } catch (err) {
         if (!alive) return;
         setErrorMsg(err instanceof Error ? err.message : String(err));
@@ -58,9 +65,11 @@ export default function MemberDetailPage() {
     };
   }, [name]);
 
+  const previewBook = previewBookId ? (books[previewBookId] ?? null) : null;
+
   const returnedRecords = useMemo(
     () => records.filter((r) => r.returned_at),
-    [records]
+    [records],
   );
 
   const lastAction = records[0] ?? null;
@@ -74,14 +83,11 @@ export default function MemberDetailPage() {
     }
     setEditSaving(true);
     try {
-      const res = await fetch(
-        `/api/members/${encodeURIComponent(name)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: trimmed }),
-        }
-      );
+      const res = await fetch(`/api/members/${encodeURIComponent(name)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -95,10 +101,9 @@ export default function MemberDetailPage() {
 
   async function handleDelete() {
     try {
-      const res = await fetch(
-        `/api/members/${encodeURIComponent(name)}`,
-        { method: "DELETE" }
-      );
+      const res = await fetch(`/api/members/${encodeURIComponent(name)}`, {
+        method: "DELETE",
+      });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -113,6 +118,7 @@ export default function MemberDetailPage() {
     <AdminShell
       backHref="/admin/members"
       desktopBack={{ href: "/admin/members", label: "回成員列表" }}
+      scrollLifted
     >
       {loading ? (
         <div className="py-20 flex justify-center">
@@ -143,7 +149,8 @@ export default function MemberDetailPage() {
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              {/* 桌機顯示右上角操作；手機改為底部固定按鈕 */}
+              <div className="hidden md:flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
@@ -165,7 +172,7 @@ export default function MemberDetailPage() {
             </div>
 
             <div className="mt-5">
-              <p className="text-xs font-medium text-neutral-500 mb-2">
+              <p className="text-[18px] font-bold text-neutral-900 mb-4">
                 目前持有 {holding.length} 本
               </p>
               {holding.length === 0 ? (
@@ -200,10 +207,16 @@ export default function MemberDetailPage() {
 
           <section>
             <div className="flex gap-1 border-b border-neutral-200 mb-5">
-              <TabBtn active={tab === "borrow"} onClick={() => setTab("borrow")}>
+              <TabBtn
+                active={tab === "borrow"}
+                onClick={() => setTab("borrow")}
+              >
                 借書紀錄 ({records.length})
               </TabBtn>
-              <TabBtn active={tab === "return"} onClick={() => setTab("return")}>
+              <TabBtn
+                active={tab === "return"}
+                onClick={() => setTab("return")}
+              >
                 還書紀錄 ({returnedRecords.length})
               </TabBtn>
             </div>
@@ -211,19 +224,61 @@ export default function MemberDetailPage() {
             {tab === "borrow" ? (
               <RecordList
                 records={records}
+                books={books}
                 empty="尚無借書紀錄"
                 timeKey="borrowed_at"
                 timeLabel="借出時間"
+                onPick={(bookId) => setPreviewBookId(bookId)}
               />
             ) : (
               <RecordList
                 records={returnedRecords}
+                books={books}
                 empty="尚無還書紀錄"
                 timeKey="returned_at"
                 timeLabel="歸還時間"
+                onPick={(bookId) => setPreviewBookId(bookId)}
               />
             )}
           </section>
+
+          <BookPreviewSheet
+            open={!!previewBookId && !!previewBook}
+            onClose={() => setPreviewBookId(null)}
+            book={previewBook}
+            detailHref={
+              previewBookId
+                ? `/admin/books/${encodeURIComponent(previewBookId)}`
+                : undefined
+            }
+          />
+
+          {/* 手機版底部留白，避免被固定按鈕遮擋 */}
+          <div className="md:hidden h-24" aria-hidden />
+
+          {/* 手機版固定底部編輯/刪除按鈕 */}
+          <div
+            className="md:hidden fixed inset-x-0 bottom-0 z-40 px-5 pt-3 flex gap-3 bg-white border-t border-neutral-100"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setEditName(member.name);
+                setEditOpen(true);
+              }}
+              className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-xl transition"
+            >
+              編輯姓名
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(true)}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-3 rounded-xl transition"
+            >
+              刪除成員
+            </button>
+          </div>
 
           {editOpen && (
             <BottomSheet
@@ -337,14 +392,18 @@ function TabBtn({
 
 function RecordList({
   records,
+  books,
   empty,
   timeKey,
   timeLabel,
+  onPick,
 }: {
   records: BorrowRecordRow[];
+  books: BookMap;
   empty: string;
   timeKey: "borrowed_at" | "returned_at";
   timeLabel: string;
+  onPick: (bookId: string) => void;
 }) {
   if (records.length === 0) {
     return (
@@ -355,20 +414,24 @@ function RecordList({
     <ul className="space-y-2">
       {records.map((r) => {
         const t = r[timeKey];
+        const title = books[r.book_id]?.title ?? r.book_id;
         return (
           <li
             key={r.id}
-            className="px-4 py-3 flex items-center justify-between gap-3 bg-neutral-100 rounded-xl"
+            className="px-4 py-3 flex items-start justify-between gap-3 bg-neutral-100 rounded-xl"
           >
-            <Link
-              href={`/admin/books/${encodeURIComponent(r.book_id)}`}
-              className="text-sm font-mono text-neutral-900 hover:underline"
+            <button
+              type="button"
+              onClick={() => onPick(r.book_id)}
+              className="flex-1 min-w-0 text-left text-sm font-medium text-neutral-900 hover:underline line-clamp-2 leading-snug"
             >
-              {r.book_id}
-            </Link>
-            <div className="text-xs text-neutral-500 tabular-nums text-right">
-              <span className="text-neutral-400">{timeLabel}：</span>
-              {t ? new Date(t).toLocaleString("zh-TW") : "—"}
+              {title}
+            </button>
+            <div className="text-xs text-neutral-500 tabular-nums text-right shrink-0">
+              <p className="text-neutral-400">{timeLabel}</p>
+              <p className="mt-0.5">
+                {t ? new Date(t).toLocaleString("zh-TW") : "—"}
+              </p>
             </div>
           </li>
         );

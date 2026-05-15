@@ -6,12 +6,16 @@ import { supabase, BookRow, type CategoryRow } from "@/lib/supabase";
 import CategorySelect from "@/components/CategorySelect";
 import CategoryTag from "@/components/CategoryTag";
 import CloseButton from "@/components/CloseButton";
+import ScrollToTopButton from "@/components/ScrollToTopButton";
 
 export default function BooksListPage() {
   const [books, setBooks] = useState<BookRow[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<
+    "" | "available" | "borrowed"
+  >("");
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -46,13 +50,14 @@ export default function BooksListPage() {
 
   const categoryOptions = useMemo(
     () => categories.map((c) => ({ value: c.id, label: c.name })),
-    [categories]
+    [categories],
   );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return books.filter((b) => {
       if (categoryFilter && b.category_id !== categoryFilter) return false;
+      if (statusFilter && b.status !== statusFilter) return false;
       if (!q) return true;
       return (
         b.title.toLowerCase().includes(q) ||
@@ -60,13 +65,36 @@ export default function BooksListPage() {
         (b.current_holder ?? "").toLowerCase().includes(q)
       );
     });
-  }, [books, query, categoryFilter]);
+  }, [books, query, categoryFilter, statusFilter]);
 
   return (
     <main className="min-h-screen bg-white">
-      <CloseButton href="/" />
+      <div className="sticky top-0 z-30 bg-white/85 backdrop-blur-md">
+        <div className="max-w-3xl mx-auto px-3 sm:px-6 py-3 flex items-center">
+          <CloseButton href="/" inline />
+          <div className="flex items-center gap-2 ml-4 flex-1 min-w-0">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="搜尋書名、編號或持有人"
+              className="flex-1 min-w-0 h-[42px] px-4 rounded-full border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
+            />
+            <div className="w-28 sm:w-40 shrink-0">
+              <CategorySelect
+                sizeVariant="sm"
+                radius="full"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                options={categoryOptions}
+                placeholder="全部"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <div className="max-w-3xl mx-auto px-5 sm:px-8 pt-20 pb-12">
+      <div className="max-w-3xl mx-auto px-5 sm:px-8 pt-6 pb-12">
         <header className="mb-6 flex items-center justify-between gap-3">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900">
             書籍清單
@@ -77,22 +105,26 @@ export default function BooksListPage() {
         </header>
 
         <div className="flex gap-2 mb-6">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜尋書名、編號或持有人"
-            className="flex-1 min-w-0 h-[42px] px-4 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
-          />
-          <div className="w-1/3 shrink-0">
-            <CategorySelect
-              sizeVariant="sm"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              options={categoryOptions}
-              placeholder="全部分類"
-            />
-          </div>
+          <StatusFilterChip
+            active={statusFilter === ""}
+            onClick={() => setStatusFilter("")}
+          >
+            全部
+          </StatusFilterChip>
+          <StatusFilterChip
+            active={statusFilter === "available"}
+            onClick={() => setStatusFilter("available")}
+            dotColor="bg-emerald-500"
+          >
+            可借
+          </StatusFilterChip>
+          <StatusFilterChip
+            active={statusFilter === "borrowed"}
+            onClick={() => setStatusFilter("borrowed")}
+            dotColor="bg-neutral-400"
+          >
+            已借出
+          </StatusFilterChip>
         </div>
 
         {errorMsg && (
@@ -166,6 +198,8 @@ export default function BooksListPage() {
           </ul>
         )}
       </div>
+
+      <ScrollToTopButton />
     </main>
   );
 }
@@ -184,5 +218,32 @@ function StatusPill({ status }: { status: string }) {
       <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
       已借出
     </span>
+  );
+}
+
+function StatusFilterChip({
+  active,
+  onClick,
+  dotColor,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  dotColor?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition ${
+        active
+          ? "bg-neutral-900 text-white border-neutral-900"
+          : "bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400"
+      }`}
+    >
+      {dotColor && <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />}
+      {children}
+    </button>
   );
 }

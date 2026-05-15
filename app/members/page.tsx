@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import CloseButton from "@/components/CloseButton";
+import ScrollToTopButton from "@/components/ScrollToTopButton";
 
 type Member = {
   name: string;
@@ -63,9 +64,20 @@ export default function MembersListPage() {
 
   return (
     <main className="min-h-screen bg-white">
-      <CloseButton href="/" />
+      <div className="sticky top-0 z-30 bg-white/85 backdrop-blur-md">
+        <div className="max-w-3xl mx-auto px-3 sm:px-6 py-3 flex items-center">
+          <CloseButton href="/" inline />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="搜尋成員姓名"
+            className="flex-1 min-w-0 h-[42px] px-4 ml-4 rounded-full border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
+          />
+        </div>
+      </div>
 
-      <div className="max-w-3xl mx-auto px-5 sm:px-8 pt-20 pb-12">
+      <div className="max-w-3xl mx-auto px-5 sm:px-8 pt-6 pb-12">
         <header className="mb-6 flex items-center justify-between gap-3">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900">
             成員查詢
@@ -74,14 +86,6 @@ export default function MembersListPage() {
             共 {members.length} 位成員
           </p>
         </header>
-
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="搜尋成員姓名"
-          className="w-full mb-6 px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
-        />
 
         {errorMsg && (
           <div className="mb-6 px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm">
@@ -133,6 +137,8 @@ export default function MembersListPage() {
           </ul>
         )}
       </div>
+
+      <ScrollToTopButton />
     </main>
   );
 }

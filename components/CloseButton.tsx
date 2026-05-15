@@ -12,6 +12,8 @@ type Props = {
   ariaLabel?: string;
   /** 點擊後是否顯示全屏 loading（適合返回需要 server 渲染的頁面） */
   showLoadingOnClick?: boolean;
+  /** 若為 true，使用 inline 樣式（不 fixed），方便放入自訂 header */
+  inline?: boolean;
 };
 
 export default function CloseButton({
@@ -22,12 +24,14 @@ export default function CloseButton({
   icon = "x",
   ariaLabel,
   showLoadingOnClick = true,
+  inline = false,
 }: Props) {
   const router = useRouter();
   const [navigating, setNavigating] = useState(false);
 
-  const base =
-    "fixed top-4 left-4 z-40 w-10 h-10 rounded-full bg-white/55 backdrop-blur-md border border-white/40 shadow-sm flex items-center justify-center text-neutral-800 hover:bg-white/80 transition";
+  const base = inline
+    ? "shrink-0 w-10 h-10 rounded-full bg-white border border-neutral-200 flex items-center justify-center text-neutral-800 hover:bg-neutral-50 transition"
+    : "fixed top-4 left-4 z-40 w-10 h-10 rounded-full bg-white/55 backdrop-blur-md border border-white/40 shadow-sm flex items-center justify-center text-neutral-800 hover:bg-white/80 transition";
   const cls = `${base} ${hideOnDesktop ? "md:hidden" : ""} ${className}`;
 
   const Icon =

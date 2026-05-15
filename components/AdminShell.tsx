@@ -4,6 +4,7 @@ import { ReactNode, useState } from "react";
 import Link from "next/link";
 import CloseButton from "./CloseButton";
 import AdminSidebar, { AdminMobileMenu } from "./AdminSidebar";
+import ScrollToTopButton from "./ScrollToTopButton";
 
 type Props = {
   children: ReactNode;
@@ -24,6 +25,10 @@ type Props = {
    * 用於頁面內的 state 切換（例：標籤預覽切回選擇）。
    */
   onBack?: () => void;
+  /**
+   * 手機版有固定底部操作列時，把右下回頂按鈕往上抬以避免重疊。
+   */
+  scrollLifted?: boolean;
 };
 
 export default function AdminShell({
@@ -33,6 +38,7 @@ export default function AdminShell({
   backHref,
   desktopBack,
   onBack,
+  scrollLifted = false,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -105,6 +111,8 @@ export default function AdminShell({
           {children}
         </div>
       </main>
+
+      <ScrollToTopButton lifted={scrollLifted} />
     </div>
   );
 }

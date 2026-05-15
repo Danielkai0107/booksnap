@@ -12,6 +12,8 @@ type Props = Omit<
   placeholder?: string;
   /** Visual sizing. `sm` for header filters, `md` for forms. */
   sizeVariant?: "sm" | "md";
+  /** Border radius. `lg`（預設）或 `full`（藥丸形）。 */
+  radius?: "lg" | "full";
 };
 
 /**
@@ -29,6 +31,7 @@ const CategorySelect = forwardRef<HTMLSelectElement, Props>(function CategorySel
     options,
     placeholder,
     sizeVariant = "md",
+    radius = "lg",
     className = "",
     ...rest
   },
@@ -36,12 +39,13 @@ const CategorySelect = forwardRef<HTMLSelectElement, Props>(function CategorySel
 ) {
   const height = sizeVariant === "sm" ? "h-[42px]" : "h-[46px]";
   const text = sizeVariant === "sm" ? "text-sm" : "text-sm md:text-sm";
+  const rounded = radius === "full" ? "rounded-full pl-4" : "rounded-lg pl-3.5";
   return (
     <div className={`relative w-full ${className}`}>
       <select
         ref={ref}
         {...rest}
-        className={`appearance-none w-full ${height} ${text} pl-3.5 pr-9 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:bg-neutral-50 disabled:text-neutral-400 truncate`}
+        className={`appearance-none w-full ${height} ${text} ${rounded} pr-9 border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition disabled:bg-neutral-50 disabled:text-neutral-400 truncate`}
       >
         {placeholder !== undefined && (
           <option value="">{placeholder}</option>

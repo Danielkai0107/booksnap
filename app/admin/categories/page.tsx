@@ -49,7 +49,7 @@ export default function CategoriesPage() {
           <button
             type="button"
             onClick={() => setAddOpen(true)}
-            className="shrink-0 inline-flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-3 rounded-xl transition"
+            className="hidden md:inline-flex shrink-0 items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-3 rounded-xl transition"
           >
             <svg
               width="16"
@@ -141,6 +141,37 @@ export default function CategoriesPage() {
           ))}
         </ul>
       )}
+
+      {/* 手機版底部留白，避免列表被浮動按鈕遮擋 */}
+      <div className="md:hidden h-24" aria-hidden />
+
+      {/* 手機版底部固定「新增分類」按鈕 */}
+      <div
+        className="md:hidden fixed inset-x-0 bottom-0 z-40 px-5 pt-6 flex justify-center pointer-events-none bg-gradient-to-t from-white via-white/95 to-white/0"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 20px)" }}
+      >
+        <button
+          type="button"
+          onClick={() => setAddOpen(true)}
+          className="pointer-events-auto inline-flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 text-white text-base font-medium px-7 py-4 rounded-full shadow-lg shadow-neutral-900/20 transition"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="shrink-0"
+            aria-hidden
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          <span className="leading-none">新增分類</span>
+        </button>
+      </div>
 
       {addOpen && (
         <CategoryEditSheet

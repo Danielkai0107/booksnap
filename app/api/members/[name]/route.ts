@@ -33,10 +33,51 @@ export async function GET(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "member not found" }, { status: 404 });
   }
 
+  // Look up book + category details for every book_id referenced in records
+  // so the UI can render a clickable title and a preview card without an extra
+  // round-trip per row.
+  const recordRows = recordsRes.data ?? [];
+  const bookIds = Array.from(
+    new Set(recordRows.map((r) => r.book_id as string))
+  );
+  type BookWithCategory = {
+    book_id: string;
+    title: string;
+    image_url: string | null;
+    status: string | null;
+    shelf_id: string | null;
+    current_holder: string | null;
+    admin_name: string | null;
+    checkin_time: string | null;
+    category_id: string | null;
+    category: { name: string } | null;
+  };
+  let books: Record<string, BookWithCategory & { category_name: string | null }> =
+    {};
+  if (bookIds.length > 0) {
+    const { data: bookRows } = await supabase
+      .from("books")
+      .select(
+        "book_id, title, image_url, status, shelf_id, current_holder, admin_name, checkin_time, category_id, category:categories(name)"
+      )
+      .in("book_id", bookIds);
+    books = ((bookRows ?? []) as unknown as BookWithCategory[]).reduce(
+      (acc, b) => {
+        acc[b.book_id] = {
+          ...b,
+          category_name: b.category?.name ?? null,
+        };
+        return acc;
+      },
+      {} as Record<string, BookWithCategory & { category_name: string | null }>
+    );
+  }
+
   return NextResponse.json({
     member: memberRes.data,
     holding: holdingRes.data ?? [],
-    records: recordsRes.data ?? [],
+    records: recordRows,
+    books,
   });
 }
 
