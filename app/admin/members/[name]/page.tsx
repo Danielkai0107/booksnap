@@ -124,7 +124,7 @@ export default function MemberDetailPage() {
         </div>
       ) : member ? (
         <>
-          <section className="bg-neutral-50/50 border border-neutral-100 rounded-2xl p-5 md:p-7 mb-8">
+          <section className="bg-neutral-100 border border-neutral-200 rounded-2xl p-5 md:p-7 mb-8">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
@@ -182,12 +182,12 @@ export default function MemberDetailPage() {
                           <ZoomableImage
                             src={b.image_url}
                             alt={b.title}
-                            className="w-20 h-28 object-cover rounded-md border border-neutral-200"
+                            className="w-20 h-20 object-cover rounded-md border border-neutral-200"
                           />
                         ) : (
-                          <div className="w-20 h-28 bg-neutral-100 rounded-md" />
+                          <div className="w-20 h-20 bg-white rounded-md border border-neutral-200" />
                         )}
-                        <p className="mt-1.5 text-xs text-neutral-700 line-clamp-2">
+                        <p className="mt-1.5 text-xs text-neutral-700 truncate">
                           {b.title}
                         </p>
                       </Link>

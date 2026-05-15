@@ -1,28 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import CloseButton from "@/components/CloseButton";
 import ZoomableImage from "@/components/ZoomableImage";
-import { BorrowRecordRow, MemberRow } from "@/lib/supabase";
+import { BookRow, BorrowRecordRow } from "@/lib/supabase";
 
 type Tab = "borrow" | "return";
 
-type Holding = {
-  book_id: string;
-  title: string;
-  image_url: string | null;
-};
-
-export default function MemberDetailPage() {
-  const params = useParams<{ name: string }>();
-  const name = decodeURIComponent(params.name);
-
-  const [member, setMember] = useState<MemberRow | null>(null);
-  const [holding, setHolding] = useState<Holding[]>([]);
+export default function BookDetailPage() {
+  const params = useParams<{ bookId: string }>();
+  const bookId = decodeURIComponent(params.bookId);
+  const [book, setBook] = useState<BookRow | null>(null);
   const [records, setRecords] = useState<BorrowRecordRow[]>([]);
-  const [tab, setTab] = useState<Tab>("borrow");
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>("borrow");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,14 +23,13 @@ export default function MemberDetailPage() {
     (async () => {
       try {
         const res = await fetch(
-          `/api/members/${encodeURIComponent(name)}`,
+          `/api/books/${encodeURIComponent(bookId)}`,
           { cache: "no-store" }
         );
         const data = await res.json();
         if (!alive) return;
         if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
-        setMember(data.member as MemberRow);
-        setHolding((data.holding ?? []) as Holding[]);
+        setBook(data.book as BookRow);
         setRecords((data.records ?? []) as BorrowRecordRow[]);
       } catch (err) {
         if (!alive) return;
@@ -49,18 +41,16 @@ export default function MemberDetailPage() {
     return () => {
       alive = false;
     };
-  }, [name]);
+  }, [bookId]);
 
   const returnedRecords = useMemo(
     () => records.filter((r) => r.returned_at),
     [records]
   );
 
-  const lastAction = records[0] ?? null;
-
   return (
     <main className="min-h-screen bg-white">
-      <CloseButton href="/members" icon="arrow-left" ariaLabel="回成員列表" />
+      <CloseButton href="/books" icon="arrow-left" ariaLabel="回書籍清單" />
 
       <div className="max-w-3xl mx-auto px-5 sm:px-8 pt-20 pb-12">
         {loading ? (
@@ -71,62 +61,67 @@ export default function MemberDetailPage() {
           <div className="px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm">
             {errorMsg}
           </div>
-        ) : member ? (
+        ) : book ? (
           <>
             <section className="bg-neutral-100 border border-neutral-200 rounded-2xl p-5 md:p-7 mb-8">
-              <div>
-                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
-                  {member.name}
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <h1 className="flex-1 min-w-0 text-xl md:text-2xl font-semibold tracking-tight text-neutral-900 leading-snug">
+                  {book.title}
                 </h1>
-                <p className="mt-1 text-xs text-neutral-500">
-                  加入時間 ·{" "}
-                  {new Date(member.created_at).toLocaleString("zh-TW")}
-                </p>
-                {lastAction && (
-                  <p className="mt-2 text-xs text-neutral-500">
-                    最近動作 ·{" "}
-                    {lastAction.returned_at
-                      ? `${new Date(lastAction.returned_at).toLocaleString("zh-TW")} 歸還`
-                      : `${new Date(lastAction.borrowed_at).toLocaleString("zh-TW")} 借出`}
-                  </p>
-                )}
+                <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                  <StatusPill status={book.status} />
+                  {book.shelf_id && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-white text-neutral-700 border border-neutral-200">
+                      書架 {book.shelf_id}
+                    </span>
+                  )}
+                </div>
               </div>
 
-              <div className="mt-5">
-                <p className="text-xs font-medium text-neutral-500 mb-2">
-                  目前持有 {holding.length} 本
-                </p>
-                {holding.length === 0 ? (
-                  <p className="text-sm text-neutral-400">無持有書本</p>
+              <div className="flex gap-5 items-stretch">
+                {book.image_url ? (
+                  <ZoomableImage
+                    src={book.image_url}
+                    alt={book.title}
+                    className="w-24 md:w-32 self-stretch object-cover rounded-lg border border-neutral-200 shrink-0"
+                  />
                 ) : (
-                  <ul className="flex gap-3 overflow-x-auto pb-1">
-                    {holding.map((b) => (
-                      <li key={b.book_id} className="shrink-0 w-20">
-                        {b.image_url ? (
-                          <ZoomableImage
-                            src={b.image_url}
-                            alt={b.title}
-                            className="w-20 h-20 object-cover rounded-md border border-neutral-200"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-white rounded-md border border-neutral-200" />
-                        )}
-                        <p className="mt-1.5 text-xs text-neutral-700 truncate text-center">
-                          {b.title}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="w-24 md:w-32 self-stretch rounded-lg bg-white border border-neutral-200 shrink-0" />
                 )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-neutral-400 font-mono">
+                    {book.book_id}
+                  </p>
+                  <p className="mt-2 text-xs text-neutral-500">
+                    入庫 · {book.admin_name}
+                  </p>
+                  <p className="text-xs text-neutral-500 tabular-nums">
+                    {new Date(book.checkin_time).toLocaleString("zh-TW")}
+                  </p>
+                  {book.current_holder && (
+                    <p className="mt-3 text-sm text-neutral-600">
+                      目前持有者：
+                      <span className="text-neutral-900 font-medium">
+                        {book.current_holder}
+                      </span>
+                    </p>
+                  )}
+                </div>
               </div>
             </section>
 
             <section>
               <div className="flex gap-1 border-b border-neutral-200 mb-5">
-                <TabBtn active={tab === "borrow"} onClick={() => setTab("borrow")}>
+                <TabBtn
+                  active={tab === "borrow"}
+                  onClick={() => setTab("borrow")}
+                >
                   借書紀錄 ({records.length})
                 </TabBtn>
-                <TabBtn active={tab === "return"} onClick={() => setTab("return")}>
+                <TabBtn
+                  active={tab === "return"}
+                  onClick={() => setTab("return")}
+                >
                   還書紀錄 ({returnedRecords.length})
                 </TabBtn>
               </div>
@@ -151,6 +146,23 @@ export default function MemberDetailPage() {
         ) : null}
       </div>
     </main>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  if (status === "available") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        在庫
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full bg-white text-neutral-700 border border-neutral-200 font-medium">
+      <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
+      已借出
+    </span>
   );
 }
 
@@ -203,9 +215,12 @@ function RecordList({
             key={r.id}
             className="py-3.5 flex items-center justify-between gap-3"
           >
-            <span className="text-sm font-mono text-neutral-900">
-              {r.book_id}
-            </span>
+            <Link
+              href={`/members/${encodeURIComponent(r.borrower_name)}`}
+              className="text-sm font-medium text-neutral-900 hover:underline"
+            >
+              {r.borrower_name}
+            </Link>
             <div className="text-xs text-neutral-500 tabular-nums text-right">
               <span className="text-neutral-400">{timeLabel}：</span>
               {t ? new Date(t).toLocaleString("zh-TW") : "—"}

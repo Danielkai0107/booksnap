@@ -59,32 +59,41 @@ export default function BookDetailPage() {
         </div>
       ) : book ? (
         <>
-          <section className="bg-neutral-50/50 border border-neutral-100 rounded-2xl p-5 md:p-7 mb-8">
-            <div className="flex gap-5 items-start">
+          <section className="bg-neutral-100 border border-neutral-200 rounded-2xl p-5 md:p-7 mb-8">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <h1 className="flex-1 min-w-0 text-xl md:text-2xl font-semibold tracking-tight text-neutral-900 leading-snug">
+                {book.title}
+              </h1>
+              <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                <StatusPill status={book.status} />
+                {book.shelf_id && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-white text-neutral-700 border border-neutral-200">
+                    書架 {book.shelf_id}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-5 items-stretch">
               {book.image_url ? (
                 <ZoomableImage
                   src={book.image_url}
                   alt={book.title}
-                  className="w-24 h-32 md:w-32 md:h-44 object-cover rounded-lg border border-neutral-200 shrink-0"
+                  className="w-24 md:w-32 self-stretch object-cover rounded-lg border border-neutral-200 shrink-0"
                 />
               ) : (
-                <div className="w-24 h-32 md:w-32 md:h-44 rounded-lg bg-neutral-100 shrink-0" />
+                <div className="w-24 md:w-32 self-stretch rounded-lg bg-white border border-neutral-200 shrink-0" />
               )}
               <div className="flex-1 min-w-0">
-                <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-neutral-900 leading-snug">
-                  {book.title}
-                </h1>
-                <p className="mt-1 text-xs text-neutral-400 font-mono">
+                <p className="text-xs text-neutral-400 font-mono">
                   {book.book_id}
                 </p>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <StatusPill status={book.status} />
-                  {book.shelf_id && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 border border-neutral-200">
-                      書架 {book.shelf_id}
-                    </span>
-                  )}
-                </div>
+                <p className="mt-2 text-xs text-neutral-500">
+                  入庫 · {book.admin_name}
+                </p>
+                <p className="text-xs text-neutral-500 tabular-nums">
+                  {new Date(book.checkin_time).toLocaleString("zh-TW")}
+                </p>
                 {book.current_holder && (
                   <p className="mt-3 text-sm text-neutral-600">
                     目前持有者：
@@ -93,10 +102,6 @@ export default function BookDetailPage() {
                     </span>
                   </p>
                 )}
-                <p className="mt-2 text-xs text-neutral-500">
-                  入庫 · {book.admin_name} ·{" "}
-                  {new Date(book.checkin_time).toLocaleString("zh-TW")}
-                </p>
               </div>
             </div>
           </section>

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { supabase, BookRow } from "@/lib/supabase";
 import CloseButton from "@/components/CloseButton";
-import ZoomableImage from "@/components/ZoomableImage";
 
 export default function BooksListPage() {
   const [books, setBooks] = useState<BookRow[]>([]);
@@ -78,42 +78,45 @@ export default function BooksListPage() {
         ) : (
           <ul className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
             {filtered.map((b) => (
-              <li
-                key={b.book_id}
-                className="bg-white border border-neutral-100 rounded-xl overflow-hidden flex flex-col"
-              >
-                <div className="aspect-[3/4] bg-neutral-100 relative">
-                  {b.image_url ? (
-                    <ZoomableImage
-                      src={b.image_url}
-                      alt={b.title}
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-xs text-neutral-400">
-                      無圖
-                    </div>
-                  )}
-                  <span className="absolute top-2 left-2">
-                    <StatusPill status={b.status} />
-                  </span>
-                </div>
-                <div className="p-3 flex-1 flex flex-col">
-                  <p className="text-sm font-medium text-neutral-900 line-clamp-2 min-h-[2.5em]">
-                    {b.title}
-                  </p>
-                  <p className="mt-1 text-[11px] text-neutral-400 font-mono truncate">
-                    {b.book_id}
-                  </p>
-                  {b.status === "borrowed" && b.current_holder && (
-                    <p className="mt-2 text-xs text-neutral-600 truncate">
-                      持有：
-                      <span className="text-neutral-900 font-medium">
-                        {b.current_holder}
-                      </span>
+              <li key={b.book_id}>
+                <Link
+                  href={`/books/${encodeURIComponent(b.book_id)}`}
+                  className="block bg-white border border-neutral-200 hover:border-neutral-400 rounded-xl overflow-hidden flex flex-col h-full transition"
+                >
+                  <div className="aspect-[3/4] bg-neutral-100 relative">
+                    {b.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={b.image_url}
+                        alt={b.title}
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-xs text-neutral-400">
+                        無圖
+                      </div>
+                    )}
+                    <span className="absolute top-2 left-2">
+                      <StatusPill status={b.status} />
+                    </span>
+                  </div>
+                  <div className="p-3 flex-1 flex flex-col">
+                    <p className="text-sm font-medium text-neutral-900 line-clamp-2 min-h-[2.5em]">
+                      {b.title}
                     </p>
-                  )}
-                </div>
+                    <p className="mt-1 text-[11px] text-neutral-400 font-mono truncate">
+                      {b.book_id}
+                    </p>
+                    {b.status === "borrowed" && b.current_holder && (
+                      <p className="mt-2 text-xs text-neutral-600 truncate">
+                        持有：
+                        <span className="text-neutral-900 font-medium">
+                          {b.current_holder}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                </Link>
               </li>
             ))}
           </ul>

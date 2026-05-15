@@ -108,7 +108,7 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <dl className="mb-6 grid grid-cols-4 divide-x divide-neutral-100 border border-neutral-200 rounded-xl p-3 bg-neutral-50/40">
+      <dl className="mb-6 grid grid-cols-4 divide-x divide-neutral-200 border border-neutral-200 rounded-xl p-3 bg-neutral-100">
         <Stat label="總書籍" value={books.length} />
         <Stat label="在庫" value={availableCount} />
         <Stat label="已借出" value={borrowedCount} />
