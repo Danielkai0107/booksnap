@@ -1,52 +1,40 @@
-import Tesseract from "tesseract.js";
-
 export type RecognizeResult = {
   title: string;
-  source: "tesseract" | "claude";
+  source: "claude" | "tesseract";
 };
 
-const CONFIDENCE_THRESHOLD = 70;
-
-function cleanTitle(raw: string): string {
-  // Take first non-empty line, strip extra whitespace, limit length
-  const firstLine = raw
-    .split("\n")
-    .map((l) => l.trim())
-    .find((l) => l.length > 0);
-  if (!firstLine) return "";
-  return firstLine.slice(0, 40);
-}
-
+/**
+ * Recognize a book cover title from a base64 image.
+ *
+ * Default engine: Anthropic Claude vision (高準確率，對中文書封表現最佳)。
+ * 失敗時不再 fallback 到 Tesseract，避免拖慢使用者體驗；
+ * 改為回傳空字串讓使用者手動輸入。
+ */
 export async function recognizeBookCover(
   imageBase64: string
 ): Promise<RecognizeResult> {
-  let tessTitle = "";
-  let confidence = 0;
-  try {
-    const result = await Tesseract.recognize(imageBase64, "chi_tra+eng");
-    confidence = result.data.confidence ?? 0;
-    tessTitle = cleanTitle(result.data.text ?? "");
-  } catch (err) {
-    console.warn("[ocr] tesseract failed, falling back to Claude", err);
-  }
-
-  if (confidence >= CONFIDENCE_THRESHOLD && tessTitle.length > 0) {
-    return { title: tessTitle, source: "tesseract" };
-  }
-
   try {
     const response = await fetch("/api/recognize", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageBase64, forceClaude: true }),
+      body: JSON.stringify({ imageBase64 }),
     });
     if (!response.ok) {
-      throw new Error(`recognize api ${response.status}`);
+      const data = await response.json().catch(() => ({}));
+      console.warn("[ocr] /api/recognize not ok", response.status, data);
+      return { title: "", source: "claude" };
     }
-    const data = (await response.json()) as { title?: string };
-    return { title: data.title ?? "", source: "claude" };
+    const data = (await response.json()) as {
+      title?: string;
+      source?: "claude" | "tesseract";
+    };
+    const title = (data.title ?? "").trim();
+    return {
+      title: title === "無法識別" ? "" : title,
+      source: data.source ?? "claude",
+    };
   } catch (err) {
-    console.error("[ocr] claude fallback failed", err);
-    return { title: tessTitle, source: "tesseract" };
+    console.error("[ocr] recognize request failed", err);
+    return { title: "", source: "claude" };
   }
 }

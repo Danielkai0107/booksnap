@@ -219,10 +219,7 @@ export default function ScanPage() {
         {mode === "loading" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
             <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mb-4" />
-            <p className="text-sm text-white/80">載入辨識引擎中</p>
-            <p className="text-xs text-white/40 mt-1.5">
-              首次需下載中文語言包
-            </p>
+            <p className="text-sm text-white/80">啟動相機中</p>
           </div>
         )}
 
