@@ -104,6 +104,12 @@ export default function CheckinScanPage() {
   const [duplicateInList, setDuplicateInList] = useState<ConfirmedBook[]>([]);
   const [duplicateBase, setDuplicateBase] = useState("");
 
+  // 條碼掃到但 Google 找不到對應書本時的提示彈窗。
+  const [isbnNotFound, setIsbnNotFound] = useState<{
+    isbn: string;
+    reason: "not_found" | "rate_limited" | "failed";
+  } | null>(null);
+
   const [listOpen, setListOpen] = useState(false);
   const [navigating, setNavigating] = useState(false);
   const [toast, setToast] = useState<{
@@ -202,32 +208,47 @@ export default function CheckinScanPage() {
     });
 
     let candidate: LookupCandidate | null = null;
+    let errorKind: "rate_limited" | "failed" | null = null;
     try {
       const res = await fetch(
         `/api/books/lookup?isbn=${encodeURIComponent(cleaned)}`,
         { cache: "no-store" },
       );
-      const data = (await res.json()) as { candidates?: LookupCandidate[] };
+      const data = (await res.json()) as {
+        candidates?: LookupCandidate[];
+        error?: "rate_limited" | "failed" | null;
+      };
       candidate = data.candidates?.[0] ?? null;
+      errorKind = data.error ?? null;
     } catch (err) {
       console.warn("[checkin] lookup-by-isbn failed", err);
+      errorKind = "failed";
+    }
+
+    // 沒有對應書本就丟出提示彈窗，請使用者改用拍封面或手動輸入。
+    if (!candidate) {
+      setCurrentCapture(null);
+      setMode("camera");
+      setIsbnNotFound({
+        isbn: cleaned,
+        reason: errorKind ?? "not_found",
+      });
+      return;
     }
 
     setCurrentCapture({
       source: "barcode",
       imageDataUrl: null,
-      remoteImageUrl: candidate?.thumbnail ?? null,
-      detectedTitle: candidate?.title ?? "",
+      remoteImageUrl: candidate.thumbnail,
+      detectedTitle: candidate.title,
       suggestedCategoryId: null,
       pickedIsbn: cleaned,
       pickedAuthors:
-        candidate && candidate.authors.length > 0
-          ? candidate.authors.join("、")
-          : null,
-      pickedPublisher: candidate?.publisher ?? null,
-      pickedPublishedDate: candidate?.publishedDate ?? null,
+        candidate.authors.length > 0 ? candidate.authors.join("、") : null,
+      pickedPublisher: candidate.publisher,
+      pickedPublishedDate: candidate.publishedDate,
     });
-    setEditedTitle(candidate?.title ?? "");
+    setEditedTitle(candidate.title);
     setEditedCategoryId("");
     setCandidates([]);
     setPickedCandidateKey(null);
@@ -644,6 +665,35 @@ export default function CheckinScanPage() {
     router.push("/admin");
   }, [router, stopStream]);
 
+  // 「找不到 ISBN」彈窗：關閉後重啟相機 + 條碼掃描，鼓勵改拍封面。
+  const handleIsbnNotFoundClose = useCallback(() => {
+    setIsbnNotFound(null);
+    lastDetectedRef.current = null;
+    startCamera();
+  }, [startCamera]);
+
+  // 「仍要手動建立」：不需要 Google metadata，直接帶 ISBN 進 confirming。
+  const handleIsbnNotFoundManual = useCallback(() => {
+    if (!isbnNotFound) return;
+    setCurrentCapture({
+      source: "barcode",
+      imageDataUrl: null,
+      remoteImageUrl: null,
+      detectedTitle: "",
+      suggestedCategoryId: null,
+      pickedIsbn: isbnNotFound.isbn,
+      pickedAuthors: null,
+      pickedPublisher: null,
+      pickedPublishedDate: null,
+    });
+    setEditedTitle("");
+    setEditedCategoryId("");
+    setCandidates([]);
+    setPickedCandidateKey(null);
+    setIsbnNotFound(null);
+    setMode("confirming");
+  }, [isbnNotFound]);
+
   // 確認彈窗預覽圖：相機模式用拍的照片，條碼模式用 Google 縮圖（沒有就空底）。
   const previewSrc = currentCapture
     ? currentCapture.imageDataUrl ?? currentCapture.remoteImageUrl
@@ -978,6 +1028,53 @@ export default function CheckinScanPage() {
           )}
         </button>
       </footer>
+
+      <BottomSheet
+        open={!!isbnNotFound}
+        onClose={handleIsbnNotFoundClose}
+        title="查無此書資料"
+        subtitle={
+          isbnNotFound
+            ? isbnNotFound.reason === "rate_limited"
+              ? "Google Books 今日配額已用完"
+              : isbnNotFound.reason === "failed"
+                ? "查詢失敗，請稍後再試"
+                : `Google Books 沒有 ISBN ${isbnNotFound.isbn} 的書本資料`
+            : undefined
+        }
+        footer={
+          <div className="flex gap-3">
+            <button
+              onClick={handleIsbnNotFoundManual}
+              className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
+            >
+              仍要手動建立
+            </button>
+            <button
+              onClick={handleIsbnNotFoundClose}
+              className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+            >
+              關閉重新掃描
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-3 pb-2">
+          {isbnNotFound && (
+            <div className="rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2.5">
+              <p className="text-[11px] text-neutral-500">已偵測到的 ISBN</p>
+              <p className="text-sm font-mono tabular-nums text-neutral-900 mt-0.5">
+                {isbnNotFound.isbn}
+              </p>
+            </div>
+          )}
+          <p className="text-sm text-neutral-600 leading-relaxed">
+            {isbnNotFound?.reason === "rate_limited"
+              ? "今日免費配額已用完，書本資料暫時查不到。建議改用「拍封面」讓 AI 辨識書名。"
+              : "建議改用「拍封面」按鈕，讓 AI 直接辨識封面文字。或選擇「仍要手動建立」自行輸入書名。"}
+          </p>
+        </div>
+      </BottomSheet>
 
       <BottomSheet
         open={duplicateOpen}

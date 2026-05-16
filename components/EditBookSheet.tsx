@@ -85,10 +85,19 @@ export default function EditBookSheet({
         `/api/books/lookup?isbn=${encodeURIComponent(cleaned)}`,
         { cache: "no-store" }
       );
-      const data = (await res.json()) as { candidates?: LookupCandidate[] };
+      const data = (await res.json()) as {
+        candidates?: LookupCandidate[];
+        error?: "rate_limited" | "failed" | null;
+      };
       const c = data.candidates?.[0];
       if (!c) {
-        setLookupMsg("Google Books 查無此 ISBN");
+        setLookupMsg(
+          data.error === "rate_limited"
+            ? "Google Books 今日配額已用完，請改手動輸入"
+            : data.error === "failed"
+              ? "查詢失敗，請稍後再試"
+              : "Google Books 查無此 ISBN"
+        );
         return;
       }
       if (!title.trim()) setTitle(c.title);

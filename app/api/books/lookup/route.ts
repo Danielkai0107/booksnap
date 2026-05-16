@@ -69,32 +69,54 @@ function toCandidate(v: GoogleVolume): LookupCandidate | null {
   };
 }
 
+type QueryResult = {
+  candidates: LookupCandidate[];
+  /**
+   * 與 candidates 平行回傳：方便前端區分「真的沒找到」與「被 quota 擋下」。
+   * - rate_limited: 429（建議申請自己的 API key）
+   * - failed: 其他非 200（網路、5xx 等）
+   */
+  error: "rate_limited" | "failed" | null;
+};
+
 async function queryGoogleBooks(
   q: string,
   maxResults: number
-): Promise<LookupCandidate[]> {
+): Promise<QueryResult> {
   const url = new URL("https://www.googleapis.com/books/v1/volumes");
   url.searchParams.set("q", q);
   url.searchParams.set("maxResults", String(maxResults));
   url.searchParams.set("printType", "books");
   // 不強制 langRestrict，台灣繁中書有些被歸到 zh 而不是 zh-TW，限制反而找不到。
+  // 若有設環境變數則帶上 API key（自己 project 的 quota，預設 1000/day 可申請調升）。
+  // 沒設就走匿名 quota（全 Google 共用、容易爆）。
+  const apiKey = process.env.GOOGLE_BOOKS_API_KEY;
+  if (apiKey) url.searchParams.set("key", apiKey);
+
   try {
     const res = await fetch(url.toString(), {
       // Google Books 公開資料快取一陣子沒關係，可以省 quota。
       next: { revalidate: 60 * 60 * 24 },
     });
     if (!res.ok) {
-      console.warn("[lookup] google books not ok", res.status);
-      return [];
+      const errText = await res.text().catch(() => "");
+      console.warn("[lookup] google books not ok", res.status, errText.slice(0, 200));
+      return {
+        candidates: [],
+        error: res.status === 429 ? "rate_limited" : "failed",
+      };
     }
     const data = (await res.json()) as GoogleVolumesResponse;
     const items = data.items ?? [];
-    return items
-      .map(toCandidate)
-      .filter((c): c is LookupCandidate => c !== null);
+    return {
+      candidates: items
+        .map(toCandidate)
+        .filter((c): c is LookupCandidate => c !== null),
+      error: null,
+    };
   } catch (err) {
     console.warn("[lookup] google books fetch failed", err);
-    return [];
+    return { candidates: [], error: "failed" };
   }
 }
 
@@ -116,11 +138,11 @@ export async function GET(req: NextRequest) {
 
   if (isbn) {
     const cleaned = isbn.replace(/[-\s]/g, "");
-    const candidates = await queryGoogleBooks(`isbn:${cleaned}`, 1);
-    return NextResponse.json({ candidates });
+    const result = await queryGoogleBooks(`isbn:${cleaned}`, 1);
+    return NextResponse.json(result);
   }
 
   // intitle 命中率比純 q 高，配合前端送進來已正規化過的書名效果最好。
-  const candidates = await queryGoogleBooks(`intitle:${title}`, 5);
-  return NextResponse.json({ candidates });
+  const result = await queryGoogleBooks(`intitle:${title}`, 5);
+  return NextResponse.json(result);
 }
