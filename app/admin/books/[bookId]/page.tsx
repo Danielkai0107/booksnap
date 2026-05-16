@@ -7,6 +7,7 @@ import BottomSheet from "@/components/BottomSheet";
 import CategoryTag from "@/components/CategoryTag";
 import EditBookSheet from "@/components/EditBookSheet";
 import MemberPreviewSheet from "@/components/MemberPreviewSheet";
+import SwipeableTabs from "@/components/SwipeableTabs";
 import ZoomableImage from "@/components/ZoomableImage";
 import { BookRow, BorrowRecordRow, type CategoryRow } from "@/lib/supabase";
 
@@ -162,40 +163,38 @@ export default function BookDetailPage() {
             </div>
           </section>
 
-          <section>
-            <div className="flex gap-1 border-b border-neutral-200 mb-5">
-              <TabBtn
-                active={tab === "borrow"}
-                onClick={() => setTab("borrow")}
-              >
-                借書紀錄 ({records.length})
-              </TabBtn>
-              <TabBtn
-                active={tab === "return"}
-                onClick={() => setTab("return")}
-              >
-                還書紀錄 ({returnedRecords.length})
-              </TabBtn>
-            </div>
-
-            {tab === "borrow" ? (
-              <RecordList
-                records={records}
-                empty="尚無借書紀錄"
-                timeKey="borrowed_at"
-                timeLabel="借出時間"
-                onNameClick={setPreviewMember}
-              />
-            ) : (
-              <RecordList
-                records={returnedRecords}
-                empty="尚無還書紀錄"
-                timeKey="returned_at"
-                timeLabel="歸還時間"
-                onNameClick={setPreviewMember}
-              />
-            )}
-          </section>
+          <SwipeableTabs
+            active={tab}
+            onChange={(id) => setTab(id as Tab)}
+            tabs={[
+              {
+                id: "borrow",
+                label: `借書紀錄 (${records.length})`,
+                content: (
+                  <RecordList
+                    records={records}
+                    empty="尚無借書紀錄"
+                    timeKey="borrowed_at"
+                    timeLabel="借出時間"
+                    onNameClick={setPreviewMember}
+                  />
+                ),
+              },
+              {
+                id: "return",
+                label: `還書紀錄 (${returnedRecords.length})`,
+                content: (
+                  <RecordList
+                    records={returnedRecords}
+                    empty="尚無還書紀錄"
+                    timeKey="returned_at"
+                    timeLabel="歸還時間"
+                    onNameClick={setPreviewMember}
+                  />
+                ),
+              },
+            ]}
+          />
 
           {/* 手機版底部留白，避免被固定按鈕遮擋 */}
           <div className="md:hidden h-24" aria-hidden />
@@ -292,30 +291,6 @@ function StatusPill({ status }: { status: string }) {
       <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
       已借出
     </span>
-  );
-}
-
-function TabBtn({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px ${
-        active
-          ? "text-neutral-900 border-neutral-900"
-          : "text-neutral-500 hover:text-neutral-900 border-transparent"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 

@@ -7,6 +7,7 @@ import { formatDateYMD, generateBookId } from "@/lib/bookId";
 import { supabase, type CategoryRow } from "@/lib/supabase";
 import BottomSheet from "@/components/BottomSheet";
 import CategorySelect from "@/components/CategorySelect";
+import Toast, { type ToastKind } from "@/components/Toast";
 import ZoomableImage from "@/components/ZoomableImage";
 
 type Mode = "loading" | "camera" | "processing" | "confirming";
@@ -72,6 +73,11 @@ export default function CheckinScanPage() {
   const [listOpen, setListOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [navigating, setNavigating] = useState(false);
+  const [toast, setToast] = useState<{
+    open: boolean;
+    message: string;
+    kind: ToastKind;
+  }>({ open: false, message: "", kind: "success" });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -250,6 +256,11 @@ export default function CheckinScanPage() {
       setCurrentCapture(null);
       setEditedTitle("");
       setEditedCategoryId("");
+      setToast({
+        open: true,
+        message: `已加入：${title}`,
+        kind: "success",
+      });
       startCamera();
     },
     [confirmedBooks, currentCapture, editedCategoryId, startCamera],
@@ -544,9 +555,15 @@ export default function CheckinScanPage() {
         <button
           type="button"
           onClick={() => setListOpen(true)}
-          className="h-9 inline-flex items-center bg-white hover:bg-neutral-100 text-neutral-900 text-[13px] font-medium px-4 rounded-full transition"
+          className="relative h-9 inline-flex items-center bg-white hover:bg-neutral-100 text-neutral-900 text-[13px] font-medium px-4 rounded-full transition"
         >
           全部入庫 ({confirmedBooks.length})
+          {confirmedBooks.length > 0 && (
+            <span
+              className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-black/70"
+              aria-hidden
+            />
+          )}
         </button>
       </footer>
 
@@ -666,6 +683,14 @@ export default function CheckinScanPage() {
           </ul>
         )}
       </BottomSheet>
+
+      <Toast
+        open={toast.open}
+        message={toast.message}
+        kind={toast.kind}
+        duration={1000}
+        onClose={() => setToast((t) => ({ ...t, open: false }))}
+      />
 
       {navigating && (
         <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">

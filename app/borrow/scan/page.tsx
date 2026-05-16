@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrowserMultiFormatReader, IScannerControls } from "@zxing/browser";
 import { supabase, BookRow } from "@/lib/supabase";
 import { recognizeBookCover } from "@/lib/ocr";
 import { findBookByTitle } from "@/lib/titleMatch";
 import BottomSheet from "@/components/BottomSheet";
+import Toast, { type ToastKind } from "@/components/Toast";
 import ZoomableImage from "@/components/ZoomableImage";
 
 export default function BorrowScanPage() {
@@ -27,11 +28,18 @@ export default function BorrowScanPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [navigating, setNavigating] = useState(false);
+  // 用來強制 useEffect 重啟相機（例如重複掃描、瞬時錯誤後）。
+  const [scanGen, setScanGen] = useState(0);
+  const [toast, setToast] = useState<{
+    open: boolean;
+    message: string;
+    kind: ToastKind;
+  }>({ open: false, message: "", kind: "success" });
 
-  const excludeIds = useMemo(
-    () => new Set(books.map((b) => b.book_id)),
-    [books]
-  );
+  const booksRef = useRef<BookRow[]>([]);
+  useEffect(() => {
+    booksRef.current = books;
+  }, [books]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -63,9 +71,31 @@ export default function BorrowScanPage() {
   const stopScanner = useCallback(() => {
     scanningRef.current = false;
     if (controlsRef.current) {
-      controlsRef.current.stop();
+      try {
+        controlsRef.current.stop();
+      } catch {
+        // ignore
+      }
       controlsRef.current = null;
     }
+    // 確保 video 元素回到乾淨狀態，避免 iOS / Safari 在背景回來時黑屏。
+    if (videoRef.current && videoRef.current.srcObject) {
+      try {
+        const s = videoRef.current.srcObject as MediaStream;
+        s.getTracks().forEach((t) => t.stop());
+      } catch {
+        // ignore
+      }
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
+  const flashAlreadyAdded = useCallback((title: string) => {
+    setToast({
+      open: true,
+      message: `已在清單中：${title}`,
+      kind: "info",
+    });
   }, []);
 
   const handleQrScanned = useCallback(
@@ -73,8 +103,9 @@ export default function BorrowScanPage() {
       setBusy(true);
       setErrorMsg(null);
       try {
-        if (books.some((b) => b.book_id === id)) {
-          setErrorMsg("此書已在清單中");
+        const dup = booksRef.current.find((b) => b.book_id === id);
+        if (dup) {
+          flashAlreadyAdded(dup.title);
           return;
         }
         const { data, error } = await supabase
@@ -98,9 +129,11 @@ export default function BorrowScanPage() {
         setErrorMsg(`查詢失敗：${m}`);
       } finally {
         setBusy(false);
+        // 若沒有開啟 pending 模態，重新喚醒相機。
+        setScanGen((g) => g + 1);
       }
     },
-    [books, member]
+    [member, flashAlreadyAdded],
   );
 
   const startScanner = useCallback(async () => {
@@ -121,9 +154,15 @@ export default function BorrowScanPage() {
             stopScanner();
             void handleQrScanned(text);
           }
-        }
+        },
       );
       controlsRef.current = controls;
+      // 保險：確保 video 在播放，避免某些瀏覽器在背景切回後停在第一幀。
+      try {
+        await videoRef.current.play();
+      } catch {
+        // some browsers reject silent play; ignore
+      }
     } catch (err) {
       scanningRef.current = false;
       const m = err instanceof Error ? err.message : String(err);
@@ -147,6 +186,7 @@ export default function BorrowScanPage() {
     listOpen,
     notFoundOpen,
     capturing,
+    scanGen,
     startScanner,
     stopScanner,
   ]);
@@ -175,9 +215,15 @@ export default function BorrowScanPage() {
         setNotFoundOpen(true);
         return;
       }
-      const match = findBookByTitle(title, candidates, excludeIds);
+      // 改成在「全部 candidate」找匹配，這樣即使該書已加入清單也能被認出，
+      // 給予「已在清單中」的明確提示，而不是回報「庫存沒有此書」。
+      const match = findBookByTitle(title, candidates);
       if (!match) {
         setNotFoundOpen(true);
+        return;
+      }
+      if (booksRef.current.some((b) => b.book_id === match.book_id)) {
+        flashAlreadyAdded(match.title);
         return;
       }
       setPending(match);
@@ -187,11 +233,16 @@ export default function BorrowScanPage() {
     } finally {
       setCapturing(false);
     }
-  }, [candidates, excludeIds, stopScanner]);
+  }, [candidates, flashAlreadyAdded, stopScanner]);
 
   const handleAdd = useCallback(() => {
     if (!pending) return;
     setBooks((prev) => [...prev, pending]);
+    setToast({
+      open: true,
+      message: `已加入：${pending.title}`,
+      kind: "success",
+    });
     setPending(null);
   }, [pending]);
 
@@ -225,7 +276,7 @@ export default function BorrowScanPage() {
         JSON.stringify({
           message: `已成功借出 ${books.length} 本書`,
           kind: "success",
-        })
+        }),
       );
       setNavigating(true);
       router.push("/");
@@ -309,9 +360,15 @@ export default function BorrowScanPage() {
         <button
           type="button"
           onClick={() => setListOpen(true)}
-          className="h-9 inline-flex items-center bg-white hover:bg-neutral-100 text-neutral-900 text-[13px] font-medium px-4 rounded-full transition"
+          className="relative h-9 inline-flex items-center bg-white hover:bg-neutral-100 text-neutral-900 text-[13px] font-medium px-4 rounded-full transition"
         >
           前往借書 ({books.length})
+          {books.length > 0 && (
+            <span
+              className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-black/70"
+              aria-hidden
+            />
+          )}
         </button>
       </footer>
 
@@ -397,6 +454,14 @@ export default function BorrowScanPage() {
           </ul>
         )}
       </BottomSheet>
+
+      <Toast
+        open={toast.open}
+        message={toast.message}
+        kind={toast.kind}
+        duration={1000}
+        onClose={() => setToast((t) => ({ ...t, open: false }))}
+      />
 
       {navigating && (
         <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
