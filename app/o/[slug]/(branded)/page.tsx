@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPublicOrg } from "@/lib/publicOrg";
+import MyRecordsButton from "./MyRecordsButton";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -25,8 +26,8 @@ export default async function OrgLandingPage({ params }: Props) {
         <h1 className="text-center text-2xl font-semibold tracking-tight text-neutral-900">
           {org.name}
         </h1>
-        <p className="mt-2 text-center text-xs text-neutral-500">
-          掃描書本 QR 即可借書 / 還書
+        <p className="mt-3 text-center text-sm text-neutral-500">
+          掃描書本 QR 即可出借 / 歸還
         </p>
 
         {borrowDisabled && (
@@ -35,11 +36,11 @@ export default async function OrgLandingPage({ params }: Props) {
           </p>
         )}
 
-        <div className="mt-10 grid grid-cols-2 gap-3">
+        <div className="mt-12 grid grid-cols-2 gap-3">
           <ActionButton
             href={borrowDisabled ? null : `/o/${org.public_slug}/borrow`}
             primary
-            label="借書"
+            label="出借"
             icon={
               <svg
                 width="18"
@@ -58,7 +59,7 @@ export default async function OrgLandingPage({ params }: Props) {
           />
           <ActionButton
             href={borrowDisabled ? null : `/o/${org.public_slug}/return`}
-            label="還書"
+            label="歸還"
             icon={
               <svg
                 width="18"
@@ -78,12 +79,18 @@ export default async function OrgLandingPage({ params }: Props) {
           />
         </div>
 
-        {org.public_catalog_enabled && (
-          <div className="mt-8">
+        <div
+          className={`mt-8 ${org.public_catalog_enabled ? "grid grid-cols-2 gap-3" : ""}`}
+        >
+          <MyRecordsButton
+            slug={org.public_slug}
+            orgName={org.name}
+            catalogEnabled={!!org.public_catalog_enabled}
+          />
+          {org.public_catalog_enabled && (
             <ActionButton
               href={`/o/${org.public_slug}/books`}
               label="書籍查詢"
-              fullWidth
               icon={
                 <svg
                   width="18"
@@ -105,13 +112,11 @@ export default async function OrgLandingPage({ params }: Props) {
                 </svg>
               }
             />
-          </div>
-        )}
+          )}
+        </div>
 
         <p className="mt-12 text-center text-xs text-neutral-400 leading-relaxed">
-          每次借書會記錄你的手機與姓名以便追蹤書本去向。
-          <br />
-          手機號碼為唯一識別，下次借書只需輸入手機即可。
+          每次出借會記錄你的手機與姓名以便追蹤書本去向。
         </p>
       </div>
     </div>
