@@ -52,7 +52,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (borrowerRes.error) {
     return NextResponse.json(
       { error: borrowerRes.error.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
   if (!borrowerRes.data) {
@@ -67,7 +67,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const { data: bookRows } = await supabase
       .from("books")
       .select(
-        "book_id, title, image_url, status, shelf_id, current_holder_id, current_holder, current_location, admin_name, checkin_time, category_id, category:categories(name)"
+        "book_id, title, image_url, status, shelf_id, current_holder_id, current_holder, current_location, admin_name, checkin_time, category_id, category:categories(name)",
       )
       .in("book_id", bookIds);
     books = ((bookRows ?? []) as unknown as BookRow[]).reduce(
@@ -78,7 +78,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         };
         return acc;
       },
-      {} as Record<string, BookRow & { category_name: string | null }>
+      {} as Record<string, BookRow & { category_name: string | null }>,
     );
   }
 
@@ -107,7 +107,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!trimmed) {
       return NextResponse.json(
         { error: "display_name cannot be empty" },
-        { status: 400 }
+        { status: 400 },
       );
     }
     patch.display_name = trimmed;
@@ -153,8 +153,8 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     .eq("current_holder_id", id);
   if ((count ?? 0) > 0) {
     return NextResponse.json(
-      { error: "此借閱人目前還有未歸還的書，無法刪除" },
-      { status: 409 }
+      { error: "此出借人目前還有未歸還的書，無法刪除" },
+      { status: 409 },
     );
   }
 

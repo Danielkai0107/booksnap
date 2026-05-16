@@ -19,7 +19,7 @@ const notoSansTC = Noto_Sans_TC({
 
 export const metadata: Metadata = {
   title: "booksnap",
-  description: "小型圖書館入庫、還書與後台管理系統",
+  description: "小型圖書館入庫、歸還與後台管理系統",
 };
 
 export default function RootLayout({

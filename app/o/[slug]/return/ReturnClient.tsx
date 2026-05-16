@@ -44,6 +44,12 @@ export default function ReturnClient({ slug, orgName, prefillBookId }: Props) {
     rejected: Array<{ book_id: string; reason: string; title?: string }>;
   } | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
+  /**
+   * 掃到新書時暫存於此，等使用者按「加入清單」才真正進到 cart。
+   * 不為 null 時 scan callback 透過 `scanningRef` 維持鎖定，避免
+   * 同一本書連續觸發、或下一本直接覆蓋掉本次確認。
+   */
+  const [pendingBook, setPendingBook] = useState<BookInCart | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
@@ -61,7 +67,7 @@ export default function ReturnClient({ slug, orgName, prefillBookId }: Props) {
     async (bookId: string): Promise<BookInCart | { error: string }> => {
       const res = await fetch(
         `/api/public/books?slug=${encodeURIComponent(slug)}&bookId=${encodeURIComponent(bookId)}`,
-        { cache: "no-store" }
+        { cache: "no-store" },
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return { error: data?.error ?? "查無此書" };
@@ -84,7 +90,7 @@ export default function ReturnClient({ slug, orgName, prefillBookId }: Props) {
         current_location: b.current_location,
       };
     },
-    [slug]
+    [slug],
   );
 
   // Prefill from deep link on first mount.
@@ -97,7 +103,7 @@ export default function ReturnClient({ slug, orgName, prefillBookId }: Props) {
         return;
       }
       setCart((prev) =>
-        prev.find((b) => b.book_id === r.book_id) ? prev : [...prev, r]
+        prev.find((b) => b.book_id === r.book_id) ? prev : [...prev, r],
       );
       toast.success(`已加入：${r.title}`);
     })();
@@ -143,37 +149,47 @@ export default function ReturnClient({ slug, orgName, prefillBookId }: Props) {
             if (!resultObj || cancelled) return;
             if (scanningRef.current) return;
             scanningRef.current = true;
+            // 任何「不需要等使用者決定」的退出路徑都走這個，
+            // 給 700ms cooldown 避免相同 QR 連發；
+            // 「掃到新書」的成功路徑改走 pendingBook，鎖維持到 confirm/cancel。
+            const releaseAfterDelay = () => {
+              setTimeout(() => {
+                scanningRef.current = false;
+              }, 400);
+            };
             try {
               const text = resultObj.getText();
               const parsed = parseScannedQr(text, slug);
               if (!parsed) {
                 toast.error("無法解析此 QR");
+                releaseAfterDelay();
                 return;
               }
               if (parsed.slug && parsed.slug !== slug) {
                 toast.error("這本書屬於其他單位，無法在此歸還");
+                releaseAfterDelay();
                 return;
               }
               const exists = cartRef.current.find(
-                (b) => b.book_id === parsed.bookId
+                (b) => b.book_id === parsed.bookId,
               );
               if (exists) {
                 toast.info(`已在清單中：${exists.title}`);
+                releaseAfterDelay();
                 return;
               }
               const r = await fetchBook(parsed.bookId);
               if ("error" in r) {
                 toast.error(r.error);
+                releaseAfterDelay();
                 return;
               }
-              setCart((prev) => [...prev, r]);
-              toast.success(`已加入：${r.title}`);
-            } finally {
-              setTimeout(() => {
-                scanningRef.current = false;
-              }, 700);
+              // 掃到新書：丟到 pendingBook 等使用者確認，不直接 push 進 cart。
+              setPendingBook(r);
+            } catch {
+              releaseAfterDelay();
             }
-          }
+          },
         );
         if (cancelled) {
           controls.stop();
@@ -195,6 +211,25 @@ export default function ReturnClient({ slug, orgName, prefillBookId }: Props) {
 
   function removeFromCart(bookId: string) {
     setCart((prev) => prev.filter((b) => b.book_id !== bookId));
+  }
+
+  // 兩個 handler 都需釋放掃描鎖；700ms cooldown 給使用者把鏡頭
+  // 移開那本書的時間，避免取消後立刻又跳回確認。
+  function confirmPending() {
+    if (pendingBook) {
+      setCart((prev) => [...prev, pendingBook]);
+      toast.success(`已加入：${pendingBook.title}`);
+    }
+    setPendingBook(null);
+    setTimeout(() => {
+      scanningRef.current = false;
+    }, 700);
+  }
+  function cancelPending() {
+    setPendingBook(null);
+    setTimeout(() => {
+      scanningRef.current = false;
+    }, 700);
   }
 
   async function handleSubmit() {
@@ -234,6 +269,7 @@ export default function ReturnClient({ slug, orgName, prefillBookId }: Props) {
     setResult(null);
     setCart([]);
     setSheet(null);
+    setPendingBook(null);
     setScanGen((n) => n + 1);
   }
 
@@ -358,7 +394,7 @@ export default function ReturnClient({ slug, orgName, prefillBookId }: Props) {
                     {b.title}
                   </p>
                   <p className="text-xs text-neutral-500 mt-1">
-                    借閱中：
+                    出借中：
                     <span className="text-neutral-900 font-medium">
                       {b.current_holder ?? "未知"}
                     </span>
@@ -379,6 +415,65 @@ export default function ReturnClient({ slug, orgName, prefillBookId }: Props) {
               </li>
             ))}
           </ul>
+        )}
+      </BottomSheet>
+
+      {/* confirm-pending sheet -------------------------------------------
+          掃到新書時的「加入清單」確認彈窗。打開期間 `scanningRef`
+          維持 true，所以下一個 QR 不會擠進來覆蓋本次確認。 */}
+      <BottomSheet
+        open={pendingBook !== null}
+        onClose={cancelPending}
+        title="加入歸還清單？"
+        subtitle={orgName}
+        footer={
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={cancelPending}
+              className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3.5 rounded-xl transition"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={confirmPending}
+              className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-xl transition"
+            >
+              加入清單
+            </button>
+          </div>
+        }
+      >
+        {pendingBook && (
+          <div className="flex gap-3 items-center pb-2">
+            {pendingBook.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={pendingBook.image_url}
+                alt={pendingBook.title}
+                className="w-16 h-22 object-cover rounded-md border border-neutral-100"
+              />
+            ) : (
+              <div className="w-16 h-22 rounded-md bg-neutral-100" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-base font-medium text-neutral-900 leading-snug">
+                {pendingBook.title}
+              </p>
+              <p className="text-xs text-neutral-500 mt-1">
+                出借中：
+                <span className="text-neutral-900 font-medium">
+                  {pendingBook.current_holder ?? "未知"}
+                </span>
+                {pendingBook.current_location && (
+                  <span className="ml-1 text-neutral-400">
+                    @ {pendingBook.current_location}
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
         )}
       </BottomSheet>
 
@@ -427,7 +522,9 @@ export default function ReturnClient({ slug, orgName, prefillBookId }: Props) {
             )}
             {result.rejected.length > 0 && (
               <div className={result.accepted.length > 0 ? "mt-4" : ""}>
-                <p className="text-xs text-amber-700 mb-2">以下書本未能歸還：</p>
+                <p className="text-xs text-amber-700 mb-2">
+                  以下書本未能歸還：
+                </p>
                 <ul className="space-y-2">
                   {result.rejected.map((r) => (
                     <li

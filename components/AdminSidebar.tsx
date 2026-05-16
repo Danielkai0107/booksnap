@@ -7,10 +7,11 @@ import { signOutAction } from "@/app/auth/actions";
 
 const items = [
   { href: "/admin", label: "書籍管理", matchExact: true },
-  { href: "/admin/borrowers", label: "借閱人", matchExact: false },
+  { href: "/admin/borrowers", label: "出借人", matchExact: false },
   { href: "/admin/categories", label: "分類管理", matchExact: false },
   { href: "/admin/labels", label: "標籤列印", matchExact: false },
-  { href: "/admin/settings", label: "單位設定", matchExact: false },
+  { href: "/admin/settings", label: "單位資料", matchExact: false },
+  { href: "/admin/public-link", label: "公開連結", matchExact: false },
 ];
 
 const bottomItemClass =
@@ -21,7 +22,9 @@ type CachedMe = { orgName: string | null; publicSlug: string | null };
 let cachedMe: CachedMe | undefined = undefined;
 
 function useOrgInfo() {
-  const [info, setInfo] = useState<CachedMe>(cachedMe ?? { orgName: null, publicSlug: null });
+  const [info, setInfo] = useState<CachedMe>(
+    cachedMe ?? { orgName: null, publicSlug: null },
+  );
 
   useEffect(() => {
     if (cachedMe !== undefined) return;
@@ -52,13 +55,19 @@ function useOrgInfo() {
   return info;
 }
 
-function BrandHeader({ onClick }: { onClick?: () => void }) {
+function BrandHeader({
+  onClick,
+  className = "",
+}: {
+  onClick?: () => void;
+  className?: string;
+}) {
   const { orgName } = useOrgInfo();
   return (
     <Link
       href="/admin"
       onClick={onClick}
-      className="block mb-10 leading-tight hover:opacity-90 transition"
+      className={`block mb-7 leading-tight hover:opacity-90 transition border-b border-neutral-100 pb-4 ${className}`}
     >
       <span className="block text-xl font-semibold tracking-tight text-neutral-900">
         booksnap
@@ -67,6 +76,20 @@ function BrandHeader({ onClick }: { onClick?: () => void }) {
         {orgName ?? "—"}
       </span>
     </Link>
+  );
+}
+
+/** 共用的 ✕ 圖示，給 sidebar / 手機 drawer 的 absolute 關閉按鈕用 */
+function CloseIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path
+        d="M1 1L13 13M13 1L1 13"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
@@ -131,7 +154,7 @@ function NavLinks({ onItemClick }: { onItemClick?: () => void }) {
 
 export default function AdminSidebar() {
   return (
-    <aside className="hidden md:flex w-60 shrink-0 fixed inset-y-0 left-0 flex-col border-r border-neutral-100 bg-white px-5 py-7">
+    <aside className="hidden md:flex w-60 shrink-0 fixed inset-y-0 left-0 flex-col border-r border-neutral-100 bg-white px-5 py-5">
       <BrandHeader />
       <nav className="flex-1 space-y-1">
         <NavLinks />
@@ -175,26 +198,15 @@ export function AdminMobileMenu({
         aria-hidden
       />
       <aside className="absolute inset-y-0 left-0 w-64 bg-white shadow-2xl flex flex-col px-5 py-7 animate-slide-right">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <BrandHeader onClick={onClose} />
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="關閉選單"
-            className="w-8 h-8 -mt-1 shrink-0 rounded-full hover:bg-neutral-100 flex items-center justify-center transition text-neutral-700"
-          >
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-              <path
-                d="M1 1L13 13M13 1L1 13"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="關閉選單"
+          className="absolute top-5 right-5 w-7 h-7 rounded-full flex items-center justify-center text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition"
+        >
+          <CloseIcon />
+        </button>
+        <BrandHeader onClick={onClose} className="pr-10" />
         <nav className="flex-1 space-y-1">
           <NavLinks onItemClick={onClose} />
         </nav>

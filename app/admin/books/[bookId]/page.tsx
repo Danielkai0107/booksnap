@@ -44,7 +44,9 @@ export default function BookDetailPage() {
   const [tab, setTab] = useState<Tab>("borrow");
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [previewBorrowerId, setPreviewBorrowerId] = useState<string | null>(null);
+  const [previewBorrowerId, setPreviewBorrowerId] = useState<string | null>(
+    null,
+  );
   const toast = useToast();
 
   const fetchBook = useCallback(async () => {
@@ -103,8 +105,30 @@ export default function BookDetailPage() {
   return (
     <AdminShell
       backHref="/admin"
-      desktopBack={{ href: "/admin", label: "回書籍列表" }}
+      topbarTitle={book?.title ?? "書籍詳情"}
       scrollLifted
+      topbarRight={
+        // 桌機 only：手機已有底部固定的編輯/刪除動作列。
+        // 沿用書本載入完才顯示，避免 loading 期間出現孤兒按鈕。
+        book ? (
+          <div className="hidden md:flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              className="press-feedback inline-flex items-center gap-1 text-sm font-medium text-neutral-800 hover:text-neutral-900 bg-white border border-neutral-200 hover:border-neutral-400 px-3 h-9 rounded-full"
+            >
+              <span className="leading-none">編輯書本</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(true)}
+              className="press-feedback inline-flex items-center gap-1 text-sm font-medium text-red-600 hover:text-red-700 bg-white border border-red-200 hover:border-red-300 px-3 h-9 rounded-full"
+            >
+              <span className="leading-none">刪除書本</span>
+            </button>
+          </div>
+        ) : null
+      }
     >
       {loading ? (
         <div className="py-20 flex justify-center">
@@ -112,117 +136,106 @@ export default function BookDetailPage() {
         </div>
       ) : book ? (
         <>
-          <section className="bg-neutral-100 border border-neutral-200 rounded-2xl p-5 md:p-7 mb-8">
-            <div className="flex flex-wrap items-center gap-2 mb-3">
-              <StatusPill status={book.status} />
-              {categoryName && <CategoryTag name={categoryName} />}
-              {book.shelf_id && (
-                <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full bg-white text-neutral-700 border border-neutral-200">
-                  書架 {book.shelf_id}
-                </span>
-              )}
-            </div>
-            <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-neutral-900 leading-snug mb-4">
-              {book.title}
-            </h1>
-
-            {/* 桌機編輯/刪除按鈕 */}
-            <div className="hidden md:flex justify-end gap-2 mb-4">
-              <button
-                type="button"
-                onClick={() => setEditOpen(true)}
-                className="text-xs text-neutral-700 hover:text-neutral-900 px-3 py-1.5 rounded-md border border-neutral-200 hover:border-neutral-400 transition"
-              >
-                編輯書本
-              </button>
-              <button
-                type="button"
-                onClick={() => setDeleteOpen(true)}
-                className="text-xs text-red-600 hover:text-red-700 px-3 py-1.5 rounded-md border border-red-100 hover:border-red-200 transition"
-              >
-                刪除書本
-              </button>
-            </div>
-
-            <div className="flex gap-5 items-stretch">
-              {book.image_url ? (
-                <ZoomableImage
-                  src={book.image_url}
-                  alt={book.title}
-                  className="w-24 md:w-32 self-stretch object-cover rounded-lg border border-neutral-200 shrink-0"
-                />
-              ) : (
-                <div className="w-24 md:w-32 self-stretch rounded-lg bg-white border border-neutral-200 shrink-0" />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-neutral-400 font-mono">
-                  {book.book_id}
-                </p>
-                <p className="mt-2 text-xs text-neutral-500">
-                  入庫 · {book.admin_name}
-                </p>
-                <p className="text-xs text-neutral-500 tabular-nums mt-1">
-                  {new Date(book.checkin_time).toLocaleString("zh-TW")}
-                </p>
-                {book.current_holder && (
-                  <p className="mt-3 text-sm text-neutral-600">
-                    目前持有者：
-                    <button
-                      type="button"
-                      onClick={() =>
-                        book.current_holder_id &&
-                        setPreviewBorrowerId(book.current_holder_id)
-                      }
-                      className="text-neutral-900 font-medium hover:underline disabled:cursor-default"
-                      disabled={!book.current_holder_id}
-                    >
-                      {book.current_holder}
-                    </button>
-                    {book.current_location && (
-                      <span className="ml-2 text-xs text-neutral-500">
-                        @ {book.current_location}
-                      </span>
-                    )}
-                  </p>
+          {/* 桌機 2 欄：左圖卡 / 右 tabs；手機維持垂直堆疊。
+              `md:items-start` 讓左欄維持自然高度，
+              `md:sticky md:top-20` 讓圖卡在滾動瀏覽長紀錄時保持可見。 */}
+          <div className="md:grid md:grid-cols-[360px_1fr] md:gap-6 md:items-start">
+            <section className="bg-neutral-100 border border-neutral-200 rounded-2xl p-5 md:p-7 mb-8 md:mb-0 md:sticky md:top-20">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <StatusPill status={book.status} />
+                {categoryName && <CategoryTag name={categoryName} />}
+                {book.shelf_id && (
+                  <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full bg-white text-neutral-700 border border-neutral-200">
+                    書架 {book.shelf_id}
+                  </span>
                 )}
               </div>
+              <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-neutral-900 leading-snug mb-4">
+                {book.title}
+              </h1>
+
+              <div className="flex gap-5 items-stretch">
+                {book.image_url ? (
+                  <ZoomableImage
+                    src={book.image_url}
+                    alt={book.title}
+                    className="w-24 md:w-28 self-stretch object-cover rounded-lg border border-neutral-200 shrink-0"
+                  />
+                ) : (
+                  <div className="w-24 md:w-28 self-stretch rounded-lg bg-white border border-neutral-200 shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-neutral-400 font-mono">
+                    {book.book_id}
+                  </p>
+                  <p className="mt-2 text-xs text-neutral-500">
+                    入庫 · {book.admin_name}
+                  </p>
+                  <p className="text-xs text-neutral-500 tabular-nums mt-1">
+                    {new Date(book.checkin_time).toLocaleString("zh-TW")}
+                  </p>
+                  {book.current_holder && (
+                    <p className="mt-3 text-sm text-neutral-600">
+                      目前持有者：
+                      <button
+                        type="button"
+                        onClick={() =>
+                          book.current_holder_id &&
+                          setPreviewBorrowerId(book.current_holder_id)
+                        }
+                        className="text-neutral-900 font-medium hover:underline disabled:cursor-default"
+                        disabled={!book.current_holder_id}
+                      >
+                        {book.current_holder}
+                      </button>
+                      {book.current_location && (
+                        <span className="ml-2 text-xs text-neutral-500">
+                          @ {book.current_location}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <BookMetadata book={book} />
+            </section>
+
+            <div className="md:min-w-0">
+              <SwipeableTabs
+                active={tab}
+                onChange={(id) => setTab(id as Tab)}
+                tabs={[
+                  {
+                    id: "borrow",
+                    label: `出借紀錄 (${records.length})`,
+                    content: (
+                      <RecordList
+                        records={records}
+                        empty="尚無出借紀錄"
+                        timeKey="borrowed_at"
+                        timeLabel="借出時間"
+                        onBorrowerClick={setPreviewBorrowerId}
+                      />
+                    ),
+                  },
+                  {
+                    id: "return",
+                    label: `歸還紀錄 (${returnedRecords.length})`,
+                    content: (
+                      <RecordList
+                        records={returnedRecords}
+                        empty="尚無歸還紀錄"
+                        timeKey="returned_at"
+                        timeLabel="歸還時間"
+                        onBorrowerClick={setPreviewBorrowerId}
+                      />
+                    ),
+                  },
+                ]}
+              />
             </div>
-
-            <BookMetadata book={book} />
-          </section>
-
-          <SwipeableTabs
-            active={tab}
-            onChange={(id) => setTab(id as Tab)}
-            tabs={[
-              {
-                id: "borrow",
-                label: `借書紀錄 (${records.length})`,
-                content: (
-                  <RecordList
-                    records={records}
-                    empty="尚無借書紀錄"
-                    timeKey="borrowed_at"
-                    timeLabel="借出時間"
-                    onBorrowerClick={setPreviewBorrowerId}
-                  />
-                ),
-              },
-              {
-                id: "return",
-                label: `還書紀錄 (${returnedRecords.length})`,
-                content: (
-                  <RecordList
-                    records={returnedRecords}
-                    empty="尚無還書紀錄"
-                    timeKey="returned_at"
-                    timeLabel="歸還時間"
-                    onBorrowerClick={setPreviewBorrowerId}
-                  />
-                ),
-              },
-            ]}
-          />
+          </div>
 
           {/* 手機版底部留白，避免被固定按鈕遮擋 */}
           <div className="md:hidden h-24" aria-hidden />

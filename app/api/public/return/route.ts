@@ -13,7 +13,7 @@ type Body = {
 /**
  * Public return endpoint. No identity required — the QR carries the org+book
  * scope and we close the borrow record using `current_holder_id` already
- * stored on the book. This matches the user's intent: "還書只需掃碼不需再先
+ * stored on the book. This matches the user's intent: "歸還只需掃碼不需再先
  * 輸入人員".
  *
  * For each book, we:
@@ -33,7 +33,12 @@ export async function POST(req: NextRequest) {
   if (!limit.ok) {
     return NextResponse.json(
       { error: "請求過於頻繁，請稍候再試" },
-      { status: 429, headers: { "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)) } }
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)),
+        },
+      },
     );
   }
 
@@ -50,12 +55,15 @@ export async function POST(req: NextRequest) {
   }
   const org = await getPublicOrg(slug);
   if (!org) {
-    return NextResponse.json({ error: "organization not available" }, { status: 404 });
+    return NextResponse.json(
+      { error: "organization not available" },
+      { status: 404 },
+    );
   }
   if (!org.public_borrow_enabled) {
     return NextResponse.json(
       { error: "public flow disabled for this organization" },
-      { status: 403 }
+      { status: 403 },
     );
   }
 
@@ -77,12 +85,11 @@ export async function POST(req: NextRequest) {
   if (fetchErr) {
     return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   }
-  const byId = new Map(
-    (candidates ?? []).map((b) => [b.book_id as string, b])
-  );
+  const byId = new Map((candidates ?? []).map((b) => [b.book_id as string, b]));
 
   const accepted: string[] = [];
-  const rejected: Array<{ book_id: string; reason: string; title?: string }> = [];
+  const rejected: Array<{ book_id: string; reason: string; title?: string }> =
+    [];
   for (const id of bookIds) {
     const row = byId.get(id);
     if (!row) {
@@ -154,7 +161,7 @@ export async function POST(req: NextRequest) {
           accepted: finallyReturned,
           rejected,
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
   }

@@ -42,39 +42,34 @@ export default function CategoriesPage() {
   }, [categories, query]);
 
   return (
-    <AdminShell mobileMode="topbar" topbarTitle="分類管理" scrollLifted>
-      <header className="hidden md:block mb-6">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
-            分類管理
-          </h1>
-          <button
-            type="button"
-            onClick={() => setAddOpen(true)}
-            className="shrink-0 inline-flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-3 rounded-xl transition"
+    <AdminShell
+      topbarTitle="分類管理"
+      scrollLifted
+      topbarRight={
+        // 桌機 only：手機已有底部固定 FAB
+        <button
+          type="button"
+          onClick={() => setAddOpen(true)}
+          className="press-feedback hidden md:inline-flex items-center gap-1 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 px-3 h-9 rounded-full"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="shrink-0"
+            aria-hidden
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="shrink-0"
-              aria-hidden
-            >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            <span className="leading-none">新增分類</span>
-          </button>
-        </div>
-        <p className="mt-2 text-sm text-neutral-500">
-         目前共 {categories.length} 個
-        </p>
-      </header>
-
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          <span className="leading-none">新增分類</span>
+        </button>
+      }
+    >
       <SearchInput
         value={query}
         onValueChange={setQuery}

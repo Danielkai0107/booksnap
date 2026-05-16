@@ -38,7 +38,7 @@ export default function BorrowersPage() {
       setBorrowers((data.borrowers ?? []) as Borrower[]);
     } catch (err) {
       console.error("[admin/borrowers] fetch failed", err);
-      toast.error("載入借閱人清單失敗");
+      toast.error("載入出借人清單失敗");
     } finally {
       setLoading(false);
     }
@@ -62,16 +62,7 @@ export default function BorrowersPage() {
   }, [borrowers, query]);
 
   return (
-    <AdminShell mobileMode="topbar" topbarTitle="借閱人">
-      <header className="hidden md:block mb-6">
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
-          借閱人
-        </h1>
-        <p className="mt-2 text-sm text-neutral-500">
-          依出借時輸入的手機號碼自動建檔。
-        </p>
-      </header>
-
+    <AdminShell topbarTitle="出借人">
       <div className="mb-5">
         <SearchInput
           value={query}
@@ -88,8 +79,8 @@ export default function BorrowersPage() {
       ) : filtered.length === 0 ? (
         <div className="py-24 text-center text-sm text-neutral-500">
           {borrowers.length === 0
-            ? "尚未有任何借閱人。請把公開借還頁面分享給讀者使用。"
-            : "沒有符合的借閱人"}
+            ? "尚未有任何出借人。請把公開借還頁面分享給讀者使用。"
+            : "沒有符合的出借人"}
         </div>
       ) : (
         <ul className="divide-y divide-neutral-100 border-y border-neutral-100">

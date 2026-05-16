@@ -53,6 +53,12 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
+  /**
+   * 掃到新書時暫存於此，等使用者按「加入清單」才真正進到 cart。
+   * 不為 null 時 scan callback 透過 `scanningRef` 維持鎖定，
+   * 避免同一本書被連續觸發、或下一本書直接覆蓋掉這次的確認。
+   */
+  const [pendingBook, setPendingBook] = useState<BookInCart | null>(null);
   /** True after `profile` is confirmed; camera should be live. */
   const [identified, setIdentified] = useState(false);
 
@@ -75,7 +81,7 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
     async (bookId: string): Promise<BookInCart | { error: string }> => {
       const res = await fetch(
         `/api/public/books?slug=${encodeURIComponent(slug)}&bookId=${encodeURIComponent(bookId)}`,
-        { cache: "no-store" }
+        { cache: "no-store" },
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return { error: data?.error ?? "查無此書" };
@@ -96,7 +102,7 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
         category_name: b.category_name,
       };
     },
-    [slug]
+    [slug],
   );
 
   // -- identify step --------------------------------------------------------
@@ -195,37 +201,50 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
             if (!resultObj || cancelled) return;
             if (scanningRef.current) return;
             scanningRef.current = true;
+            // 任何「不需要等使用者決定」的退出路徑都走這個，
+            // 給 700ms cooldown 避免相同 QR 連發；
+            // 「掃到新書」的成功路徑走另一條，把鎖維持到使用者按下確認/取消。
+            const releaseAfterDelay = () => {
+              setTimeout(() => {
+                scanningRef.current = false;
+              }, 400);
+            };
             try {
               const text = resultObj.getText();
               const parsed = parseScannedQr(text, slug);
               if (!parsed) {
                 toast.error("無法解析此 QR");
+                releaseAfterDelay();
                 return;
               }
               if (parsed.slug && parsed.slug !== slug) {
-                toast.error("這本書屬於其他單位，無法在此借閱");
+                toast.error("這本書屬於其他單位，無法在此出借");
+                releaseAfterDelay();
                 return;
               }
               const exists = cartRef.current.find(
-                (b) => b.book_id === parsed.bookId
+                (b) => b.book_id === parsed.bookId,
               );
               if (exists) {
                 toast.info(`已在清單中：${exists.title}`);
+                releaseAfterDelay();
                 return;
               }
               const r = await fetchBook(parsed.bookId);
               if ("error" in r) {
                 toast.error(r.error);
+                releaseAfterDelay();
                 return;
               }
-              setCart((prev) => [...prev, r]);
-              toast.success(`已加入：${r.title}`);
-            } finally {
-              setTimeout(() => {
-                scanningRef.current = false;
-              }, 700);
+              // 掃到新書：不直接加入 cart，先丟到 pendingBook 等使用者確認。
+              // `scanningRef` 維持 true，等 confirm/cancel 才釋放，這樣
+              // 對著同一本書的鏡頭流不會持續觸發新確認。
+              setPendingBook(r);
+            } catch {
+              // 防止意外（如 fetch throw）卡住鎖
+              releaseAfterDelay();
             }
-          }
+          },
         );
         if (cancelled) {
           controls.stop();
@@ -247,6 +266,25 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
 
   function removeFromCart(bookId: string) {
     setCart((prev) => prev.filter((b) => b.book_id !== bookId));
+  }
+
+  // 兩個 handler 都需要釋放掃描鎖；用 700ms cooldown 給使用者
+  // 把鏡頭移開那本書的時間，避免取消後立刻又跳回確認。
+  function confirmPending() {
+    if (pendingBook) {
+      setCart((prev) => [...prev, pendingBook]);
+      toast.success(`已加入：${pendingBook.title}`);
+    }
+    setPendingBook(null);
+    setTimeout(() => {
+      scanningRef.current = false;
+    }, 700);
+  }
+  function cancelPending() {
+    setPendingBook(null);
+    setTimeout(() => {
+      scanningRef.current = false;
+    }, 700);
   }
 
   async function handleSubmit() {
@@ -294,6 +332,7 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
     setDisplayName("");
     setEmail("");
     setPhone("");
+    setPendingBook(null);
     setIdentified(false);
     setSheet("identify");
   }
@@ -370,7 +409,7 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
           disabled={!identified}
           className="relative h-9 inline-flex items-center bg-white hover:bg-neutral-100 disabled:bg-white/40 disabled:text-neutral-500 text-neutral-900 text-[13px] font-medium px-4 rounded-full transition"
         >
-          完成借閱 ({cart.length})
+          完成出借 ({cart.length})
           {cart.length > 0 && (
             <span
               className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-black/70"
@@ -384,7 +423,7 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
       <BottomSheet
         open={sheet === "identify"}
         onClose={handleClose}
-        title="借書 · 識別資料"
+        title="出借 · 識別資料"
         subtitle={orgName}
         footer={
           <div className="flex gap-3">
@@ -419,13 +458,11 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
               className="mt-1 w-full px-4 py-3 border border-neutral-200 rounded-xl text-base focus:outline-none focus:border-neutral-900"
             />
             <span className="mt-1.5 block text-[11px] text-neutral-400">
-              手機號碼是借閱人的唯一識別，第二次借書直接帶入。
+              手機號碼是出借人的唯一識別，第二次出借直接帶入。
             </span>
           </label>
           <label className="block">
-            <span className="text-xs text-neutral-500">
-              使用地點（可選）
-            </span>
+            <span className="text-xs text-neutral-500">使用地點（可選）</span>
             <input
               value={locationNote}
               onChange={(e) => setLocationNote(e.target.value)}
@@ -443,9 +480,11 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
       <BottomSheet
         open={sheet === "profile"}
         onClose={() => setSheet("identify")}
-        title="借書 · 確認資料"
+        title="出借 · 確認資料"
         subtitle={
-          knownBorrowerId ? "已有借閱記錄，可直接確認或更新" : "首次借書，請填寫姓名"
+          knownBorrowerId
+            ? "已有出借記錄，可直接確認或更新"
+            : "首次出借，請填寫姓名"
         }
         footer={
           <div className="flex gap-3">
@@ -496,8 +535,8 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
         title={`已掃 ${cart.length} 本書`}
         subtitle={
           locationNote
-            ? `借閱人 ${displayName} · 使用地點 ${locationNote}`
-            : `借閱人 ${displayName}`
+            ? `出借人 ${displayName} · 使用地點 ${locationNote}`
+            : `出借人 ${displayName}`
         }
         footer={
           <div className="flex gap-3">
@@ -514,7 +553,7 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
               disabled={cart.length === 0 || submitting}
               className="flex-1 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-200 disabled:text-neutral-400 text-white text-sm font-medium py-3.5 rounded-lg transition"
             >
-              {submitting ? "送出中…" : `確認借閱 ${cart.length} 本`}
+              {submitting ? "送出中…" : `確認出借 ${cart.length} 本`}
             </button>
           </div>
         }
@@ -566,13 +605,65 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
         )}
       </BottomSheet>
 
+      {/* confirm-pending sheet -------------------------------------------
+          掃到新書時的「加入清單」確認彈窗。受控於 `pendingBook`：
+          打開期間 `scanningRef` 維持 true，所以下一個 QR 不會擠進來。 */}
+      <BottomSheet
+        open={pendingBook !== null}
+        onClose={cancelPending}
+        title="加入借閱清單？"
+        subtitle={orgName}
+        footer={
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={cancelPending}
+              className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3.5 rounded-xl transition"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={confirmPending}
+              className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-xl transition"
+            >
+              加入清單
+            </button>
+          </div>
+        }
+      >
+        {pendingBook && (
+          <div className="flex gap-3 items-center pb-2">
+            {pendingBook.image_url ? (
+              <img
+                src={pendingBook.image_url}
+                alt={pendingBook.title}
+                className="w-16 h-22 object-cover rounded-md border border-neutral-100"
+              />
+            ) : (
+              <div className="w-16 h-22 rounded-md bg-neutral-100" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-base font-medium text-neutral-900 leading-snug">
+                {pendingBook.title}
+              </p>
+              {pendingBook.category_name && (
+                <p className="text-xs text-neutral-500 mt-1">
+                  {pendingBook.category_name}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </BottomSheet>
+
       {/* result sheet ----------------------------------------------------- */}
       <BottomSheet
         open={sheet === "result"}
         onClose={handleClose}
         title={
           result && result.accepted.length > 0
-            ? `成功借閱 ${result.accepted.length} 本`
+            ? `成功出借 ${result.accepted.length} 本`
             : "未借出任何書"
         }
         subtitle={orgName}
@@ -611,7 +702,9 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
             )}
             {result.rejected.length > 0 && (
               <div className={result.accepted.length > 0 ? "mt-4" : ""}>
-                <p className="text-xs text-amber-700 mb-2">以下書本未能借閱：</p>
+                <p className="text-xs text-amber-700 mb-2">
+                  以下書本未能出借：
+                </p>
                 <ul className="space-y-2">
                   {result.rejected.map((r) => (
                     <li

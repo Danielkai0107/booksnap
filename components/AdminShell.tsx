@@ -1,30 +1,27 @@
 "use client";
 
 import { ReactNode, useState } from "react";
-import Link from "next/link";
-import CloseButton from "./CloseButton";
+import { useRouter } from "next/navigation";
 import AdminSidebar, { AdminMobileMenu } from "./AdminSidebar";
 import ScrollToTopButton from "./ScrollToTopButton";
 
 type Props = {
   children: ReactNode;
   /**
-   * 手機版頂部樣式：
-   * - "topbar"：顯示漢堡 + 標題 + 右側操作（給 /admin 主頁用）
-   * - "back"：左上角浮動 ← 圓鈕（給內頁用）
+   * Topbar 中央標題。預設 "booksnap"。絕對置中，左右兩側元素變寬不會
+   * 影響它的位置。
    */
-  mobileMode?: "topbar" | "back";
-  /** topbar 模式中央標題，預設 "booksnap"。絕對置中，不受兩側元素寬度影響。 */
   topbarTitle?: ReactNode;
-  /** topbar 模式時右側按鈕（例：匯出） */
+  /** Topbar 右側操作（例：匯出、新增） */
   topbarRight?: ReactNode;
-  /** back 模式的回上頁路徑 */
-  backHref?: string;
-  /** 桌機內容區頂端的「← 返回」連結（詳情頁用） */
-  desktopBack?: { href: string; label: string };
   /**
-   * 自訂返回鍵行為（覆蓋 backHref / desktopBack 預設導航）。
-   * 用於頁面內的 state 切換（例：標籤預覽切回選擇）。
+   * 設置後 topbar 左側顯示「返回箭頭」（覆寫預設的漢堡按鈕）。
+   * 與 `onBack` 二擇一；若兩者都有，`onBack` 優先。
+   */
+  backHref?: string;
+  /**
+   * 自訂返回鍵行為，會覆寫 `backHref`。常見場景是頁面內 state 切換
+   *（例：標籤預覽切回選擇）；點下後不會走 router.push。
    */
   onBack?: () => void;
   /**
@@ -33,28 +30,74 @@ type Props = {
   scrollLifted?: boolean;
 };
 
+/**
+ * Admin 全站 shell：常駐桌機側欄 + 統一 topbar。
+ *
+ * Topbar 左側按鈕由 props 推導：
+ * - 有 `backHref`/`onBack` → 返回箭頭（手機/桌機都顯示），樣式與
+ *   公開頁 `BrandedBackButton` 一致。
+ * - 沒有 → 漢堡（只手機顯示，用來開 mobile drawer；桌機側欄常駐
+ *   不需漢堡）。
+ *
+ * 標題絕對置中，不論左右元素寬度都不會影響視覺中心。
+ */
 export default function AdminShell({
   children,
-  mobileMode = "back",
   topbarTitle,
   topbarRight,
   backHref,
-  desktopBack,
   onBack,
   scrollLifted = false,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navigating, setNavigating] = useState(false);
+  const router = useRouter();
+  const hasBack = Boolean(onBack || backHref);
+
+  // 返回行為：onBack 優先（純 client state 切換，不導頁），
+  // 否則用 router.push 並打開 fullscreen loading 蓋住閃白，
+  // 行為對齊舊版 CloseButton 在 backHref 模式下的 UX。
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (backHref) {
+      setNavigating(true);
+      router.push(backHref);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white">
-      {mobileMode === "topbar" ? (
-        <header className="md:hidden sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-neutral-100">
-          <div className="relative flex items-center h-14 px-3">
+      <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-neutral-100 md:ml-60">
+        <div className="relative flex items-center h-14 px-3 md:px-10 max-w-2xl md:max-w-5xl mx-auto">
+          {hasBack ? (
+            <button
+              type="button"
+              onClick={handleBack}
+              aria-label="返回"
+              className="w-10 h-10 inline-flex items-center justify-center rounded-full text-neutral-700 hover:bg-neutral-100 transition"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M19 12H5" />
+                <path d="M12 19l-7-7 7-7" />
+              </svg>
+            </button>
+          ) : (
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
               aria-label="開啟選單"
-              className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-neutral-100 transition text-neutral-800"
+              className="md:hidden w-10 h-10 rounded-full flex items-center justify-center hover:bg-neutral-100 transition text-neutral-800"
             >
               <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
                 <path
@@ -65,61 +108,32 @@ export default function AdminShell({
                 />
               </svg>
             </button>
-            <span
-              className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-base font-semibold tracking-tight text-neutral-900 max-w-[55%] truncate text-center"
-            >
-              {topbarTitle ?? "booksnap"}
-            </span>
-            <div className="ml-auto flex items-center justify-end">
-              {topbarRight}
-            </div>
+          )}
+          <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-base font-semibold tracking-tight text-neutral-900 max-w-[55%] truncate text-center">
+            {topbarTitle ?? "booksnap"}
+          </span>
+          <div className="ml-auto flex items-center justify-end">
+            {topbarRight}
           </div>
-        </header>
-      ) : onBack ? (
-        <CloseButton
-          onClick={onBack}
-          showLoadingOnClick={false}
-          hideOnDesktop
-          icon="arrow-left"
-        />
-      ) : backHref ? (
-        <CloseButton href={backHref} hideOnDesktop icon="arrow-left" />
-      ) : null}
+        </div>
+      </header>
 
       <AdminSidebar />
       <AdminMobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
 
       <main className="md:ml-60">
-        <div
-          className={`max-w-2xl md:max-w-5xl mx-auto px-5 md:px-10 pb-10 md:py-10 ${
-            mobileMode === "topbar" ? "pt-6" : "pt-20"
-          }`}
-        >
-          {desktopBack && (
-            <div className="hidden md:block mb-6">
-              {onBack ? (
-                <button
-                  type="button"
-                  onClick={onBack}
-                  className="text-sm text-neutral-500 hover:text-neutral-900 transition"
-                >
-                  ← {desktopBack.label}
-                </button>
-              ) : (
-                <Link
-                  href={desktopBack.href}
-                  className="text-sm text-neutral-500 hover:text-neutral-900 transition"
-                >
-                  ← {desktopBack.label}
-                </Link>
-              )}
-            </div>
-          )}
+        <div className="max-w-2xl md:max-w-5xl mx-auto px-5 md:px-10 pt-6 pb-10 md:py-10">
           {children}
         </div>
       </main>
 
       <ScrollToTopButton lifted={scrollLifted} />
+
+      {navigating && (
+        <div className="fixed inset-0 z-[60] bg-white flex items-center justify-center">
+          <div className="w-9 h-9 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />
+        </div>
+      )}
     </div>
   );
 }

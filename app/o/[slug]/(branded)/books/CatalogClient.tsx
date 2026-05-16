@@ -190,7 +190,7 @@ export default function CatalogClient({ slug, orgName }: Props) {
                 </div>
                 {b.status === "borrowed" && b.current_holder && (
                   <p className="mt-2 text-xs text-neutral-600">
-                    借閱中：
+                    出借中：
                     <span className="text-neutral-900 font-medium">
                       {b.current_holder}
                     </span>
@@ -245,14 +245,14 @@ function FilterChip({
 function StatusPill({ status }: { status: string }) {
   if (status === "available") {
     return (
-      <span className="inline-flex items-center gap-1.5 h-[22px] text-[11px] px-2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium">
+      <span className="inline-flex items-center gap-1.5 h-[22px] text-[11px] px-2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium whitespace-nowrap">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
         在館
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 h-[22px] text-[11px] px-2 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200 font-medium">
+    <span className="inline-flex items-center gap-1.5 h-[22px] text-[11px] px-2 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200 font-medium whitespace-nowrap">
       <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
       借出
     </span>

@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AdminShell from "@/components/AdminShell";
-import BookPreviewSheet, { type BookPreview } from "@/components/BookPreviewSheet";
+import BookPreviewSheet, {
+  type BookPreview,
+} from "@/components/BookPreviewSheet";
 import BottomSheet from "@/components/BottomSheet";
 import SwipeableTabs from "@/components/SwipeableTabs";
 import { useToast } from "@/components/ToastProvider";
@@ -60,7 +62,7 @@ export default function BorrowerDetailPage() {
     try {
       const res = await fetch(
         `/api/admin/borrowers/${encodeURIComponent(id)}`,
-        { cache: "no-store" }
+        { cache: "no-store" },
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -87,7 +89,7 @@ export default function BorrowerDetailPage() {
       setBooks(bookMap);
     } catch (err) {
       console.error("[admin/borrowers/:id] fetch failed", err);
-      toast.error("載入借閱人資料失敗");
+      toast.error("載入出借人資料失敗");
     } finally {
       setLoading(false);
     }
@@ -115,7 +117,7 @@ export default function BorrowerDetailPage() {
             display_name: editName.trim(),
             email: editEmail.trim() || null,
           }),
-        }
+        },
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -133,7 +135,7 @@ export default function BorrowerDetailPage() {
     try {
       const res = await fetch(
         `/api/admin/borrowers/${encodeURIComponent(id)}`,
-        { method: "DELETE" }
+        { method: "DELETE" },
       );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -148,14 +150,35 @@ export default function BorrowerDetailPage() {
 
   const returnedRecords = useMemo(
     () => records.filter((r) => r.returned_at),
-    [records]
+    [records],
   );
 
   return (
     <AdminShell
       backHref="/admin/borrowers"
-      desktopBack={{ href: "/admin/borrowers", label: "回借閱人列表" }}
+      topbarTitle={borrower?.display_name ?? "出借人詳情"}
       scrollLifted
+      topbarRight={
+        // 桌機 only：手機已有底部固定的編輯/刪除動作列。
+        borrower ? (
+          <div className="hidden md:flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              className="press-feedback inline-flex items-center gap-1 text-sm font-medium text-neutral-800 hover:text-neutral-900 bg-white border border-neutral-200 hover:border-neutral-400 px-3 h-9 rounded-full"
+            >
+              <span className="leading-none">編輯</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(true)}
+              className="press-feedback inline-flex items-center gap-1 text-sm font-medium text-red-600 hover:text-red-700 bg-white border border-red-200 hover:border-red-300 px-3 h-9 rounded-full"
+            >
+              <span className="leading-none">刪除</span>
+            </button>
+          </div>
+        ) : null
+      }
     >
       {loading ? (
         <div className="py-20 flex justify-center">
@@ -163,97 +186,92 @@ export default function BorrowerDetailPage() {
         </div>
       ) : borrower ? (
         <>
-          <section className="bg-neutral-100 border border-neutral-200 rounded-2xl p-5 md:p-7 mb-6">
-            <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-neutral-900">
-              {borrower.display_name}
-            </h1>
-            <dl className="mt-3 grid grid-cols-[64px_1fr] gap-y-1.5 text-sm">
-              <dt className="text-neutral-400">手機</dt>
-              <dd className="text-neutral-900 font-mono">
-                {maskPhoneAdmin(borrower.phone)}
-              </dd>
-              {borrower.email && (
-                <>
-                  <dt className="text-neutral-400">Email</dt>
-                  <dd className="text-neutral-900 break-all">{borrower.email}</dd>
-                </>
-              )}
-              <dt className="text-neutral-400">加入</dt>
-              <dd className="text-neutral-700 tabular-nums">
-                {new Date(borrower.created_at).toLocaleString("zh-TW")}
-              </dd>
-              {borrower.last_active_at && (
-                <>
-                  <dt className="text-neutral-400">最近</dt>
-                  <dd className="text-neutral-700 tabular-nums">
-                    {new Date(borrower.last_active_at).toLocaleString("zh-TW")}
-                  </dd>
-                </>
-              )}
-            </dl>
-            <div className="hidden md:flex justify-end gap-2 mt-4">
-              <button
-                type="button"
-                onClick={() => setEditOpen(true)}
-                className="text-xs text-neutral-700 hover:text-neutral-900 px-3 py-1.5 rounded-md border border-neutral-200 hover:border-neutral-400 transition"
-              >
-                編輯
-              </button>
-              <button
-                type="button"
-                onClick={() => setDeleteOpen(true)}
-                className="text-xs text-red-600 hover:text-red-700 px-3 py-1.5 rounded-md border border-red-100 hover:border-red-200 transition"
-              >
-                刪除
-              </button>
-            </div>
-          </section>
+          {/* 桌機 2 欄：左圖卡 / 右 tabs；手機維持垂直堆疊。
+              `md:items-start` 讓左欄保持原高度不被右欄撐高，
+              `md:sticky md:top-20` 讓左欄跟著右側捲動保持可見。 */}
+          <div className="md:grid md:grid-cols-[340px_1fr] md:gap-6 md:items-start">
+            <section className="bg-neutral-100 border border-neutral-200 rounded-2xl p-5 md:p-7 mb-6 md:mb-0 md:sticky md:top-20">
+              <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-neutral-900">
+                {borrower.display_name}
+              </h1>
+              <dl className="mt-3 grid grid-cols-[64px_1fr] gap-y-1.5 text-sm">
+                <dt className="text-neutral-400">手機</dt>
+                <dd className="text-neutral-900 font-mono">
+                  {maskPhoneAdmin(borrower.phone)}
+                </dd>
+                {borrower.email && (
+                  <>
+                    <dt className="text-neutral-400">Email</dt>
+                    <dd className="text-neutral-900 break-all">
+                      {borrower.email}
+                    </dd>
+                  </>
+                )}
+                <dt className="text-neutral-400">加入</dt>
+                <dd className="text-neutral-700 tabular-nums">
+                  {new Date(borrower.created_at).toLocaleString("zh-TW")}
+                </dd>
+                {borrower.last_active_at && (
+                  <>
+                    <dt className="text-neutral-400">最近</dt>
+                    <dd className="text-neutral-700 tabular-nums">
+                      {new Date(borrower.last_active_at).toLocaleString(
+                        "zh-TW",
+                      )}
+                    </dd>
+                  </>
+                )}
+              </dl>
+            </section>
 
-          <SwipeableTabs
-            active={tab}
-            onChange={(t) => setTab(t as Tab)}
-            tabs={[
-              {
-                id: "holding",
-                label: `持有中 (${holding.length})`,
-                content: (
-                  <HoldingList
-                    holding={holding}
-                    onPreview={setPreviewBookId}
-                    empty="目前沒有借閱中的書"
-                  />
-                ),
-              },
-              {
-                id: "borrow",
-                label: `借書紀錄 (${records.length})`,
-                content: (
-                  <RecordList
-                    records={records}
-                    timeKey="borrowed_at"
-                    timeLabel="借出"
-                    books={books}
-                    onPreview={setPreviewBookId}
-                    empty="尚無借書紀錄"
-                  />
-                ),
-              },
-              {
-                id: "return",
-                label: `還書紀錄 (${returnedRecords.length})`,
-                content: (
-                  <RecordList
-                    records={returnedRecords}
-                    timeKey="returned_at"
-                    timeLabel="歸還"
-                    books={books}
-                    onPreview={setPreviewBookId}
-                    empty="尚無還書紀錄"
-                  />
-                ),
-              },
-            ]}
-          />
+            <div className="md:min-w-0">
+              <SwipeableTabs
+                active={tab}
+                onChange={(t) => setTab(t as Tab)}
+                tabs={[
+                  {
+                    id: "holding",
+                    label: `持有中 (${holding.length})`,
+                    content: (
+                      <HoldingList
+                        holding={holding}
+                        onPreview={setPreviewBookId}
+                        empty="目前沒有出借中的書"
+                      />
+                    ),
+                  },
+                  {
+                    id: "borrow",
+                    label: `出借紀錄 (${records.length})`,
+                    content: (
+                      <RecordList
+                        records={records}
+                        timeKey="borrowed_at"
+                        timeLabel="借出"
+                        books={books}
+                        onPreview={setPreviewBookId}
+                        empty="尚無出借紀錄"
+                      />
+                    ),
+                  },
+                  {
+                    id: "return",
+                    label: `歸還紀錄 (${returnedRecords.length})`,
+                    content: (
+                      <RecordList
+                        records={returnedRecords}
+                        timeKey="returned_at"
+                        timeLabel="歸還"
+                        books={books}
+                        onPreview={setPreviewBookId}
+                        empty="尚無歸還紀錄"
+                      />
+                    ),
+                  },
+                ]}
+              />
+            </div>
+          </div>
 
           <div className="md:hidden h-24" aria-hidden />
 
@@ -282,7 +300,7 @@ export default function BorrowerDetailPage() {
           <BookPreviewSheet
             open={previewBookId !== null}
             onClose={() => setPreviewBookId(null)}
-            book={previewBookId ? books[previewBookId] ?? null : null}
+            book={previewBookId ? (books[previewBookId] ?? null) : null}
             detailHref={
               previewBookId
                 ? `/admin/books/${encodeURIComponent(previewBookId)}`
@@ -294,7 +312,7 @@ export default function BorrowerDetailPage() {
             <BottomSheet
               open
               onClose={() => setEditOpen(false)}
-              title="編輯借閱人"
+              title="編輯出借人"
               footer={
                 <button
                   type="button"
@@ -316,7 +334,9 @@ export default function BorrowerDetailPage() {
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs text-neutral-500">Email（可選）</span>
+                  <span className="text-xs text-neutral-500">
+                    Email（可選）
+                  </span>
                   <input
                     type="email"
                     value={editEmail}
@@ -325,7 +345,7 @@ export default function BorrowerDetailPage() {
                   />
                 </label>
                 <p className="text-xs text-neutral-400">
-                  手機號碼是借閱人的唯一識別，不可在後台修改。
+                  手機號碼是出借人的唯一識別，不可在後台修改。
                 </p>
               </div>
             </BottomSheet>
@@ -335,7 +355,7 @@ export default function BorrowerDetailPage() {
             <BottomSheet
               open
               onClose={() => setDeleteOpen(false)}
-              title="刪除借閱人？"
+              title="刪除出借人？"
               subtitle={`此操作無法復原（${borrower.display_name}）`}
               footer={
                 <div className="flex gap-3">
@@ -355,14 +375,15 @@ export default function BorrowerDetailPage() {
               }
             >
               <p className="text-sm text-neutral-600 pb-4">
-                該借閱人下次在 /o/&#123;slug&#125; 借書時會重新建檔。已歸還的紀錄會一併刪除。
+                該出借人下次在 /o/&#123;slug&#125;
+                出借時會重新建檔。已歸還的紀錄會一併刪除。
               </p>
             </BottomSheet>
           )}
         </>
       ) : (
         <div className="py-20 text-center text-sm text-neutral-500">
-          找不到此借閱人
+          找不到此出借人
         </div>
       )}
     </AdminShell>

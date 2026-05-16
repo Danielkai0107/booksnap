@@ -91,22 +91,19 @@ export default function LabelsPage() {
     return (
       <AdminShell
         onBack={() => setShowLabels(false)}
-        desktopBack={{ href: "/admin/labels", label: "回選擇" }}
+        topbarTitle="標籤預覽"
+        topbarRight={
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="press-feedback inline-flex items-center gap-1 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 px-3 h-9 rounded-full"
+          >
+            <span className="leading-none">列印</span>
+          </button>
+        }
       >
         <div className="no-print mb-6">
-          <div className="flex items-center justify-between gap-3">
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
-              標籤預覽
-            </h1>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="shrink-0 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition"
-            >
-              列印
-            </button>
-          </div>
-          <p className="mt-2 text-sm text-neutral-500">
+          <p className="text-sm text-neutral-500">
             共 {selectedBooks.length} 張標籤
           </p>
         </div>
@@ -134,63 +131,61 @@ export default function LabelsPage() {
   }
 
   return (
-    <AdminShell mobileMode="topbar" topbarTitle="標籤列印" scrollLifted>
-      <header className="hidden md:block mb-6">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
-            標籤列印
-          </h1>
-          <button
-            type="button"
-            onClick={() => setShowLabels(true)}
-            disabled={selected.size === 0}
-            className="shrink-0 inline-flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-3 rounded-xl transition disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
+    <AdminShell
+      topbarTitle="標籤列印"
+      scrollLifted
+      topbarRight={
+        // 桌機 only：手機已有底部 FAB；disabled 樣式維持，提示需先勾選書籍
+        <button
+          type="button"
+          onClick={() => setShowLabels(true)}
+          disabled={selected.size === 0}
+          className="press-feedback hidden md:inline-flex items-center gap-1 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed px-3 h-9 rounded-full"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="shrink-0"
+            aria-hidden
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="shrink-0"
-              aria-hidden
-            >
-              <polyline points="6 9 6 2 18 2 18 9" />
-              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-              <rect x="6" y="14" width="12" height="8" />
-            </svg>
-            <span className="leading-none">
-              批次列印{selected.size > 0 ? ` (${selected.size})` : ""}
-            </span>
-          </button>
-        </div>
-        <p className="mt-2 text-sm text-neutral-500">
-          選擇要產生 QR / 條碼標籤的書本
-        </p>
-      </header>
-
-      <SearchInput
-        value={query}
-        onValueChange={setQuery}
-        placeholder="搜尋書名或編號"
-        wrapperClassName="mb-3"
-        className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
-      />
-      <div className="flex justify-end gap-2 mb-5">
+            <polyline points="6 9 6 2 18 2 18 9" />
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+            <rect x="6" y="14" width="12" height="8" />
+          </svg>
+          <span className="leading-none">
+            批次列印{selected.size > 0 ? ` (${selected.size})` : ""}
+          </span>
+        </button>
+      }
+    >
+      {/* 搜尋 + 全選/清空 同一行：`items-stretch` 讓兩顆按鈕自動撐到
+          SearchInput 的高度，視覺上像同一條輸入列。
+          `wrapperClassName="flex-1 min-w-0"` 讓搜尋欄吃掉剩餘空間。 */}
+      <div className="flex items-stretch gap-2 mb-5">
+        <SearchInput
+          value={query}
+          onValueChange={setQuery}
+          placeholder="搜尋書名或編號"
+          wrapperClassName="flex-1 min-w-0"
+          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
+        />
         <button
           type="button"
           onClick={() => selectAll(filtered)}
-          className="bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2 rounded-lg transition"
+          className="shrink-0 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 rounded-lg transition"
         >
           全選
         </button>
         <button
           type="button"
           onClick={clearAll}
-          className="bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2 rounded-lg transition"
+          className="shrink-0 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 rounded-lg transition"
         >
           清空
         </button>

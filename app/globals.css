@@ -4,6 +4,14 @@
   --font-sans:
     var(--font-dm), var(--font-noto-tc), "DM Sans", "Noto Sans TC",
     -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+
+  /* 全站「手機 / 電腦版」切換點。預設 Tailwind 的 `md` 是 768px（平板），
+     但本專案 admin 後台側欄 + topbar 排版需要更寬的橫向空間才舒適，
+     所以把 md 拉到 1200px，讓平板（768–1199px）仍走手機版佈局，避免
+     側欄擠壓內容區。`sm` (640px) 維持原樣，用於 padding/grid 等小調整。
+     ⚠ lg/xl/2xl 為 Tailwind 預設值（1024/1280/1536），目前 codebase
+     完全沒用到；若未來要加，請記得它們會 < md，順序會不直覺。 */
+  --breakpoint-md: 75rem;
 }
 
 :root {
@@ -29,7 +37,7 @@ select,
 textarea {
   font-size: 16px;
 }
-@media (min-width: 768px) {
+@media (min-width: 1200px) {
   input,
   select,
   textarea {
@@ -125,7 +133,7 @@ textarea {
   animation: slide-right 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1200px) {
   .md\:animate-fade-in {
     animation: fade-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }

@@ -62,7 +62,7 @@ export default function BorrowerPreviewSheet({
       try {
         const res = await fetch(
           `/api/admin/borrowers/${encodeURIComponent(borrowerId)}`,
-          { cache: "no-store" }
+          { cache: "no-store" },
         );
         const json = await res.json();
         if (!alive) return;
@@ -71,7 +71,7 @@ export default function BorrowerPreviewSheet({
       } catch (err) {
         if (!alive) return;
         console.error("[borrower-preview] fetch failed", err);
-        toast.error("載入借閱人資料失敗");
+        toast.error("載入出借人資料失敗");
       } finally {
         if (alive) setLoading(false);
       }
@@ -87,7 +87,7 @@ export default function BorrowerPreviewSheet({
     <BottomSheet
       open={open}
       onClose={onClose}
-      title="借閱人資訊"
+      title="出借人資訊"
       subtitle={data?.borrower.display_name ?? undefined}
       footer={
         detailHref ? (

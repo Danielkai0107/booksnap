@@ -10,6 +10,7 @@ import BottomSheet from "@/components/BottomSheet";
 import CategorySelect from "@/components/CategorySelect";
 import CategoryTag from "@/components/CategoryTag";
 import EditBookSheet from "@/components/EditBookSheet";
+import ManualCheckinSheet from "@/components/ManualCheckinSheet";
 import SearchInput from "@/components/SearchInput";
 import { useToast } from "@/components/ToastProvider";
 
@@ -28,6 +29,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
   const [deleteTarget, setDeleteTarget] = useState<EditTarget>(null);
+  // 桌機沒有相機，按「新書入庫」走手動表單彈窗。手機 FAB 仍走 /checkin 拍照。
+  const [manualCheckinOpen, setManualCheckinOpen] = useState(false);
   const toast = useToast();
 
   const categoryOptions = useMemo(
@@ -103,46 +106,20 @@ export default function AdminPage() {
 
   return (
     <AdminShell
-      mobileMode="topbar"
       topbarTitle="書籍管理"
       topbarRight={
-        <a
-          href="/api/export"
-          className="press-feedback inline-flex items-center gap-1 text-sm font-medium text-neutral-800 hover:text-neutral-900 px-3 h-9 rounded-full bg-white border border-neutral-200 hover:border-neutral-400"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="shrink-0"
-            aria-hidden
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          <span className="leading-none">匯出</span>
-        </a>
-      }
-    >
-      {/* 桌機版頁面標題列；手機版標題已搬到 AdminShell topbar */}
-      <header className="hidden md:flex mb-6 items-center justify-between gap-3">
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
-          書籍管理
-        </h1>
-        <div className="flex gap-2 shrink-0">
-          <Link
-            href="/checkin"
-            className="press-feedback inline-flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-3 rounded-xl"
+        // 桌機 topbar 同時放主要動作（新書入庫）+ 次要動作（匯出）；
+        // 新書入庫只在桌機顯示，因為手機已有底部 FAB 提供同一動作。
+        // 桌機點擊開手動表單彈窗（不走 /checkin 的相機流程）。
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setManualCheckinOpen(true)}
+            className="press-feedback hidden md:inline-flex items-center gap-1 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 px-3 h-9 rounded-full"
           >
             <svg
-              width="16"
-              height="16"
+              width="14"
+              height="14"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -155,14 +132,14 @@ export default function AdminPage() {
               <path d="M12 5v14M5 12h14" />
             </svg>
             <span className="leading-none">新書入庫</span>
-          </Link>
+          </button>
           <a
             href="/api/export"
-            className="press-feedback inline-flex items-center gap-1.5 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-3 rounded-xl"
+            className="press-feedback inline-flex items-center gap-1 text-sm font-medium text-neutral-800 hover:text-neutral-900 px-3 h-9 rounded-full bg-white border border-neutral-200 hover:border-neutral-400"
           >
             <svg
-              width="16"
-              height="16"
+              width="14"
+              height="14"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -176,16 +153,16 @@ export default function AdminPage() {
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            <span className="leading-none">下載 Excel</span>
+            <span className="leading-none">匯出</span>
           </a>
         </div>
-      </header>
-
+      }
+    >
       <dl className="mb-6 grid grid-cols-4 divide-x divide-neutral-200 border border-neutral-200 rounded-xl p-3 bg-neutral-100">
         <Stat label="總書籍" value={books.length} />
         <Stat label="在庫" value={availableCount} />
         <Stat label="已借出" value={borrowedCount} />
-        <Stat label="借閱人" value={memberCount} />
+        <Stat label="出借人" value={memberCount} />
       </dl>
 
       <div className="mb-5 flex gap-2">
@@ -296,7 +273,20 @@ export default function AdminPage() {
 
           {/* 桌機表格 */}
           <div className="hidden md:block overflow-x-auto border border-neutral-100 rounded-xl">
-            <table className="w-full text-sm">
+            {/* `table-fixed` + 明確欄寬：書名、持有人才會真的 truncate；
+                沒這層 auto-layout 會讓長內容把整個 table 撐爛。
+                `min-w-[820px]` 在 md 起點（1200px）扣掉側欄 240 + padding 後
+                約剩 920px 仍夠塞，且更窄視窗會優雅地觸發水平捲動。 */}
+            <table className="w-full min-w-[820px] table-fixed text-sm">
+              <colgroup>
+                <col style={{ width: "112px" }} />
+                <col />
+                <col style={{ width: "100px" }} />
+                <col style={{ width: "140px" }} />
+                <col style={{ width: "110px" }} />
+                <col style={{ width: "140px" }} />
+                <col style={{ width: "52px" }} />
+              </colgroup>
               <thead className="bg-neutral-50/60 text-neutral-500 text-xs uppercase tracking-wider">
                 <tr>
                   <th className="text-left px-5 py-3 font-medium">編號</th>
@@ -305,7 +295,7 @@ export default function AdminPage() {
                   <th className="text-left px-5 py-3 font-medium">入庫時間</th>
                   <th className="text-left px-5 py-3 font-medium">狀態</th>
                   <th className="text-left px-5 py-3 font-medium">持有人</th>
-                  <th className="px-3 py-3 w-12" />
+                  <th className="px-3 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100">
@@ -319,11 +309,11 @@ export default function AdminPage() {
                     }
                     className="hover:bg-neutral-50/60 transition cursor-pointer"
                   >
-                    <td className="px-5 py-3.5 font-mono text-xs text-neutral-500">
+                    <td className="px-5 py-3.5 font-mono text-xs text-neutral-500 truncate">
                       {b.book_id}
                     </td>
                     <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         {b.image_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
@@ -334,12 +324,12 @@ export default function AdminPage() {
                         ) : (
                           <div className="w-9 h-12 bg-neutral-100 rounded shrink-0" />
                         )}
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-neutral-900 truncate">
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="block text-neutral-900 truncate">
                             {b.title}
                           </span>
                           {b.category_id && (
-                            <span className="mt-1.5">
+                            <span className="mt-1.5 max-w-full">
                               <CategoryTag
                                 name={categoryNameById.get(b.category_id)}
                               />
@@ -348,26 +338,39 @@ export default function AdminPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-neutral-700">
+                    <td className="px-5 py-3.5 text-neutral-700 truncate">
                       {b.admin_name}
                     </td>
-                    <td className="px-5 py-3.5 text-neutral-500 tabular-nums">
-                      {new Date(b.checkin_time).toLocaleString("zh-TW", {
-                        year: "numeric",
-                        month: "2-digit",
-                        day: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                    <td className="px-5 py-3.5 text-neutral-500 tabular-nums whitespace-nowrap">
+                      {/* 兩行：日期上、時間下。原本連著一行 `2026/05/17 上午12:05`
+                          會超出 140px 欄寬擠到狀態欄；切兩行後最寬只到日期
+                          (`2026/05/17`)，乾淨地落在欄寬內。 */}
+                      <div>
+                        {new Date(b.checkin_time).toLocaleDateString("zh-TW", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                        })}
+                      </div>
+                      <div className="text-xs text-neutral-400">
+                        {new Date(b.checkin_time).toLocaleTimeString("zh-TW", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                        })}
+                      </div>
                     </td>
                     <td className="px-5 py-3.5">
                       <StatusPill status={b.status} />
                     </td>
-                    <td className="px-5 py-3.5 text-neutral-700">
+                    <td className="px-5 py-3.5 text-neutral-700 truncate">
                       {b.current_holder ?? "—"}
                     </td>
-                    <td className="px-3 py-3.5">
-                      <div onClick={(e) => e.stopPropagation()}>
+                    <td className="px-3 py-3.5 text-right">
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex"
+                      >
                         <BookActionsMenu
                           onEdit={() => setEditTarget(b)}
                           onDelete={() => setDeleteTarget(b)}
@@ -411,6 +414,15 @@ export default function AdminPage() {
           <span className="leading-none">新書入庫</span>
         </Link>
       </div>
+
+      <ManualCheckinSheet
+        open={manualCheckinOpen}
+        onClose={() => setManualCheckinOpen(false)}
+        categories={categories}
+        onCreated={() => {
+          void fetchAll();
+        }}
+      />
 
       {editTarget && (
         <EditBookSheet
@@ -485,16 +497,18 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 function StatusPill({ status }: { status: string }) {
+  // `whitespace-nowrap` 是關鍵：沒有它，table cell 寬度不足時中文字會逐字
+  // 換行，再加上 h-[26px] 固定高 → pill 被內容撐爆變成直立膠囊。
   if (status === "available") {
     return (
-      <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium">
+      <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium whitespace-nowrap">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
         在庫
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200 font-medium">
+    <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200 font-medium whitespace-nowrap">
       <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
       已借出
     </span>
