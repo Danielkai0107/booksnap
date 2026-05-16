@@ -181,53 +181,41 @@ export default function CheckinScanPage() {
     }
   }, [mode, attachStreamToVideo]);
 
-  // Debounce Google Books 查詢：confirming 期間，使用者改書名時 300ms 後送出。
-  // 候選清單永遠顯示（不會因為「已選一筆」而停止刷新）。
-  useEffect(() => {
-    if (mode !== "confirming") return;
-    const query = normalizeForGoogleSearch(editedTitle);
+  // 每次拍照後只查一次 Google Books（在 handleCapture 內呼叫），
+  // 之後就算使用者編輯書名也不會再打 API，避免浪費 quota。
+  const fetchCandidatesOnce = useCallback(async (rawTitle: string) => {
+    const query = normalizeForGoogleSearch(rawTitle);
     if (query.length < 2) {
       setCandidates([]);
       setCandidatesError(null);
+      setCandidatesLoading(false);
       return;
     }
-    let alive = true;
     setCandidatesLoading(true);
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(
-          `/api/books/lookup?title=${encodeURIComponent(query)}`,
-          { cache: "no-store" },
-        );
-        if (!res.ok) {
-          if (alive) {
-            setCandidates([]);
-            setCandidatesError("failed");
-          }
-          return;
-        }
-        const data = (await res.json()) as {
-          candidates?: LookupCandidate[];
-          error?: "rate_limited" | "failed" | null;
-        };
-        if (!alive) return;
-        setCandidates(data.candidates?.slice(0, 5) ?? []);
-        setCandidatesError(data.error ?? null);
-      } catch (err) {
-        console.warn("[checkin] lookup failed", err);
-        if (alive) {
-          setCandidates([]);
-          setCandidatesError("failed");
-        }
-      } finally {
-        if (alive) setCandidatesLoading(false);
+    try {
+      const res = await fetch(
+        `/api/books/lookup?title=${encodeURIComponent(query)}`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) {
+        setCandidates([]);
+        setCandidatesError("failed");
+        return;
       }
-    }, 300);
-    return () => {
-      alive = false;
-      clearTimeout(timer);
-    };
-  }, [editedTitle, mode]);
+      const data = (await res.json()) as {
+        candidates?: LookupCandidate[];
+        error?: "rate_limited" | "failed" | null;
+      };
+      setCandidates(data.candidates?.slice(0, 5) ?? []);
+      setCandidatesError(data.error ?? null);
+    } catch (err) {
+      console.warn("[checkin] lookup failed", err);
+      setCandidates([]);
+      setCandidatesError("failed");
+    } finally {
+      setCandidatesLoading(false);
+    }
+  }, []);
 
   const handleCapture = useCallback(async () => {
     const video = videoRef.current;
@@ -273,6 +261,8 @@ export default function CheckinScanPage() {
       setEditedTitle(finalTitle);
       setEditedCategoryId(suggested?.id ?? "");
       setMode("confirming");
+      // 一次性查詢 Google Books 候選清單。之後使用者編輯書名不會再觸發。
+      void fetchCandidatesOnce(finalTitle);
     } catch (err) {
       console.error("recognize error", err);
       setCurrentCapture({
@@ -284,7 +274,7 @@ export default function CheckinScanPage() {
       setEditedCategoryId("");
       setMode("confirming");
     }
-  }, [stopStream, categories]);
+  }, [stopStream, categories, fetchCandidatesOnce]);
 
   const handlePickCandidate = useCallback((c: LookupCandidate) => {
     setPickedCandidate(c);
@@ -708,9 +698,7 @@ export default function CheckinScanPage() {
                         ? "Google Books 今日配額已用完，請手動輸入 ISBN 或直接入庫"
                         : candidatesError === "failed"
                           ? "比對服務暫時無回應，可直接入庫"
-                          : editedTitle.trim().length < 2
-                            ? "輸入書名後會自動搜尋對應的 ISBN"
-                            : "查無對應書目，可直接入庫（ISBN 留空或手動輸入）"}
+                          : "查無對應書目，可直接入庫（ISBN 留空或手動輸入）"}
                   </p>
                 )}
               </div>
