@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { recognizeBookCover } from "@/lib/ocr";
 import { formatDateYMD, generateBookId } from "@/lib/bookId";
 import { supabase, type CategoryRow } from "@/lib/supabase";
+import { stripCopySuffix } from "@/lib/titleMatch";
 import BottomSheet from "@/components/BottomSheet";
 import CategorySelect from "@/components/CategorySelect";
 import Toast, { type ToastKind } from "@/components/Toast";
@@ -62,11 +63,12 @@ export default function CheckinScanPage() {
     [categories],
   );
 
-  // 重複偵測
+  // 重複偵測：分為「館藏中已有」與「目前清單中已有」兩段，序號要兩者一起算。
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>(
     [],
   );
+  const [duplicateInList, setDuplicateInList] = useState<ConfirmedBook[]>([]);
   const [duplicateBase, setDuplicateBase] = useState("");
 
   // 書單彈窗
@@ -268,7 +270,15 @@ export default function CheckinScanPage() {
 
   const handleConfirm = useCallback(async () => {
     const raw = editedTitle.trim() || "未命名書籍";
+    const baseFromInput = stripCopySuffix(raw);
 
+    // 先看目前清單中（尚未送出入庫）是否已有同 base title 的書。
+    const inList = confirmedBooks.filter(
+      (b) => stripCopySuffix(b.title) === baseFromInput,
+    );
+
+    let dbMatches: DuplicateMatch[] = [];
+    let baseTitle = baseFromInput;
     try {
       const res = await fetch(
         `/api/books/check-title?title=${encodeURIComponent(raw)}`,
@@ -278,17 +288,22 @@ export default function CheckinScanPage() {
         base?: string;
         matches?: DuplicateMatch[];
       };
-      if (data.matches && data.matches.length > 0) {
-        setDuplicateBase(data.base ?? raw);
-        setDuplicateMatches(data.matches);
-        setDuplicateOpen(true);
-        return;
-      }
+      dbMatches = data.matches ?? [];
+      baseTitle = data.base ?? baseFromInput;
     } catch (err) {
       console.warn("[checkin] check-title failed, proceeding", err);
     }
+
+    // 庫存或清單中其一有同名書，就顯示重複偵測彈窗讓使用者選。
+    if (dbMatches.length > 0 || inList.length > 0) {
+      setDuplicateBase(baseTitle);
+      setDuplicateMatches(dbMatches);
+      setDuplicateInList(inList);
+      setDuplicateOpen(true);
+      return;
+    }
     addBook(raw);
-  }, [editedTitle, addBook]);
+  }, [editedTitle, confirmedBooks, addBook]);
 
   const handleRetake = useCallback(() => {
     setCurrentCapture(null);
@@ -300,6 +315,7 @@ export default function CheckinScanPage() {
   const handleDuplicateCancel = useCallback(() => {
     setDuplicateOpen(false);
     setDuplicateMatches([]);
+    setDuplicateInList([]);
     setDuplicateBase("");
     setCurrentCapture(null);
     setEditedTitle("");
@@ -308,13 +324,21 @@ export default function CheckinScanPage() {
   }, [startCamera]);
 
   const handleDuplicateNewCopy = useCallback(() => {
-    const nextNum = duplicateMatches.length + 1;
+    // 序號要算「館藏 + 目前清單」總和，避免清單中加了 (2) 後再次掃同一本還是回到 (2)。
+    const nextNum =
+      duplicateMatches.length + duplicateInList.length + 1;
     const suffixed = `${duplicateBase} (${nextNum})`;
     setDuplicateOpen(false);
     setDuplicateMatches([]);
+    setDuplicateInList([]);
     setDuplicateBase("");
     addBook(suffixed);
-  }, [duplicateBase, duplicateMatches.length, addBook]);
+  }, [
+    duplicateBase,
+    duplicateMatches.length,
+    duplicateInList.length,
+    addBook,
+  ]);
 
   const handleSubmit = useCallback(async () => {
     if (confirmedBooks.length === 0 || submitting) return;
@@ -570,8 +594,14 @@ export default function CheckinScanPage() {
       <BottomSheet
         open={duplicateOpen}
         onClose={handleDuplicateCancel}
-        title="這本書好像已經在館藏中"
-        subtitle={`已找到 ${duplicateMatches.length} 本同名書`}
+        title="這本書好像已經存在"
+        subtitle={
+          duplicateInList.length > 0 && duplicateMatches.length > 0
+            ? `館藏 ${duplicateMatches.length} 本、入庫清單 ${duplicateInList.length} 本`
+            : duplicateInList.length > 0
+              ? `入庫清單已有 ${duplicateInList.length} 本同名書`
+              : `館藏已有 ${duplicateMatches.length} 本同名書`
+        }
         footer={
           <div className="flex gap-3">
             <button
@@ -584,38 +614,79 @@ export default function CheckinScanPage() {
               onClick={handleDuplicateNewCopy}
               className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
             >
-              新添購（序號 {duplicateMatches.length + 1}）
+              新添購（序號{" "}
+              {duplicateMatches.length + duplicateInList.length + 1}）
             </button>
           </div>
         }
       >
-        <ul className="space-y-3 pb-2">
-          {duplicateMatches.map((m) => (
-            <li
-              key={m.book_id}
-              className="flex gap-3 items-start border border-neutral-100 rounded-xl p-3"
+        {duplicateMatches.length > 0 && (
+          <>
+            <p className="text-xs text-neutral-500 mb-2">館藏中</p>
+            <ul className="space-y-3 pb-2">
+              {duplicateMatches.map((m) => (
+                <li
+                  key={m.book_id}
+                  className="flex gap-3 items-start border border-neutral-100 rounded-xl p-3"
+                >
+                  {m.image_url ? (
+                    <ZoomableImage
+                      src={m.image_url}
+                      alt={m.title}
+                      className="w-14 h-20 object-cover rounded-md border border-neutral-100"
+                    />
+                  ) : (
+                    <div className="w-14 h-20 rounded-md bg-neutral-100" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-neutral-900 truncate">
+                      {m.title}
+                    </p>
+                    <p className="text-xs text-neutral-500 mt-1">
+                      {m.book_id}
+                    </p>
+                    <p className="text-xs text-neutral-400 mt-0.5">
+                      {new Date(m.checkin_time).toLocaleString("zh-TW")}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {duplicateInList.length > 0 && (
+          <>
+            <p
+              className={`text-xs text-neutral-500 mb-2 ${
+                duplicateMatches.length > 0 ? "mt-4" : ""
+              }`}
             >
-              {m.image_url ? (
-                <ZoomableImage
-                  src={m.image_url}
-                  alt={m.title}
-                  className="w-14 h-20 object-cover rounded-md border border-neutral-100"
-                />
-              ) : (
-                <div className="w-14 h-20 rounded-md bg-neutral-100" />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-neutral-900 truncate">
-                  {m.title}
-                </p>
-                <p className="text-xs text-neutral-500 mt-1">{m.book_id}</p>
-                <p className="text-xs text-neutral-400 mt-0.5">
-                  {new Date(m.checkin_time).toLocaleString("zh-TW")}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ul>
+              目前入庫清單中
+            </p>
+            <ul className="space-y-3 pb-2">
+              {duplicateInList.map((b, idx) => (
+                <li
+                  key={`inlist-${idx}`}
+                  className="flex gap-3 items-start border border-neutral-100 rounded-xl p-3"
+                >
+                  <ZoomableImage
+                    src={b.imageDataUrl}
+                    alt={b.title}
+                    className="w-14 h-20 object-cover rounded-md border border-neutral-100"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-neutral-900 truncate">
+                      {b.title}
+                    </p>
+                    <p className="text-xs text-neutral-400 mt-1">
+                      尚未送出入庫
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </BottomSheet>
 
       <BottomSheet
