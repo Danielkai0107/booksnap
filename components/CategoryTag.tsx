@@ -16,7 +16,7 @@ export default function CategoryTag({
 }: Props) {
   if (!name) return null;
   const base =
-    "inline-flex items-center gap-1.5 max-w-full text-xs font-medium px-2 py-0.5 rounded-full";
+    "inline-flex items-center gap-1.5 max-w-full h-[26px] text-xs font-medium px-2.5 rounded-full";
   const style =
     variant === "solid"
       ? "bg-neutral-900/85 backdrop-blur-md text-white"

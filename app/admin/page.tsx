@@ -112,7 +112,7 @@ export default function AdminPage() {
   return (
     <AdminShell
       mobileMode="topbar"
-      topbarTitle="所有書籍"
+      topbarTitle="書籍管理"
       topbarRight={
         <a
           href="/api/export"
@@ -141,7 +141,7 @@ export default function AdminPage() {
       {/* 桌機版頁面標題列；手機版標題已搬到 AdminShell topbar */}
       <header className="hidden md:flex mb-6 items-center justify-between gap-3">
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
-          所有書籍
+          書籍管理
         </h1>
         <div className="flex gap-2 shrink-0">
           <Link
@@ -235,7 +235,7 @@ export default function AdminPage() {
         >
           已借出
         </StatusFilterChip>
-        <span className="ml-auto text-xs text-neutral-400">
+        <span className="ml-auto text-sm text-neutral-500">
           共 {filtered.length} 本
         </span>
       </div>
@@ -509,14 +509,14 @@ function Stat({ label, value }: { label: string; value: number }) {
 function StatusPill({ status }: { status: string }) {
   if (status === "available") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium">
+      <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
         在庫
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200 font-medium">
+    <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200 font-medium">
       <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
       已借出
     </span>
@@ -538,7 +538,7 @@ function StatusFilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition ${
+      className={`inline-flex items-center gap-1.5 h-[26px] text-xs font-medium px-3 rounded-full border transition ${
         active
           ? "bg-neutral-900 text-white border-neutral-900"
           : "bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400"

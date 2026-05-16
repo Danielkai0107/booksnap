@@ -116,7 +116,7 @@ export default async function OrganizationsPage({
                       {o.name}
                     </h2>
                     <span
-                      className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full border font-medium ${statusPillClass(
+                      className={`inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium ${statusPillClass(
                         o.status
                       )}`}
                     >

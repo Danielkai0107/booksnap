@@ -208,14 +208,14 @@ export default function BooksListPage() {
 function StatusPill({ status }: { status: string }) {
   if (status === "available") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full bg-white/90 backdrop-blur-sm text-emerald-700 border border-emerald-100 font-medium">
+      <span className="inline-flex items-center gap-1.5 h-[26px] text-[11px] px-2.5 rounded-full bg-white/90 backdrop-blur-sm text-emerald-700 border border-emerald-100 font-medium">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
         可借
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full bg-white/90 backdrop-blur-sm text-neutral-700 border border-neutral-200 font-medium">
+    <span className="inline-flex items-center gap-1.5 h-[26px] text-[11px] px-2.5 rounded-full bg-white/90 backdrop-blur-sm text-neutral-700 border border-neutral-200 font-medium">
       <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
       已借出
     </span>

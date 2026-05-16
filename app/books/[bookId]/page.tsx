@@ -83,7 +83,7 @@ export default function BookDetailPage() {
                 <StatusPill status={book.status} />
                 {categoryName && <CategoryTag name={categoryName} />}
                 {book.shelf_id && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-white text-neutral-700 border border-neutral-200">
+                  <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full bg-white text-neutral-700 border border-neutral-200">
                     書架 {book.shelf_id}
                   </span>
                 )}
@@ -179,14 +179,14 @@ export default function BookDetailPage() {
 function StatusPill({ status }: { status: string }) {
   if (status === "available") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium">
+      <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
         在庫
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full bg-white text-neutral-700 border border-neutral-200 font-medium">
+    <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-white text-neutral-700 border border-neutral-200 font-medium">
       <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
       已借出
     </span>
