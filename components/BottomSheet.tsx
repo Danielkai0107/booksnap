@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useKeyboardInset } from "@/lib/useKeyboardInset";
 
 type Props = {
   open: boolean;
@@ -44,6 +45,8 @@ export default function BottomSheet({
   const contentScrollAtStart = useRef(0);
   const [dragY, setDragY] = useState(0);
   const [closing, setClosing] = useState(false);
+  // 鍵盤打開時把 sheet 往上推同等距離，避免 input/footer 被遮住。
+  const keyboardInset = useKeyboardInset(open);
 
   useEffect(() => {
     if (!open) return;
@@ -145,7 +148,15 @@ export default function BottomSheet({
   const isDragging = dragY > 0 && !closing;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center md:items-center"
+      style={{
+        paddingBottom: keyboardInset,
+        transition: isDragging
+          ? "none"
+          : "padding-bottom 200ms cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
+    >
       <div
         className="absolute inset-0 bg-neutral-900/40 backdrop-blur-[2px]"
         style={{
