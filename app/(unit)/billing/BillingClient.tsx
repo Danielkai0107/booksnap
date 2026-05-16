@@ -196,12 +196,12 @@ export default function BillingClient({
 
         <section>
           <h2 className="text-base font-semibold text-neutral-900">選擇方案</h2>
-          <p className="mt-1.5 text-xs text-neutral-500">
+          <p className="mt-3 text-xs text-neutral-500">
             {isPaid
               ? "切換方案會在當期結束時生效，可隨時重新選擇。"
               : "按下升級即啟用方案，配額與權限會即時套用。"}
           </p>
-          <ul className="mt-4 grid gap-3 sm:grid-cols-3">
+          <ul className="mt-6 mb-4 grid gap-3 sm:grid-cols-3">
             {PLAN_ORDER.map((p) => {
               const m = PLAN_META[p];
               const q = allQuotas[p];
@@ -429,9 +429,9 @@ function CurrentSubscriptionCard({
 function PaymentHistorySection({ payments }: { payments: PaymentView[] }) {
   const rows = useMemo(() => payments, [payments]);
   return (
-    <section className="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6">
+    <section className="rounded-2xl bg-white">
       <h2 className="text-base font-semibold text-neutral-900">帳單記錄</h2>
-      <p className="mt-1.5 text-xs text-neutral-500">
+      <p className="mt-3 text-xs text-neutral-500">
         過去 50 筆扣款紀錄，最近的在上方。
       </p>
       {rows.length === 0 ? (
@@ -439,7 +439,7 @@ function PaymentHistorySection({ payments }: { payments: PaymentView[] }) {
       ) : (
         <>
           {/* 手機：卡片堆疊，避免 table 在窄螢幕擠壓中文長日期。 */}
-          <ul className="mt-4 space-y-3 md:hidden">
+          <ul className="mt-6 space-y-3 md:hidden">
             {rows.map((p) => (
               <li
                 key={p.id}
@@ -465,7 +465,7 @@ function PaymentHistorySection({ payments }: { payments: PaymentView[] }) {
           </ul>
 
           {/* 桌機：傳統表格。 */}
-          <div className="mt-4 hidden md:block overflow-x-auto">
+          <div className="mt-6 hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-neutral-500 border-b border-neutral-100">
