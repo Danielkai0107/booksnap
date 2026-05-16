@@ -533,11 +533,14 @@ export default function CheckinScanPage() {
 
         {mode === "confirming" && currentCapture && (
           <div className="fixed inset-0 bg-black/50 flex items-end z-40">
-            <div className="w-full bg-white text-neutral-900 rounded-t-3xl px-6 pt-6 pb-8 animate-slide-up max-h-[90vh] overflow-y-auto shadow-2xl">
-              <div className="w-10 h-1 bg-neutral-200 rounded-full mx-auto mb-5" />
+            <div className="w-full bg-white text-neutral-900 rounded-t-3xl animate-slide-up shadow-2xl flex flex-col max-h-[90vh]">
+              <div className="pt-3 pb-1 flex justify-center shrink-0">
+                <span className="w-10 h-1 bg-neutral-200 rounded-full" />
+              </div>
 
-              {/* 上半：封面 + 書名 / 分類 / ISBN */}
-              <div className="flex gap-4 items-start">
+              {/* 上半：固定不滾動 — 封面 + 書名 / 分類 / ISBN */}
+              <div className="px-6 pt-3 pb-4 shrink-0">
+                <div className="flex gap-4 items-start">
                 {previewSrc ? (
                   <ZoomableImage
                     key={previewSrc}
@@ -602,11 +605,12 @@ export default function CheckinScanPage() {
                     />
                   </div>
                 </div>
+                </div>
               </div>
 
-              {/* 下半：Google 候選清單（永遠顯示） */}
-              <div className="mt-5">
-                <div className="flex items-center justify-between mb-2">
+              {/* 中間：候選結果區塊 — 標題列固定、清單可滾動 */}
+              <div className="px-6 pt-3 pb-1 shrink-0 border-t border-neutral-100">
+                <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-neutral-500">
                     Google Books 比對結果
                     {candidatesLoading && (
@@ -625,7 +629,8 @@ export default function CheckinScanPage() {
                     </button>
                   )}
                 </div>
-
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 pt-2 pb-3 min-h-[80px] overscroll-contain">
                 {candidates.length > 0 ? (
                   <ul className="space-y-2">
                     {candidates.map((c) => {
@@ -707,19 +712,22 @@ export default function CheckinScanPage() {
                 )}
               </div>
 
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={handleRetake}
-                  className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
-                >
-                  重拍
-                </button>
-                <button
-                  onClick={handleConfirm}
-                  className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
-                >
-                  加入入庫書單
-                </button>
+              {/* 下半：固定按鈕區 */}
+              <div className="px-6 pt-3 pb-8 border-t border-neutral-100 shrink-0">
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleRetake}
+                    className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
+                  >
+                    重拍
+                  </button>
+                  <button
+                    onClick={handleConfirm}
+                    className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+                  >
+                    加入入庫書單
+                  </button>
+                </div>
               </div>
             </div>
           </div>
