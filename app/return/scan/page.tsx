@@ -9,7 +9,7 @@ import { findBestBookMatch } from "@/lib/titleMatch";
 import { compressImageDataUrl } from "@/lib/imageCompress";
 import BottomSheet from "@/components/BottomSheet";
 import CameraErrorDialog from "@/components/CameraErrorDialog";
-import Toast, { type ToastKind } from "@/components/Toast";
+import { useToast } from "@/components/ToastProvider";
 import ZoomableImage from "@/components/ZoomableImage";
 
 export default function ReturnScanPage() {
@@ -35,18 +35,13 @@ export default function ReturnScanPage() {
   const [notFoundOpen, setNotFoundOpen] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   /** 相機 init 失敗 → 顯示重新請求對話框，技術錯誤訊息只進 console */
   const [cameraError, setCameraError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [navigating, setNavigating] = useState(false);
   // 用來強制 useEffect 重啟相機（例如瞬時錯誤訊息後）。
   const [scanGen, setScanGen] = useState(0);
-  const [toast, setToast] = useState<{
-    open: boolean;
-    message: string;
-    kind: ToastKind;
-  }>({ open: false, message: "", kind: "success" });
+  const toast = useToast();
 
   const booksRef = useRef<BookRow[]>([]);
   useEffect(() => {
@@ -103,7 +98,6 @@ export default function ReturnScanPage() {
 
   const handleQrScanned = useCallback(async (id: string) => {
     setBusy(true);
-    setErrorMsg(null);
     try {
       const dup = booksRef.current.find((b) => b.book_id === id);
       if (dup) {
@@ -121,7 +115,7 @@ export default function ReturnScanPage() {
         .maybeSingle();
       if (error) throw error;
       if (!data) {
-        setErrorMsg(`找不到書本：${id}`);
+        toast.error(`找不到書本：${id}`);
         return;
       }
       const book = data as BookRow;
@@ -136,14 +130,14 @@ export default function ReturnScanPage() {
       setPendingBlocked(null);
       setPending(book);
     } catch (err) {
-      const m = err instanceof Error ? err.message : String(err);
-      setErrorMsg(`查詢失敗：${m}`);
+      console.error("[return scan] qr lookup failed", err);
+      toast.error("查詢失敗，請稍後再試");
     } finally {
       setBusy(false);
-      // 若這趟沒有開啟 pending 模態（例如僅 setErrorMsg），喚醒相機繼續掃描。
+      // 若這趟沒有開啟 pending 模態，喚醒相機繼續掃描。
       setScanGen((g) => g + 1);
     }
-  }, []);
+  }, [toast]);
 
   const startScanner = useCallback(async () => {
     if (!videoRef.current || scanningRef.current) return;
@@ -152,7 +146,6 @@ export default function ReturnScanPage() {
       readerRef.current = new BrowserMultiFormatReader();
     }
     scanningRef.current = true;
-    setErrorMsg(null);
     setCameraError(false);
     try {
       const controls = await readerRef.current.decodeFromConstraints(
@@ -204,7 +197,7 @@ export default function ReturnScanPage() {
   const handlePhotoCapture = useCallback(async () => {
     const video = videoRef.current;
     if (!video || video.videoWidth === 0) {
-      setErrorMsg("相機尚未就緒，請稍候再試。");
+      toast.error("相機尚未就緒，請稍候再試");
       return;
     }
     const canvas = document.createElement("canvas");
@@ -222,7 +215,6 @@ export default function ReturnScanPage() {
 
     stopScanner();
     setCapturing(true);
-    setErrorMsg(null);
 
     try {
       const { title } = await recognizeBookCover(dataUrl);
@@ -255,19 +247,15 @@ export default function ReturnScanPage() {
     } finally {
       setCapturing(false);
     }
-  }, [candidates, stopScanner]);
+  }, [candidates, stopScanner, toast]);
 
   const handleAdd = useCallback(() => {
     if (!pending) return;
     setBooks((prev) => [...prev, pending]);
-    setToast({
-      open: true,
-      message: `已加入：${pending.title}`,
-      kind: "success",
-    });
+    toast.success(`已加入：${pending.title}`);
     setPending(null);
     setPendingBlocked(null);
-  }, [pending]);
+  }, [pending, toast]);
 
   const handleSkip = useCallback(() => {
     setPending(null);
@@ -304,10 +292,11 @@ export default function ReturnScanPage() {
       setNavigating(true);
       router.push("/");
     } catch (err) {
-      alert(`還書失敗：${err instanceof Error ? err.message : String(err)}`);
+      console.error("[return scan] submit failed", err);
+      toast.error("還書失敗，請稍後再試");
       setSubmitting(false);
     }
-  }, [books, router, submitting]);
+  }, [books, router, submitting, toast]);
 
   const handleClose = useCallback(() => {
     setNavigating(true);
@@ -338,11 +327,6 @@ export default function ReturnScanPage() {
               ? "查詢中…"
               : `對準書本 QR 自動偵測，或點下方按鈕拍封面辨識 · ${member}`}
           </p>
-          {errorMsg && (
-            <p className="text-xs bg-red-500/30 text-white px-3 py-1.5 rounded-full max-w-xs text-center">
-              {errorMsg}
-            </p>
-          )}
         </div>
 
         <div className="absolute bottom-8 inset-x-0 flex flex-col items-center z-10 px-6">
@@ -547,14 +531,6 @@ export default function ReturnScanPage() {
           </ul>
         )}
       </BottomSheet>
-
-      <Toast
-        open={toast.open}
-        message={toast.message}
-        kind={toast.kind}
-        duration={1000}
-        onClose={() => setToast((t) => ({ ...t, open: false }))}
-      />
 
       {navigating && (
         <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">

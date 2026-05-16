@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import CloseButton from "@/components/CloseButton";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import SearchInput from "@/components/SearchInput";
+import { useToast } from "@/components/ToastProvider";
 
 type Member = {
   name: string;
@@ -17,11 +18,10 @@ export default function MembersListPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const toast = useToast();
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    setErrorMsg(null);
     try {
       const [membersRes, booksRes] = await Promise.all([
         supabase
@@ -47,11 +47,12 @@ export default function MembersListPage() {
       }));
       setMembers(list);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : String(err));
+      console.error("[members] fetch failed", err);
+      toast.error("載入成員清單失敗");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     void fetchAll();
@@ -87,12 +88,6 @@ export default function MembersListPage() {
             共 {members.length} 位成員
           </p>
         </header>
-
-        {errorMsg && (
-          <div className="mb-6 px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm">
-            {errorMsg}
-          </div>
-        )}
 
         {loading ? (
           <div className="py-20 flex justify-center">

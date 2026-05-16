@@ -11,13 +11,13 @@ export default async function LoginPage({
   const sp = await searchParams;
   const notice =
     sp.status === "pending"
-      ? "你的單位仍在審核中，通過後即可登入。"
+      ? "你的單位仍在審核中，通過後即可登入"
       : sp.status === "rejected"
-      ? "你的單位註冊申請未通過，請聯絡管理員。"
+      ? "你的單位註冊申請未通過，請聯絡管理員"
       : sp.status === "suspended"
-      ? "你的單位目前已停用，請聯絡管理員。"
+      ? "你的單位目前已停用，請聯絡管理員"
       : sp.error === "no_org"
-      ? "此帳號尚未綁定單位，請聯絡管理員。"
+      ? "此帳號尚未綁定單位，請聯絡管理員"
       : null;
 
   return (
@@ -33,13 +33,7 @@ export default async function LoginPage({
           單位登入
         </p>
 
-        {notice && (
-          <div className="mt-6 px-4 py-3 bg-amber-50 text-amber-800 border border-amber-100 rounded-lg text-sm">
-            {notice}
-          </div>
-        )}
-
-        <LoginForm />
+        <LoginForm initialNotice={notice} />
 
         <p className="mt-6 text-center text-sm text-neutral-500">
           還沒有單位帳號？

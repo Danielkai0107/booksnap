@@ -12,7 +12,7 @@ import type { LookupCandidate } from "@/app/api/books/lookup/route";
 import BottomSheet from "@/components/BottomSheet";
 import CameraErrorDialog from "@/components/CameraErrorDialog";
 import CategorySelect from "@/components/CategorySelect";
-import Toast, { type ToastKind } from "@/components/Toast";
+import { useToast } from "@/components/ToastProvider";
 import ZoomableImage from "@/components/ZoomableImage";
 
 type Mode = "loading" | "camera" | "processing" | "confirming";
@@ -57,7 +57,9 @@ export default function CheckinScanPage() {
   const [editedTitle, setEditedTitle] = useState("");
   const [editedCategoryId, setEditedCategoryId] = useState<string>("");
   const [editedIsbn, setEditedIsbn] = useState("");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  /** 是否處於相機初始化失敗狀態（顯示重試對話框） */
+  const [cameraError, setCameraError] = useState(false);
+  const toast = useToast();
 
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const categoryNameById = useMemo(() => {
@@ -92,11 +94,6 @@ export default function CheckinScanPage() {
   const [navigating, setNavigating] = useState(false);
   // 鍵盤打開時把 confirming sheet 往上推（避開 iOS 上的 fixed inset-0 鍵盤遮擋問題）
   const keyboardInset = useKeyboardInset(mode === "confirming");
-  const [toast, setToast] = useState<{
-    open: boolean;
-    message: string;
-    kind: ToastKind;
-  }>({ open: false, message: "", kind: "success" });
 
   useEffect(() => {
     let alive = true;
@@ -136,7 +133,7 @@ export default function CheckinScanPage() {
   }, []);
 
   const startCamera = useCallback(async () => {
-    setErrorMsg(null);
+    setCameraError(false);
     setMode("camera");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -148,7 +145,7 @@ export default function CheckinScanPage() {
     } catch (err) {
       // 詳細錯誤只給 dev 排查，UI 顯示友善訊息 + 重新請求按鈕。
       console.error("[scan] camera init failed", err);
-      setErrorMsg("camera_init_failed");
+      setCameraError(true);
       setMode("camera");
     }
   }, [attachStreamToVideo]);
@@ -186,6 +183,7 @@ export default function CheckinScanPage() {
       if (!res.ok) {
         setCandidates([]);
         setCandidatesError("failed");
+        toast.error("比對服務暫時無回應");
         return;
       }
       const data = (await res.json()) as {
@@ -194,19 +192,25 @@ export default function CheckinScanPage() {
       };
       setCandidates(data.candidates?.slice(0, 5) ?? []);
       setCandidatesError(data.error ?? null);
+      if (data.error === "rate_limited") {
+        toast.error("Google Books 今日配額已用完");
+      } else if (data.error === "failed") {
+        toast.error("比對服務暫時無回應");
+      }
     } catch (err) {
       console.warn("[checkin] lookup failed", err);
       setCandidates([]);
       setCandidatesError("failed");
+      toast.error("比對服務暫時無回應");
     } finally {
       setCandidatesLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   const handleCapture = useCallback(async () => {
     const video = videoRef.current;
     if (!video || video.videoWidth === 0) {
-      setErrorMsg("相機尚未就緒，請稍候再試。");
+      toast.error("相機尚未就緒，請稍候再試");
       return;
     }
     const canvas = document.createElement("canvas");
@@ -326,11 +330,7 @@ export default function CheckinScanPage() {
       setCandidates([]);
       setCandidatesError(null);
       setPickedCandidate(null);
-      setToast({
-        open: true,
-        message: `已加入：${title}`,
-        kind: "success",
-      });
+      toast.success(`已加入：${title}`);
       startCamera();
     },
     [
@@ -437,9 +437,9 @@ export default function CheckinScanPage() {
     } catch (err) {
       console.error("[checkin] submit failed", err);
       setNavigating(false);
-      alert(`入庫失敗：${err instanceof Error ? err.message : String(err)}`);
+      toast.error("入庫失敗，請稍後再試");
     }
-  }, [submitAll]);
+  }, [submitAll, toast]);
 
   const handleClose = useCallback(() => {
     setNavigating(true);
@@ -474,7 +474,7 @@ export default function CheckinScanPage() {
                 <span className="focus-br" />
               </div>
             </div>
-            {errorMsg && !streamRef.current && (
+            {cameraError && !streamRef.current && (
               <CameraErrorDialog
                 onRetry={() => startCamera()}
                 onClose={() => {
@@ -483,7 +483,7 @@ export default function CheckinScanPage() {
                 }}
               />
             )}
-            {mode === "camera" && !errorMsg && (
+            {mode === "camera" && !cameraError && (
               <>
                 <div className="absolute top-4 inset-x-0 flex flex-col items-center gap-3 z-10 px-6">
                   <p className="text-xs text-white/70 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
@@ -940,14 +940,6 @@ export default function CheckinScanPage() {
           </ul>
         )}
       </BottomSheet>
-
-      <Toast
-        open={toast.open}
-        message={toast.message}
-        kind={toast.kind}
-        duration={1000}
-        onClose={() => setToast((t) => ({ ...t, open: false }))}
-      />
 
       {navigating && (
         <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">

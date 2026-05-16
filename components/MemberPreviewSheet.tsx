@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import BottomSheet from "./BottomSheet";
+import { useToast } from "./ToastProvider";
 
 type MemberData = {
   member: { name: string; created_at: string };
@@ -39,17 +40,15 @@ export default function MemberPreviewSheet({
 }: Props) {
   const [data, setData] = useState<MemberData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     if (!open || !name) {
       setData(null);
-      setErrorMsg(null);
       return;
     }
     let alive = true;
     setLoading(true);
-    setErrorMsg(null);
     (async () => {
       try {
         const res = await fetch(`/api/members/${encodeURIComponent(name)}`, {
@@ -61,7 +60,8 @@ export default function MemberPreviewSheet({
         setData(json as MemberData);
       } catch (err) {
         if (!alive) return;
-        setErrorMsg(err instanceof Error ? err.message : String(err));
+        console.error("[member-preview] fetch failed", err);
+        toast.error("載入成員資料失敗");
       } finally {
         if (alive) setLoading(false);
       }
@@ -69,7 +69,7 @@ export default function MemberPreviewSheet({
     return () => {
       alive = false;
     };
-  }, [open, name]);
+  }, [open, name, toast]);
 
   const lastAction = data?.records?.[0] ?? null;
 
@@ -102,10 +102,6 @@ export default function MemberPreviewSheet({
       {loading ? (
         <div className="py-10 flex justify-center">
           <div className="w-6 h-6 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />
-        </div>
-      ) : errorMsg ? (
-        <div className="px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm">
-          {errorMsg}
         </div>
       ) : data ? (
         <section className="bg-neutral-100 border border-neutral-200 rounded-2xl p-4 md:p-5 mb-2">

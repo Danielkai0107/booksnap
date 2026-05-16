@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import AdminShell from "@/components/AdminShell";
 import LabelCard from "@/components/LabelCard";
 import SearchInput from "@/components/SearchInput";
+import { useToast } from "@/components/ToastProvider";
 import ZoomableImage from "@/components/ZoomableImage";
 import { supabase, BookRow } from "@/lib/supabase";
 
@@ -13,7 +14,7 @@ export default function LabelsPage() {
   const [query, setQuery] = useState("");
   const [showLabels, setShowLabels] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     let alive = true;
@@ -23,14 +24,18 @@ export default function LabelsPage() {
         .select("*")
         .order("checkin_time", { ascending: false });
       if (!alive) return;
-      if (error) setErrorMsg(error.message);
-      else setBooks((data ?? []) as BookRow[]);
+      if (error) {
+        console.error("[admin/labels] fetch failed", error);
+        toast.error("載入書籍清單失敗");
+      } else {
+        setBooks((data ?? []) as BookRow[]);
+      }
       setLoading(false);
     })();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [toast]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -161,12 +166,6 @@ export default function LabelsPage() {
           清空
         </button>
       </div>
-
-      {errorMsg && (
-        <div className="mb-6 px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm">
-          {errorMsg}
-        </div>
-      )}
 
       {loading ? (
         <div className="py-20 flex justify-center">

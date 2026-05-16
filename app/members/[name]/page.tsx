@@ -7,6 +7,7 @@ import BookPreviewSheet, {
 } from "@/components/BookPreviewSheet";
 import CloseButton from "@/components/CloseButton";
 import SwipeableTabs from "@/components/SwipeableTabs";
+import { useToast } from "@/components/ToastProvider";
 import { BorrowRecordRow, MemberRow } from "@/lib/supabase";
 
 type Tab = "holding" | "borrow" | "return";
@@ -30,7 +31,7 @@ export default function MemberDetailPage() {
   const [previewBookId, setPreviewBookId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("holding");
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     let alive = true;
@@ -66,7 +67,8 @@ export default function MemberDetailPage() {
         setBooks(bookMap);
       } catch (err) {
         if (!alive) return;
-        setErrorMsg(err instanceof Error ? err.message : String(err));
+        console.error("[members/:name] fetch failed", err);
+        toast.error("載入成員資料失敗");
       } finally {
         if (alive) setLoading(false);
       }
@@ -74,7 +76,7 @@ export default function MemberDetailPage() {
     return () => {
       alive = false;
     };
-  }, [name]);
+  }, [name, toast]);
 
   const previewBook = previewBookId ? (books[previewBookId] ?? null) : null;
 
@@ -93,10 +95,6 @@ export default function MemberDetailPage() {
         {loading ? (
           <div className="py-20 flex justify-center">
             <div className="w-7 h-7 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />
-          </div>
-        ) : errorMsg ? (
-          <div className="px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm">
-            {errorMsg}
           </div>
         ) : member ? (
           <>
@@ -176,7 +174,11 @@ export default function MemberDetailPage() {
               }
             />
           </>
-        ) : null}
+        ) : (
+          <div className="py-20 text-center text-sm text-neutral-500">
+            找不到此成員，或載入失敗
+          </div>
+        )}
       </div>
     </main>
   );

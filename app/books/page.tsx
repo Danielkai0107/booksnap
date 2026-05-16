@@ -8,6 +8,7 @@ import CategoryTag from "@/components/CategoryTag";
 import CloseButton from "@/components/CloseButton";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import SearchInput from "@/components/SearchInput";
+import { useToast } from "@/components/ToastProvider";
 
 export default function BooksListPage() {
   const [books, setBooks] = useState<BookRow[]>([]);
@@ -18,7 +19,7 @@ export default function BooksListPage() {
     "" | "available" | "borrowed"
   >("");
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     let alive = true;
@@ -33,15 +34,19 @@ export default function BooksListPage() {
           .catch(() => ({ categories: [] })),
       ]);
       if (!alive) return;
-      if (booksRes.error) setErrorMsg(booksRes.error.message);
-      else setBooks((booksRes.data ?? []) as BookRow[]);
+      if (booksRes.error) {
+        console.error("[books] fetch failed", booksRes.error);
+        toast.error("載入書籍清單失敗");
+      } else {
+        setBooks((booksRes.data ?? []) as BookRow[]);
+      }
       setCategories((catRes?.categories ?? []) as CategoryRow[]);
       setLoading(false);
     })();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [toast]);
 
   const categoryNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -127,12 +132,6 @@ export default function BooksListPage() {
             已借出
           </StatusFilterChip>
         </div>
-
-        {errorMsg && (
-          <div className="mb-6 px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm">
-            {errorMsg}
-          </div>
-        )}
 
         {loading ? (
           <div className="py-20 flex justify-center">

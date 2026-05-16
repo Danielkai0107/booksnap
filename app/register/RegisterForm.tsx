@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useToast } from "@/components/ToastProvider";
 import { registerAction, type RegisterState } from "./actions";
 
 const initial: RegisterState = {};
@@ -33,6 +34,18 @@ const CITIES = [
 export default function RegisterForm() {
   const [state, formAction, pending] = useActionState(registerAction, initial);
   const v = state?.values ?? {};
+  const toast = useToast();
+  const lastErrorRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const err = state?.error ?? null;
+    if (err && err !== lastErrorRef.current) {
+      lastErrorRef.current = err;
+      toast.error(err);
+    } else if (!err) {
+      lastErrorRef.current = null;
+    }
+  }, [state, toast]);
   const [city, setCity] = useState<string>(v.city ?? "");
 
   return (
@@ -128,12 +141,6 @@ export default function RegisterForm() {
           className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
         />
       </Field>
-
-      {state?.error && (
-        <div className="px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm">
-          {state.error}
-        </div>
-      )}
 
       <p className="text-xs text-neutral-500 leading-relaxed">
         送出後，會由營運方人工審核。審核通過後即可使用此 Email 與密碼登入。

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
+import { useToast } from "@/components/ToastProvider";
 import {
   superAdminLoginAction,
   type SaLoginState,
@@ -13,6 +14,18 @@ export default function SuperAdminLoginForm() {
     superAdminLoginAction,
     initial
   );
+  const toast = useToast();
+  const lastErrorRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const err = state?.error ?? null;
+    if (err && err !== lastErrorRef.current) {
+      lastErrorRef.current = err;
+      toast.error(err);
+    } else if (!err) {
+      lastErrorRef.current = null;
+    }
+  }, [state, toast]);
 
   return (
     <form action={formAction} className="mt-8 space-y-4">
@@ -40,12 +53,6 @@ export default function SuperAdminLoginForm() {
           className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
         />
       </div>
-
-      {state?.error && (
-        <div className="px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm">
-          {state.error}
-        </div>
-      )}
 
       <div
         className="fixed inset-x-0 bottom-0 z-10 px-6 pt-4 bg-white md:static md:p-0 md:bg-transparent"

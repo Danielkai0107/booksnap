@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import BottomSheet from "./BottomSheet";
 import SearchInput from "./SearchInput";
+import { useToast } from "./ToastProvider";
 
 type Member = {
   name: string;
@@ -25,9 +26,9 @@ export default function MemberPicker({
 }: Props) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     if (!open) return;
@@ -35,7 +36,6 @@ export default function MemberPicker({
     setQuery("");
     let alive = true;
     setLoading(true);
-    setErrorMsg(null);
     (async () => {
       try {
         const res = await fetch("/api/members", { cache: "no-store" });
@@ -45,7 +45,8 @@ export default function MemberPicker({
         setMembers(data.members ?? []);
       } catch (err) {
         if (!alive) return;
-        setErrorMsg(err instanceof Error ? err.message : String(err));
+        console.error("[member-picker] fetch failed", err);
+        toast.error("載入成員清單失敗");
       } finally {
         if (alive) setLoading(false);
       }
@@ -53,7 +54,7 @@ export default function MemberPicker({
     return () => {
       alive = false;
     };
-  }, [open]);
+  }, [open, toast]);
 
   const filtered = query.trim()
     ? members.filter((m) =>
@@ -89,7 +90,6 @@ export default function MemberPicker({
           className="w-full h-[46px] px-3.5 rounded-lg border border-neutral-200 bg-white text-sm focus:outline-none focus:border-neutral-900 transition"
         />
       </div>
-      {errorMsg && <p className="text-sm text-red-600 mb-3">{errorMsg}</p>}
       {loading ? (
         <div className="py-10 flex justify-center">
           <div className="w-6 h-6 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />

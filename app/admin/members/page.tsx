@@ -5,7 +5,7 @@ import Link from "next/link";
 import AdminShell from "@/components/AdminShell";
 import BottomSheet from "@/components/BottomSheet";
 import SearchInput from "@/components/SearchInput";
-import Toast, { type ToastKind } from "@/components/Toast";
+import { useToast } from "@/components/ToastProvider";
 import { supabase } from "@/lib/supabase";
 
 type Member = {
@@ -18,17 +18,11 @@ export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [toast, setToast] = useState<{
-    open: boolean;
-    message: string;
-    kind: ToastKind;
-  }>({ open: false, message: "", kind: "success" });
+  const toast = useToast();
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    setErrorMsg(null);
     try {
       const [membersRes, booksRes] = await Promise.all([
         supabase
@@ -54,11 +48,12 @@ export default function MembersPage() {
       }));
       setMembers(list);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : String(err));
+      console.error("[admin/members] fetch failed", err);
+      toast.error("載入成員清單失敗");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     void fetchAll();
@@ -114,12 +109,6 @@ export default function MembersPage() {
         wrapperClassName="mb-6"
         className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
       />
-
-      {errorMsg && (
-        <div className="mb-6 px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm">
-          {errorMsg}
-        </div>
-      )}
 
       {loading ? (
         <div className="py-20 flex justify-center">
@@ -240,21 +229,11 @@ export default function MembersPage() {
           onAdded={(name) => {
             setAddOpen(false);
             void fetchAll();
-            setToast({
-              open: true,
-              message: `已新增成員「${name}」`,
-              kind: "success",
-            });
+            toast.success(`已新增成員「${name}」`);
           }}
         />
       )}
 
-      <Toast
-        open={toast.open}
-        message={toast.message}
-        kind={toast.kind}
-        onClose={() => setToast((t) => ({ ...t, open: false }))}
-      />
     </AdminShell>
   );
 }
@@ -268,6 +247,7 @@ function AddMemberSheet({
 }) {
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const toast = useToast();
 
   async function handleAdd() {
     const trimmed = name.trim();
@@ -285,7 +265,8 @@ function AddMemberSheet({
       }
       onAdded(trimmed);
     } catch (err) {
-      alert(`新增失敗：${err instanceof Error ? err.message : String(err)}`);
+      console.error("[admin/members] add failed", err);
+      toast.error("新增失敗，請稍後再試");
       setSaving(false);
     }
   }

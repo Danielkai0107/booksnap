@@ -4,37 +4,32 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminShell from "@/components/AdminShell";
 import BottomSheet from "@/components/BottomSheet";
 import SearchInput from "@/components/SearchInput";
-import Toast, { type ToastKind } from "@/components/Toast";
+import { useToast } from "@/components/ToastProvider";
 import type { CategoryRow } from "@/lib/supabase";
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<CategoryRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CategoryRow | null>(null);
-  const [toast, setToast] = useState<{
-    open: boolean;
-    message: string;
-    kind: ToastKind;
-  }>({ open: false, message: "", kind: "success" });
+  const toast = useToast();
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    setErrorMsg(null);
     try {
       const res = await fetch("/api/categories", { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       setCategories((data.categories ?? []) as CategoryRow[]);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : String(err));
+      console.error("[admin/categories] fetch failed", err);
+      toast.error("載入分類失敗");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     void fetchAll();
@@ -87,12 +82,6 @@ export default function CategoriesPage() {
         wrapperClassName="mb-6"
         className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
       />
-
-      {errorMsg && (
-        <div className="mb-6 px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm">
-          {errorMsg}
-        </div>
-      )}
 
       {loading ? (
         <div className="py-20 flex justify-center">
@@ -186,11 +175,7 @@ export default function CategoriesPage() {
           onSaved={(name) => {
             setAddOpen(false);
             void fetchAll();
-            setToast({
-              open: true,
-              message: `已新增分類「${name}」`,
-              kind: "success",
-            });
+            toast.success(`已新增分類「${name}」`);
           }}
         />
       )}
@@ -234,9 +219,8 @@ export default function CategoriesPage() {
                     }
                     void fetchAll();
                   } catch (err) {
-                    alert(
-                      `刪除失敗：${err instanceof Error ? err.message : String(err)}`
-                    );
+                    console.error("[admin/categories] delete failed", err);
+                    toast.error("刪除失敗，請稍後再試");
                   }
                 }}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-3 rounded-lg transition"
@@ -252,12 +236,6 @@ export default function CategoriesPage() {
         </BottomSheet>
       )}
 
-      <Toast
-        open={toast.open}
-        message={toast.message}
-        kind={toast.kind}
-        onClose={() => setToast((t) => ({ ...t, open: false }))}
-      />
     </AdminShell>
   );
 }
@@ -274,6 +252,7 @@ function CategoryEditSheet({
   const isEdit = !!category;
   const [name, setName] = useState(category?.name ?? "");
   const [saving, setSaving] = useState(false);
+  const toast = useToast();
 
   async function handleSave() {
     const trimmed = name.trim();
@@ -294,7 +273,8 @@ function CategoryEditSheet({
       }
       onSaved(trimmed);
     } catch (err) {
-      alert(`儲存失敗：${err instanceof Error ? err.message : String(err)}`);
+      console.error("[admin/categories] save failed", err);
+      toast.error("儲存失敗，請稍後再試");
       setSaving(false);
     }
   }

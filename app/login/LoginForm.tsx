@@ -1,12 +1,39 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
+import { useToast } from "@/components/ToastProvider";
 import { loginAction, type LoginState } from "./actions";
 
 const initial: LoginState = {};
 
-export default function LoginForm() {
+export default function LoginForm({
+  initialNotice,
+}: {
+  /** 從 URL searchParams 帶來的提示（單位審核中、被退回、未綁定…） */
+  initialNotice?: string | null;
+}) {
   const [state, formAction, pending] = useActionState(loginAction, initial);
+  const toast = useToast();
+  // Server action 每次回傳都是新物件，避免相同錯誤重彈用 ref 比對識別。
+  const lastErrorRef = useRef<string | null>(null);
+  const noticeFiredRef = useRef(false);
+
+  useEffect(() => {
+    if (initialNotice && !noticeFiredRef.current) {
+      noticeFiredRef.current = true;
+      toast.info(initialNotice);
+    }
+  }, [initialNotice, toast]);
+
+  useEffect(() => {
+    const err = state?.error ?? null;
+    if (err && err !== lastErrorRef.current) {
+      lastErrorRef.current = err;
+      toast.error(err);
+    } else if (!err) {
+      lastErrorRef.current = null;
+    }
+  }, [state, toast]);
 
   return (
     <form action={formAction} className="mt-8 space-y-4">
@@ -34,12 +61,6 @@ export default function LoginForm() {
           className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
         />
       </div>
-
-      {state?.error && (
-        <div className="px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm">
-          {state.error}
-        </div>
-      )}
 
       <div
         className="fixed inset-x-0 bottom-0 z-10 px-6 pt-4 bg-white md:static md:p-0 md:bg-transparent"

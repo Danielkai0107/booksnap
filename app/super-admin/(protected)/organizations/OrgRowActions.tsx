@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useToast } from "@/components/ToastProvider";
 import {
   approveOrganization,
   rejectOrganization,
@@ -57,31 +58,33 @@ export default function OrgRowActions({
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [dialog, setDialog] = useState<DialogKind>(null);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   function close() {
     setDialog(null);
-    setError(null);
+  }
+
+  function reportError(e: unknown) {
+    console.error("[super-admin] org action failed", e);
+    toast.error(e instanceof Error ? e.message : String(e));
   }
 
   function approve() {
-    setError(null);
     startTransition(async () => {
       try {
         await approveOrganization(orgId);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        reportError(e);
       }
     });
   }
 
   function reactivate() {
-    setError(null);
     startTransition(async () => {
       try {
         await reactivateOrganization(orgId);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        reportError(e);
       }
     });
   }
@@ -117,25 +120,19 @@ export default function OrgRowActions({
         </PrimaryBtn>
       )}
 
-      {error && (
-        <div className="w-full mt-2 px-3 py-2 bg-red-50 text-red-700 border border-red-100 rounded-lg text-xs">
-          {error}
-        </div>
-      )}
-
       {dialog === "reject" && (
         <Modal title={`退回「${orgName}」？`} onClose={close}>
-          <RejectDialog orgId={orgId} onDone={close} onError={setError} />
+          <RejectDialog orgId={orgId} onDone={close} onError={reportError} />
         </Modal>
       )}
       {dialog === "suspend" && (
         <Modal title={`停用「${orgName}」？`} onClose={close}>
-          <SuspendDialog orgId={orgId} onDone={close} onError={setError} />
+          <SuspendDialog orgId={orgId} onDone={close} onError={reportError} />
         </Modal>
       )}
       {dialog === "reset" && (
         <Modal title={`重設「${orgName}」的密碼`} onClose={close}>
-          <ResetDialog orgId={orgId} onDone={close} onError={setError} />
+          <ResetDialog orgId={orgId} onDone={close} onError={reportError} />
         </Modal>
       )}
       {dialog === "edit" && (
@@ -144,7 +141,7 @@ export default function OrgRowActions({
             orgId={orgId}
             initial={{ name: orgName, city, contactEmail, contactPhone }}
             onDone={close}
-            onError={setError}
+            onError={reportError}
           />
         </Modal>
       )}

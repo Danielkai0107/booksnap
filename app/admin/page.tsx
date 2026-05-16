@@ -11,7 +11,7 @@ import CategorySelect from "@/components/CategorySelect";
 import CategoryTag from "@/components/CategoryTag";
 import EditBookSheet from "@/components/EditBookSheet";
 import SearchInput from "@/components/SearchInput";
-import Toast, { type ToastKind } from "@/components/Toast";
+import { useToast } from "@/components/ToastProvider";
 
 type EditTarget = BookRow | null;
 
@@ -26,14 +26,9 @@ export default function AdminPage() {
     "" | "available" | "borrowed"
   >("");
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
   const [deleteTarget, setDeleteTarget] = useState<EditTarget>(null);
-  const [toast, setToast] = useState<{
-    open: boolean;
-    message: string;
-    kind: ToastKind;
-  }>({ open: false, message: "", kind: "success" });
+  const toast = useToast();
 
   const categoryOptions = useMemo(
     () => categories.map((c) => ({ value: c.id, label: c.name })),
@@ -59,7 +54,8 @@ export default function AdminPage() {
         .catch(() => ({ categories: [] })),
     ]);
     if (booksRes.error) {
-      setErrorMsg(booksRes.error.message);
+      console.error("[admin] fetch books failed", booksRes.error);
+      toast.error("載入書籍清單失敗");
     } else {
       setBooks((booksRes.data ?? []) as BookRow[]);
     }
@@ -80,19 +76,15 @@ export default function AdminPage() {
     try {
       const parsed = JSON.parse(stored) as {
         message?: string;
-        kind?: ToastKind;
+        kind?: "success" | "error" | "info";
       };
       if (parsed.message) {
-        setToast({
-          open: true,
-          message: parsed.message,
-          kind: parsed.kind ?? "success",
-        });
+        toast.show(parsed.message, parsed.kind ?? "success");
       }
     } catch {
       // ignore malformed payload
     }
-  }, []);
+  }, [toast]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -239,12 +231,6 @@ export default function AdminPage() {
           共 {filtered.length} 本
         </span>
       </div>
-
-      {errorMsg && (
-        <div className="mb-6 px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm">
-          {errorMsg}
-        </div>
-      )}
 
       {loading ? (
         <div className="py-20 flex justify-center">
@@ -467,9 +453,8 @@ export default function AdminPage() {
                     }
                     void fetchAll();
                   } catch (err) {
-                    alert(
-                      `刪除失敗：${err instanceof Error ? err.message : String(err)}`,
-                    );
+                    console.error("[admin] delete book failed", err);
+                    toast.error("刪除失敗，請稍後再試");
                   }
                 }}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-3 rounded-lg transition"
@@ -484,13 +469,6 @@ export default function AdminPage() {
           </p>
         </BottomSheet>
       )}
-
-      <Toast
-        open={toast.open}
-        message={toast.message}
-        kind={toast.kind}
-        onClose={() => setToast((t) => ({ ...t, open: false }))}
-      />
     </AdminShell>
   );
 }

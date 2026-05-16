@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import MemberPicker from "@/components/MemberPicker";
-import Toast, { type ToastKind } from "@/components/Toast";
+import { useToast } from "@/components/ToastProvider";
 import { signOutAction } from "./auth/actions";
 
 type Props = {
@@ -16,11 +16,7 @@ export default function HomeClient({ orgName, aiRecognizeCount }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [target, setTarget] = useState<"borrow" | "return" | null>(null);
   const [navigating, setNavigating] = useState(false);
-  const [toast, setToast] = useState<{
-    open: boolean;
-    message: string;
-    kind: ToastKind;
-  }>({ open: false, message: "", kind: "success" });
+  const toast = useToast();
 
   useEffect(() => {
     router.prefetch("/borrow/scan");
@@ -38,19 +34,15 @@ export default function HomeClient({ orgName, aiRecognizeCount }: Props) {
     try {
       const parsed = JSON.parse(stored) as {
         message?: string;
-        kind?: ToastKind;
+        kind?: "success" | "error" | "info";
       };
       if (parsed.message) {
-        setToast({
-          open: true,
-          message: parsed.message,
-          kind: parsed.kind ?? "success",
-        });
+        toast.show(parsed.message, parsed.kind ?? "success");
       }
     } catch {
       // ignore malformed payload
     }
-  }, []);
+  }, [toast]);
 
   function openPicker(t: "borrow" | "return") {
     setTarget(t);
@@ -194,13 +186,6 @@ export default function HomeClient({ orgName, aiRecognizeCount }: Props) {
           </button>
         </div>
       </div>
-
-      <Toast
-        open={toast.open}
-        message={toast.message}
-        kind={toast.kind}
-        onClose={() => setToast((t) => ({ ...t, open: false }))}
-      />
 
       <MemberPicker
         open={pickerOpen}

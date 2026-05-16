@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import BottomSheet from "./BottomSheet";
 import CategorySelect from "./CategorySelect";
+import { useToast } from "./ToastProvider";
 import ZoomableImage from "./ZoomableImage";
 import type { BookRow, CategoryRow } from "@/lib/supabase";
 import type { LookupCandidate } from "@/app/api/books/lookup/route";
@@ -34,7 +35,7 @@ export default function EditBookSheet({
   const [publishedDate, setPublishedDate] = useState(book.published_date ?? "");
   const [saving, setSaving] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
-  const [lookupMsg, setLookupMsg] = useState<string | null>(null);
+  const toast = useToast();
 
   const categoryOptions = useMemo(
     () => categories.map((c) => ({ value: c.id, label: c.name })),
@@ -67,7 +68,8 @@ export default function EditBookSheet({
       }
       onSaved();
     } catch (err) {
-      alert(`儲存失敗：${err instanceof Error ? err.message : String(err)}`);
+      console.error("[edit] save failed", err);
+      toast.error("儲存失敗，請稍後再試");
       setSaving(false);
     }
   }
@@ -75,11 +77,10 @@ export default function EditBookSheet({
   async function handleLookup() {
     const cleaned = isbn.trim().replace(/[-\s]/g, "");
     if (!cleaned) {
-      setLookupMsg("請先輸入 ISBN");
+      toast.error("請先輸入 ISBN");
       return;
     }
     setLookupLoading(true);
-    setLookupMsg(null);
     try {
       const res = await fetch(
         `/api/books/lookup?isbn=${encodeURIComponent(cleaned)}`,
@@ -91,7 +92,7 @@ export default function EditBookSheet({
       };
       const c = data.candidates?.[0];
       if (!c) {
-        setLookupMsg(
+        toast.error(
           data.error === "rate_limited"
             ? "Google Books 今日配額已用完，請改手動輸入"
             : data.error === "failed"
@@ -106,10 +107,10 @@ export default function EditBookSheet({
       if (!publisher.trim() && c.publisher) setPublisher(c.publisher);
       if (!publishedDate.trim() && c.publishedDate)
         setPublishedDate(c.publishedDate);
-      setLookupMsg("已套用 Google Books 資料（不會覆蓋已填欄位）");
+      toast.success("已套用 Google Books 資料");
     } catch (err) {
       console.warn("[edit] lookup failed", err);
-      setLookupMsg("查詢失敗，請稍後再試");
+      toast.error("查詢失敗，請稍後再試");
     } finally {
       setLookupLoading(false);
     }
@@ -217,9 +218,6 @@ export default function EditBookSheet({
               {lookupLoading ? "查詢中" : "重查 ISBN"}
             </button>
           </div>
-          {lookupMsg && (
-            <p className="mt-1 text-[11px] text-neutral-500">{lookupMsg}</p>
-          )}
         </div>
         <div>
           <label className="block text-xs font-medium text-neutral-500 mb-1.5">

@@ -6,6 +6,7 @@ import CategoryTag from "@/components/CategoryTag";
 import CloseButton from "@/components/CloseButton";
 import MemberPreviewSheet from "@/components/MemberPreviewSheet";
 import SwipeableTabs from "@/components/SwipeableTabs";
+import { useToast } from "@/components/ToastProvider";
 import ZoomableImage from "@/components/ZoomableImage";
 import { BookRow, BorrowRecordRow, type CategoryRow } from "@/lib/supabase";
 
@@ -19,8 +20,8 @@ export default function BookDetailPage() {
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("borrow");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [previewMember, setPreviewMember] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     let alive = true;
@@ -43,7 +44,8 @@ export default function BookDetailPage() {
         setCategories((catRes?.categories ?? []) as CategoryRow[]);
       } catch (err) {
         if (!alive) return;
-        setErrorMsg(err instanceof Error ? err.message : String(err));
+        console.error("[books/:id] fetch failed", err);
+        toast.error("載入書籍失敗");
       } finally {
         if (alive) setLoading(false);
       }
@@ -51,7 +53,7 @@ export default function BookDetailPage() {
     return () => {
       alive = false;
     };
-  }, [bookId]);
+  }, [bookId, toast]);
 
   const categoryName = useMemo(() => {
     if (!book?.category_id) return null;
@@ -71,10 +73,6 @@ export default function BookDetailPage() {
         {loading ? (
           <div className="py-20 flex justify-center">
             <div className="w-7 h-7 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />
-          </div>
-        ) : errorMsg ? (
-          <div className="px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-sm">
-            {errorMsg}
           </div>
         ) : book ? (
           <>
@@ -159,7 +157,11 @@ export default function BookDetailPage() {
               ]}
             />
           </>
-        ) : null}
+        ) : (
+          <div className="py-20 text-center text-sm text-neutral-500">
+            找不到此書籍，或載入失敗
+          </div>
+        )}
       </div>
 
       <MemberPreviewSheet
