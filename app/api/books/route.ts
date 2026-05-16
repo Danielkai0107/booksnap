@@ -95,12 +95,18 @@ export async function POST(req: NextRequest) {
     } else if (b.imageBase64) {
       try {
         const { buffer, contentType } = dataUrlToBuffer(b.imageBase64);
-        const path = `${orgId}/${b.bookId}.jpg`;
+        // ⚠️ 不能用 `${orgId}/${bookId}.jpg`：
+        // bookId 流水號會在刪書後被回收重用（例如刪掉今天最後一本），
+        // 新書 upsert 到同 path 雖然會覆蓋檔案，但 Supabase Storage
+        // 的 CDN 與瀏覽器會 cache 同一個 public URL，使用者就會持續
+        // 看到「舊書留下的圖」。改用 timestamp 後綴保證每次都是新 URL。
+        const stamp = Date.now();
+        const path = `${orgId}/${b.bookId}-${stamp}.jpg`;
         const { error: uploadError } = await supabase.storage
           .from("book-covers")
           .upload(path, buffer, {
             contentType,
-            upsert: true,
+            upsert: false,
           });
         if (uploadError) {
           console.error("[books] upload error", b.bookId, uploadError);

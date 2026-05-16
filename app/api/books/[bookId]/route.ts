@@ -94,9 +94,47 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { bookId } = await params;
   const supabase = await createClient();
+
+  // 1. 先取出 image_url 用來反推 storage path（刪 row 後就拿不到了）
+  const { data: existing } = await supabase
+    .from("books")
+    .select("image_url")
+    .eq("book_id", bookId)
+    .maybeSingle();
+
   const { error } = await supabase.from("books").delete().eq("book_id", bookId);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // 2. 同步刪 storage 檔，避免孤兒檔長期累積
+  //    只清自家 bucket 的圖；Google Books 的遠端 URL 跳過。
+  const url = existing?.image_url;
+  if (url) {
+    const path = extractCoverPath(url);
+    if (path) {
+      const { error: rmError } = await supabase.storage
+        .from("book-covers")
+        .remove([path]);
+      if (rmError) {
+        // 刪不到不影響主要刪除流程，僅記錄。
+        console.warn("[books] storage remove failed", path, rmError);
+      }
+    }
+  }
+
   return NextResponse.json({ success: true });
+}
+
+/**
+ * 從 Supabase Storage 的 public URL 反推 bucket 內路徑。
+ * URL 形如：
+ *   https://xxx.supabase.co/storage/v1/object/public/book-covers/<orgId>/<bookId>-<stamp>.jpg
+ */
+function extractCoverPath(url: string): string | null {
+  const marker = "/book-covers/";
+  const idx = url.indexOf(marker);
+  if (idx === -1) return null;
+  const path = url.slice(idx + marker.length).split("?")[0];
+  return path || null;
 }
