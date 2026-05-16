@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPublicOrg } from "@/lib/publicOrg";
@@ -132,7 +133,7 @@ function ActionButton({
 }: {
   href: string | null;
   label: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   primary?: boolean;
   fullWidth?: boolean;
 }) {
