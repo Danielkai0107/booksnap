@@ -6,9 +6,11 @@ import { recognizeBookCover } from "@/lib/ocr";
 import { type CategoryRow } from "@/lib/supabase";
 import { normalizeForGoogleSearch, stripCopySuffix } from "@/lib/titleMatch";
 import { compressImageDataUrl } from "@/lib/imageCompress";
+import { useKeyboardInset } from "@/lib/useKeyboardInset";
 import { useCheckinCart, type ConfirmedBook } from "@/lib/useCheckinCart";
 import type { LookupCandidate } from "@/app/api/books/lookup/route";
 import BottomSheet from "@/components/BottomSheet";
+import CameraErrorDialog from "@/components/CameraErrorDialog";
 import CategorySelect from "@/components/CategorySelect";
 import Toast, { type ToastKind } from "@/components/Toast";
 import ZoomableImage from "@/components/ZoomableImage";
@@ -88,6 +90,8 @@ export default function CheckinScanPage() {
 
   const [listOpen, setListOpen] = useState(false);
   const [navigating, setNavigating] = useState(false);
+  // 鍵盤打開時把 confirming sheet 往上推（避開 iOS 上的 fixed inset-0 鍵盤遮擋問題）
+  const keyboardInset = useKeyboardInset(mode === "confirming");
   const [toast, setToast] = useState<{
     open: boolean;
     message: string;
@@ -142,28 +146,9 @@ export default function CheckinScanPage() {
       streamRef.current = stream;
       await attachStreamToVideo();
     } catch (err) {
-      console.error("camera error", err);
-      const name = err instanceof Error ? err.name : "";
-      let msg: string;
-      if (name === "NotAllowedError" || name === "SecurityError") {
-        msg =
-          "相機權限被拒。請點網址列左側的鎖頭圖示，將「相機」改為允許後重新整理頁面。";
-      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
-        msg = "找不到可用的相機裝置。";
-      } else if (name === "NotReadableError") {
-        msg = "相機正被其他應用程式使用，請關閉後再試。";
-      } else if (
-        typeof window !== "undefined" &&
-        window.location.protocol !== "https:" &&
-        window.location.hostname !== "localhost" &&
-        window.location.hostname !== "127.0.0.1"
-      ) {
-        msg =
-          "手機相機需要 HTTPS 連線。請改用 localhost 或部署到 HTTPS 環境（例：Vercel）。";
-      } else {
-        msg = `相機初始化失敗：${err instanceof Error ? err.message : String(err)}`;
-      }
-      setErrorMsg(msg);
+      // 詳細錯誤只給 dev 排查，UI 顯示友善訊息 + 重新請求按鈕。
+      console.error("[scan] camera init failed", err);
+      setErrorMsg("camera_init_failed");
       setMode("camera");
     }
   }, [attachStreamToVideo]);
@@ -490,30 +475,13 @@ export default function CheckinScanPage() {
               </div>
             </div>
             {errorMsg && !streamRef.current && (
-              <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-center justify-center px-6">
-                <div className="bg-white text-neutral-900 max-w-sm w-full rounded-2xl p-6 shadow-2xl">
-                  <p className="text-sm leading-relaxed text-neutral-700 mb-5">
-                    {errorMsg}
-                  </p>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        stopStream();
-                        router.push("/");
-                      }}
-                      className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
-                    >
-                      回首頁
-                    </button>
-                    <button
-                      onClick={() => startCamera()}
-                      className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
-                    >
-                      重新嘗試
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <CameraErrorDialog
+                onRetry={() => startCamera()}
+                onClose={() => {
+                  stopStream();
+                  router.push("/");
+                }}
+              />
             )}
             {mode === "camera" && !errorMsg && (
               <>
@@ -548,7 +516,13 @@ export default function CheckinScanPage() {
         )}
 
         {mode === "confirming" && currentCapture && (
-          <div className="fixed inset-0 bg-black/50 flex items-end z-40">
+          <div
+            className="fixed inset-0 bg-black/50 flex items-end z-40"
+            style={{
+              paddingBottom: keyboardInset,
+              transition: "padding-bottom 200ms cubic-bezier(0.16, 1, 0.3, 1)",
+            }}
+          >
             <div className="w-full bg-white text-neutral-900 rounded-t-3xl animate-slide-up shadow-2xl flex flex-col max-h-[90vh]">
               <div className="pt-3 pb-1 flex justify-center shrink-0">
                 <span className="w-10 h-1 bg-neutral-200 rounded-full" />

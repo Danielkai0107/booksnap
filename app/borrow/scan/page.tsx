@@ -8,6 +8,7 @@ import { recognizeBookCover } from "@/lib/ocr";
 import { findBestBookMatch } from "@/lib/titleMatch";
 import { compressImageDataUrl } from "@/lib/imageCompress";
 import BottomSheet from "@/components/BottomSheet";
+import CameraErrorDialog from "@/components/CameraErrorDialog";
 import Toast, { type ToastKind } from "@/components/Toast";
 import ZoomableImage from "@/components/ZoomableImage";
 
@@ -35,6 +36,8 @@ export default function BorrowScanPage() {
   const [capturing, setCapturing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  /** 相機 init 失敗 → 顯示重新請求對話框，技術錯誤訊息只進 console */
+  const [cameraError, setCameraError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [navigating, setNavigating] = useState(false);
   // 用來強制 useEffect 重啟相機（例如瞬時錯誤訊息後）。
@@ -154,6 +157,7 @@ export default function BorrowScanPage() {
     }
     scanningRef.current = true;
     setErrorMsg(null);
+    setCameraError(false);
     try {
       const controls = await readerRef.current.decodeFromConstraints(
         { video: { facingMode: { ideal: "environment" } } },
@@ -175,8 +179,9 @@ export default function BorrowScanPage() {
       }
     } catch (err) {
       scanningRef.current = false;
-      const m = err instanceof Error ? err.message : String(err);
-      setErrorMsg(`相機初始化失敗：${m}`);
+      // 詳細錯誤只給 dev 排查，UI 顯示重新請求按鈕讓使用者重試。
+      console.error("[borrow scan] camera init failed", err);
+      setCameraError(true);
     }
   }, [handleQrScanned, stopScanner]);
 
@@ -366,6 +371,8 @@ export default function BorrowScanPage() {
           </div>
         )}
       </div>
+
+      {cameraError && <CameraErrorDialog onRetry={() => startScanner()} onClose={handleClose} />}
 
       <footer className="flex items-center justify-between gap-3 px-4 pt-3 pb-6 bg-black/70 backdrop-blur-md z-20">
         <button
