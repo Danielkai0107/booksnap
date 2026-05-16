@@ -77,6 +77,19 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
     cartRef.current = cart;
   }, [cart]);
 
+  /**
+   * 任何 BottomSheet（identify / profile / review / result / pendingBook）
+   * 開啟時暫停掃描，避免使用者在看清單時不小心又掃到書本 QR、把確認彈窗
+   * 推到清單上。用 ref 同步給 long-lived scan callback 讀。
+   * `identify` / `profile` 階段相機其實還沒啟動（identified=false），但加進來
+   * 也無害；主要關注的是 review / result / pendingBook 三種會疊在相機之上的彈窗。
+   */
+  const paused = sheet !== null || pendingBook !== null;
+  const pausedRef = useRef(paused);
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
+
   const fetchBook = useCallback(
     async (bookId: string): Promise<BookInCart | { error: string }> => {
       const res = await fetch(
@@ -199,6 +212,9 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
           videoRef.current!,
           async (resultObj) => {
             if (!resultObj || cancelled) return;
+            // 清單/結果/確認彈窗任一開啟時暫停掃描；
+            // 不設 scanningRef（讓清單關閉後立刻能重新掃），純粹忽略本次 result。
+            if (pausedRef.current) return;
             if (scanningRef.current) return;
             scanningRef.current = true;
             // 任何「不需要等使用者決定」的退出路徑都走這個，
@@ -233,6 +249,12 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
               const r = await fetchBook(parsed.bookId);
               if ("error" in r) {
                 toast.error(r.error);
+                releaseAfterDelay();
+                return;
+              }
+              // fetch 期間使用者可能已打開清單，再次檢查；
+              // 如果暫停了就直接放棄這次結果，不要把確認彈窗壓到清單上面。
+              if (pausedRef.current) {
                 releaseAfterDelay();
                 return;
               }
@@ -355,9 +377,14 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
               className="absolute inset-0 w-full h-full object-cover"
             />
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="focus-frame w-72 h-96 max-w-[78%] max-h-[58%]">
+              <div
+                className={`focus-frame w-72 h-96 max-w-[78%] max-h-[58%] ${
+                  paused ? "is-paused" : ""
+                }`}
+              >
                 <span className="focus-bl" />
                 <span className="focus-br" />
+                <span className="scan-line" />
               </div>
             </div>
             <div className="absolute top-4 inset-x-0 flex flex-col items-center gap-3 z-10 px-6">
