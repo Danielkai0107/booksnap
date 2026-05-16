@@ -7,8 +7,15 @@ export const runtime = "nodejs";
 type IncomingBook = {
   title: string;
   bookId: string;
-  imageBase64: string;
+  /** 相機拍的 base64；null 代表使用 remoteImageUrl 而不上傳。 */
+  imageBase64?: string | null;
+  /** Google Books 提供的封面 URL；若有則優先寫入 image_url。 */
+  remoteImageUrl?: string | null;
   categoryId?: string | null;
+  isbn?: string | null;
+  authors?: string | null;
+  publisher?: string | null;
+  publishedDate?: string | null;
 };
 
 type Body = {
@@ -66,6 +73,10 @@ export async function POST(req: NextRequest) {
     image_url: string | null;
     status: string;
     category_id: string | null;
+    isbn: string | null;
+    authors: string | null;
+    publisher: string | null;
+    published_date: string | null;
   }> = [];
 
   for (const b of books) {
@@ -76,27 +87,41 @@ export async function POST(req: NextRequest) {
       );
     }
     let imageUrl: string | null = null;
-    try {
-      const { buffer, contentType } = dataUrlToBuffer(b.imageBase64 ?? "");
-      // Scope storage path per organization to avoid cross-tenant collisions.
-      const path = `${orgId}/${b.bookId}.jpg`;
-      const { error: uploadError } = await supabase.storage
-        .from("book-covers")
-        .upload(path, buffer, {
-          contentType,
-          upsert: true,
-        });
-      if (uploadError) {
-        console.error("[books] upload error", b.bookId, uploadError);
-      } else {
-        const { data: pub } = supabase.storage
+    // 封面來源優先順序：
+    //   1. Google Books 給的 thumbnail（直接寫入，不上傳 storage）
+    //   2. 相機拍的 base64（上傳到 storage 再用 public URL）
+    if (b.remoteImageUrl) {
+      imageUrl = b.remoteImageUrl;
+    } else if (b.imageBase64) {
+      try {
+        const { buffer, contentType } = dataUrlToBuffer(b.imageBase64);
+        const path = `${orgId}/${b.bookId}.jpg`;
+        const { error: uploadError } = await supabase.storage
           .from("book-covers")
-          .getPublicUrl(path);
-        imageUrl = pub.publicUrl;
+          .upload(path, buffer, {
+            contentType,
+            upsert: true,
+          });
+        if (uploadError) {
+          console.error("[books] upload error", b.bookId, uploadError);
+        } else {
+          const { data: pub } = supabase.storage
+            .from("book-covers")
+            .getPublicUrl(path);
+          imageUrl = pub.publicUrl;
+        }
+      } catch (err) {
+        console.error("[books] upload exception", b.bookId, err);
       }
-    } catch (err) {
-      console.error("[books] upload exception", b.bookId, err);
     }
+
+    const cleanedIsbn = b.isbn?.replace(/[-\s]/g, "") || null;
+    // published_date 欄位是 DATE，Google 常常給 "2014" 或 "2014-10"，
+    // Postgres 不接受純年份，所以這裡只取得到月日才寫入，否則塞 null。
+    const publishedDate =
+      b.publishedDate && /^\d{4}-\d{2}-\d{2}$/.test(b.publishedDate)
+        ? b.publishedDate
+        : null;
 
     rows.push({
       book_id: b.bookId,
@@ -105,6 +130,10 @@ export async function POST(req: NextRequest) {
       image_url: imageUrl,
       status: "available",
       category_id: b.categoryId ?? null,
+      isbn: cleanedIsbn,
+      authors: b.authors?.trim() || null,
+      publisher: b.publisher?.trim() || null,
+      published_date: publishedDate,
     });
   }
 

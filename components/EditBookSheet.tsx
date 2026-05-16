@@ -5,6 +5,7 @@ import BottomSheet from "./BottomSheet";
 import CategorySelect from "./CategorySelect";
 import ZoomableImage from "./ZoomableImage";
 import type { BookRow, CategoryRow } from "@/lib/supabase";
+import type { LookupCandidate } from "@/app/api/books/lookup/route";
 
 type Props = {
   book: BookRow;
@@ -14,9 +15,9 @@ type Props = {
 };
 
 /**
- * Shared edit sheet for a book row. Lets the admin update title, category and
- * shelf location. Used by /admin (inline row actions) and /admin/books/[bookId]
- * (detail page bottom actions).
+ * Shared edit sheet for a book row. Lets the admin update title, category,
+ * shelf location and the ISBN / metadata fields. Also offers a 「重查 ISBN」
+ * button that calls Google Books and one-click fills the metadata.
  */
 export default function EditBookSheet({
   book,
@@ -27,7 +28,13 @@ export default function EditBookSheet({
   const [title, setTitle] = useState(book.title);
   const [shelfId, setShelfId] = useState(book.shelf_id ?? "");
   const [categoryId, setCategoryId] = useState<string>(book.category_id ?? "");
+  const [isbn, setIsbn] = useState(book.isbn ?? "");
+  const [authors, setAuthors] = useState(book.authors ?? "");
+  const [publisher, setPublisher] = useState(book.publisher ?? "");
+  const [publishedDate, setPublishedDate] = useState(book.published_date ?? "");
   const [saving, setSaving] = useState(false);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupMsg, setLookupMsg] = useState<string | null>(null);
 
   const categoryOptions = useMemo(
     () => categories.map((c) => ({ value: c.id, label: c.name })),
@@ -46,6 +53,11 @@ export default function EditBookSheet({
             title: title.trim(),
             shelf_id: shelfId.trim() || null,
             category_id: categoryId || null,
+            isbn: isbn.trim() || null,
+            authors: authors.trim() || null,
+            publisher: publisher.trim() || null,
+            // 後端只接受 yyyy-mm-dd，非完整日期會被自動轉成 null。
+            published_date: publishedDate.trim() || null,
           }),
         }
       );
@@ -57,6 +69,40 @@ export default function EditBookSheet({
     } catch (err) {
       alert(`儲存失敗：${err instanceof Error ? err.message : String(err)}`);
       setSaving(false);
+    }
+  }
+
+  async function handleLookup() {
+    const cleaned = isbn.trim().replace(/[-\s]/g, "");
+    if (!cleaned) {
+      setLookupMsg("請先輸入 ISBN");
+      return;
+    }
+    setLookupLoading(true);
+    setLookupMsg(null);
+    try {
+      const res = await fetch(
+        `/api/books/lookup?isbn=${encodeURIComponent(cleaned)}`,
+        { cache: "no-store" }
+      );
+      const data = (await res.json()) as { candidates?: LookupCandidate[] };
+      const c = data.candidates?.[0];
+      if (!c) {
+        setLookupMsg("Google Books 查無此 ISBN");
+        return;
+      }
+      if (!title.trim()) setTitle(c.title);
+      if (!authors.trim() && c.authors.length > 0)
+        setAuthors(c.authors.join("、"));
+      if (!publisher.trim() && c.publisher) setPublisher(c.publisher);
+      if (!publishedDate.trim() && c.publishedDate)
+        setPublishedDate(c.publishedDate);
+      setLookupMsg("已套用 Google Books 資料（不會覆蓋已填欄位）");
+    } catch (err) {
+      console.warn("[edit] lookup failed", err);
+      setLookupMsg("查詢失敗，請稍後再試");
+    } finally {
+      setLookupLoading(false);
     }
   }
 
@@ -131,6 +177,73 @@ export default function EditBookSheet({
               value={shelfId}
               onChange={(e) => setShelfId(e.target.value)}
               placeholder="（選填）"
+              className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-2 mt-3 border-t border-neutral-100 space-y-3">
+        <p className="text-xs font-medium text-neutral-500">
+          出版資訊（選填）
+        </p>
+        <div>
+          <label className="block text-xs font-medium text-neutral-500 mb-1.5">
+            ISBN
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={isbn}
+              onChange={(e) => setIsbn(e.target.value)}
+              placeholder="例：9789861371955"
+              className="flex-1 h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
+            />
+            <button
+              type="button"
+              onClick={handleLookup}
+              disabled={lookupLoading || !isbn.trim()}
+              className="h-[46px] px-4 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-xs font-medium rounded-md transition disabled:bg-neutral-50 disabled:text-neutral-300"
+            >
+              {lookupLoading ? "查詢中" : "重查 ISBN"}
+            </button>
+          </div>
+          {lookupMsg && (
+            <p className="mt-1 text-[11px] text-neutral-500">{lookupMsg}</p>
+          )}
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-neutral-500 mb-1.5">
+            作者
+          </label>
+          <input
+            type="text"
+            value={authors}
+            onChange={(e) => setAuthors(e.target.value)}
+            placeholder="多位作者請用「、」分隔"
+            className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-neutral-500 mb-1.5">
+              出版社
+            </label>
+            <input
+              type="text"
+              value={publisher}
+              onChange={(e) => setPublisher(e.target.value)}
+              className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-500 mb-1.5">
+              出版日期
+            </label>
+            <input
+              type="date"
+              value={publishedDate}
+              onChange={(e) => setPublishedDate(e.target.value)}
               className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
             />
           </div>

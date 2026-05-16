@@ -15,6 +15,10 @@ export type BookPreview = {
   admin_name: string | null;
   checkin_time: string | null;
   category_name: string | null;
+  isbn?: string | null;
+  authors?: string | null;
+  publisher?: string | null;
+  published_date?: string | null;
 };
 
 type Props = {
@@ -111,6 +115,42 @@ export default function BookPreviewSheet({
             )}
           </div>
         </div>
+
+        {(book.isbn ||
+          book.authors ||
+          book.publisher ||
+          book.published_date) && (
+          <dl className="mt-4 pt-3 border-t border-neutral-200 grid grid-cols-[80px_1fr] gap-y-1.5 text-xs">
+            {book.isbn && (
+              <>
+                <dt className="text-neutral-500">ISBN</dt>
+                <dd className="text-neutral-900 font-mono tabular-nums">
+                  {book.isbn}
+                </dd>
+              </>
+            )}
+            {book.authors && (
+              <>
+                <dt className="text-neutral-500">作者</dt>
+                <dd className="text-neutral-900">{book.authors}</dd>
+              </>
+            )}
+            {book.publisher && (
+              <>
+                <dt className="text-neutral-500">出版社</dt>
+                <dd className="text-neutral-900">{book.publisher}</dd>
+              </>
+            )}
+            {book.published_date && (
+              <>
+                <dt className="text-neutral-500">出版日期</dt>
+                <dd className="text-neutral-900 tabular-nums">
+                  {book.published_date}
+                </dd>
+              </>
+            )}
+          </dl>
+        )}
       </section>
     </BottomSheet>
   );

@@ -11,6 +11,10 @@ export type BookRow = {
   current_holder: string | null;
   organization_id: string;
   category_id: string | null;
+  isbn: string | null;
+  authors: string | null;
+  publisher: string | null;
+  published_date: string | null;
 };
 
 export type CategoryRow = {
