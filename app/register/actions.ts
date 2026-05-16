@@ -2,41 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-export type RegisterState = {
-  error?: string;
-  values?: {
-    city?: string;
-    name?: string;
-    email?: string;
-    phone?: string;
-  };
-};
-
-const TW_CITIES = new Set([
-  "台北市",
-  "新北市",
-  "桃園市",
-  "台中市",
-  "台南市",
-  "高雄市",
-  "基隆市",
-  "新竹市",
-  "嘉義市",
-  "新竹縣",
-  "苗栗縣",
-  "彰化縣",
-  "南投縣",
-  "雲林縣",
-  "嘉義縣",
-  "屏東縣",
-  "宜蘭縣",
-  "花蓮縣",
-  "台東縣",
-  "澎湖縣",
-  "金門縣",
-  "連江縣",
-]);
+import { generateUniqueOrgSlug } from "@/lib/slug";
+import { isTwCity } from "@/lib/cities";
 
 export async function registerAction(
   _prev: RegisterState,
@@ -51,7 +18,7 @@ export async function registerAction(
 
   const values = { city, name, email, phone };
 
-  if (!city || !TW_CITIES.has(city)) {
+  if (!city || !isTwCity(city)) {
     return { error: "請選擇縣市", values };
   }
   if (!name) return { error: "請輸入單位名稱", values };
@@ -86,7 +53,19 @@ export async function registerAction(
 
   const userId = userData.user.id;
 
-  // 2. Create organization (pending)
+  // 2. Create organization (pending) with a public_slug we can hand out as
+  //    `/o/{slug}` once super-admin approves it.
+  let publicSlug: string;
+  try {
+    publicSlug = await generateUniqueOrgSlug(name);
+  } catch (err) {
+    await admin.auth.admin.deleteUser(userId);
+    return {
+      error: err instanceof Error ? err.message : "建立公開連結失敗",
+      values,
+    };
+  }
+
   const { data: org, error: orgError } = await admin
     .from("organizations")
     .insert({
@@ -96,6 +75,7 @@ export async function registerAction(
       contact_phone: phone,
       status: "pending",
       owner_user_id: userId,
+      public_slug: publicSlug,
     })
     .select("id")
     .single();

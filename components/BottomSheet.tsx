@@ -169,7 +169,7 @@ export default function BottomSheet({
         aria-hidden
       />
       <div
-        className="relative w-full sm:max-w-md mx-auto bg-white rounded-t-3xl md:rounded-3xl md:my-8 shadow-2xl animate-slide-up md:animate-fade-in flex flex-col touch-pan-y"
+        className="relative w-full sm:max-w-md mx-auto bg-white text-neutral-900 rounded-t-3xl md:rounded-3xl md:my-8 shadow-2xl animate-slide-up md:animate-fade-in flex flex-col touch-pan-y"
         style={{
           maxHeight,
           transform: closing

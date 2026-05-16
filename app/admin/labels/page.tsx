@@ -14,21 +14,35 @@ export default function LabelsPage() {
   const [query, setQuery] = useState("");
   const [showLabels, setShowLabels] = useState(false);
   const [loading, setLoading] = useState(true);
+  /**
+   * Public slug used to build the QR target URL on each printed label. We
+   * fetch it once via `/api/me` instead of plumbing it down from a server
+   * component because this page is "use client" end-to-end.
+   */
+  const [slug, setSlug] = useState<string | null>(null);
   const toast = useToast();
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      const { data, error } = await supabase
-        .from("books")
-        .select("*")
-        .order("checkin_time", { ascending: false });
+      const [{ data, error }, meRes] = await Promise.all([
+        supabase
+          .from("books")
+          .select("*")
+          .order("checkin_time", { ascending: false }),
+        fetch("/api/me", { cache: "no-store" })
+          .then((r) => r.json())
+          .catch(() => null),
+      ]);
       if (!alive) return;
       if (error) {
         console.error("[admin/labels] fetch failed", error);
         toast.error("載入書籍清單失敗");
       } else {
         setBooks((data ?? []) as BookRow[]);
+      }
+      if (meRes && typeof meRes.publicSlug === "string") {
+        setSlug(meRes.publicSlug as string);
       }
       setLoading(false);
     })();
@@ -94,9 +108,19 @@ export default function LabelsPage() {
         </div>
 
         <div className="print-area">
+          {!slug && (
+            <p className="no-print mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              尚未取得單位公開 slug，QR 連結將缺少單位資訊。請重新整理。
+            </p>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {selectedBooks.map((b) => (
-              <LabelCard key={b.book_id} bookId={b.book_id} title={b.title} />
+              <LabelCard
+                key={b.book_id}
+                bookId={b.book_id}
+                title={b.title}
+                slug={slug ?? ""}
+              />
             ))}
           </div>
         </div>
@@ -105,11 +129,11 @@ export default function LabelsPage() {
   }
 
   return (
-    <AdminShell backHref="/admin">
-      <header className="mb-6">
+    <AdminShell mobileMode="topbar" topbarTitle="標籤列印" scrollLifted>
+      <header className="hidden md:block mb-6">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
-            標籤管理
+            標籤列印
           </h1>
           <button
             type="button"
@@ -211,6 +235,42 @@ export default function LabelsPage() {
           })}
         </ul>
       )}
+
+      {/* 手機版底部留白，避免列表被浮動按鈕遮擋 */}
+      <div className="md:hidden h-24" aria-hidden />
+
+      {/* 手機版底部固定「批次列印」按鈕（呼應分類管理頁的浮動 CTA） */}
+      <div
+        className="md:hidden fixed inset-x-0 bottom-0 z-40 px-5 pt-6 flex justify-center pointer-events-none bg-gradient-to-t from-white via-white/95 to-white/0"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 20px)" }}
+      >
+        <button
+          type="button"
+          onClick={() => setShowLabels(true)}
+          disabled={selected.size === 0}
+          className="pointer-events-auto inline-flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 text-white text-base font-medium px-7 py-4 rounded-full shadow-lg shadow-neutral-900/20 transition disabled:bg-neutral-300 disabled:shadow-none"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="shrink-0"
+            aria-hidden
+          >
+            <polyline points="6 9 6 2 18 2 18 9" />
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+            <rect x="6" y="14" width="12" height="8" />
+          </svg>
+          <span className="leading-none">
+            批次列印{selected.size > 0 ? ` (${selected.size})` : ""}
+          </span>
+        </button>
+      </div>
     </AdminShell>
   );
 }

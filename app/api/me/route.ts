@@ -9,7 +9,10 @@ export async function GET() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   return NextResponse.json({
+    orgId: session.organization?.id ?? null,
     orgName: session.organization?.name ?? null,
+    publicSlug: session.organization?.public_slug ?? null,
     role: session.profile.role,
+    email: session.email,
   });
 }

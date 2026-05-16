@@ -1,20 +1,11 @@
-import { requireUnitSession } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
-import HomeClient from "./HomeClient";
+import { redirect } from "next/navigation";
 
-export default async function HomePage() {
-  const session = await requireUnitSession();
-
-  const admin = createAdminClient();
-  const { count } = await admin
-    .from("ai_usage_logs")
-    .select("*", { count: "exact", head: true })
-    .eq("organization_id", session.organization!.id);
-
-  return (
-    <HomeClient
-      orgName={session.organization?.name ?? "未命名單位"}
-      aiRecognizeCount={count ?? 0}
-    />
-  );
+/**
+ * The unit-side root used to render a four-button "borrow / return / member /
+ * book" launcher. After the PLG split those flows live under the public
+ * `/o/{slug}` entry and the unit-side root is now just a doorway into the
+ * admin backend.
+ */
+export default function HomePage(): never {
+  redirect("/admin");
 }

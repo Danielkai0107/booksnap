@@ -8,7 +8,10 @@ export type BookRow = {
   status: "available" | "borrowed" | string;
   shelf_id: string | null;
   return_time: string | null;
+  /** Denormalized display name of the current holder (kept in sync on borrow/return for fast public catalog rendering). */
   current_holder: string | null;
+  current_holder_id: string | null;
+  current_location: string | null;
   organization_id: string;
   category_id: string | null;
   isbn: string | null;
@@ -31,20 +34,31 @@ export type ShelfRow = {
   organization_id: string;
 };
 
-export type MemberRow = {
+/**
+ * Borrowers are public-facing readers identified by phone within an organization.
+ * They are upserted automatically when someone borrows a book through `/o/{slug}`,
+ * so the admin never creates them manually.
+ */
+export type BorrowerRow = {
   id: string;
-  name: string;
-  created_at: string;
   organization_id: string;
+  phone: string;
+  display_name: string;
+  email: string | null;
+  last_active_at: string | null;
+  /** Timestamp of the most recent privacy consent acceptance during a borrow. */
+  consent_at: string | null;
+  created_at: string;
 };
 
 export type BorrowRecordRow = {
   id: string;
   book_id: string;
-  borrower_name: string;
+  borrower_id: string;
   borrowed_at: string;
   returned_at: string | null;
   organization_id: string;
+  location_note: string | null;
 };
 
 export type OrgStatus = "pending" | "approved" | "rejected" | "suspended";
@@ -60,6 +74,10 @@ export type OrganizationRow = {
   rejected_reason: string | null;
   created_at: string;
   approved_at: string | null;
+  /** URL-safe identifier used for the public borrow/return entry: `/o/{public_slug}`. */
+  public_slug: string;
+  public_borrow_enabled: boolean;
+  public_catalog_enabled: boolean;
 };
 
 export type ProfileRole = "unit" | "super_admin";

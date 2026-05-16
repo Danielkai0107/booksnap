@@ -17,7 +17,7 @@ import { createClient } from "./supabase/client";
 export type {
   BookRow,
   ShelfRow,
-  MemberRow,
+  BorrowerRow,
   BorrowRecordRow,
   OrganizationRow,
   ProfileRow,

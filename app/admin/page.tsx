@@ -43,12 +43,12 @@ export default function AdminPage() {
 
   async function fetchAll() {
     setLoading(true);
-    const [booksRes, membersRes, catRes] = await Promise.all([
+    const [booksRes, borrowersRes, catRes] = await Promise.all([
       supabase
         .from("books")
         .select("*")
         .order("checkin_time", { ascending: false }),
-      supabase.from("members").select("*", { count: "exact", head: true }),
+      supabase.from("borrowers").select("*", { count: "exact", head: true }),
       fetch("/api/categories", { cache: "no-store" })
         .then((r) => r.json())
         .catch(() => ({ categories: [] })),
@@ -59,7 +59,7 @@ export default function AdminPage() {
     } else {
       setBooks((booksRes.data ?? []) as BookRow[]);
     }
-    setMemberCount(membersRes.count ?? 0);
+    setMemberCount(borrowersRes.count ?? 0);
     setCategories((catRes?.categories ?? []) as CategoryRow[]);
     setLoading(false);
   }
@@ -185,7 +185,7 @@ export default function AdminPage() {
         <Stat label="總書籍" value={books.length} />
         <Stat label="在庫" value={availableCount} />
         <Stat label="已借出" value={borrowedCount} />
-        <Stat label="成員數" value={memberCount} />
+        <Stat label="借閱人" value={memberCount} />
       </dl>
 
       <div className="mb-5 flex gap-2">

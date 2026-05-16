@@ -7,32 +7,39 @@ import { signOutAction } from "@/app/auth/actions";
 
 const items = [
   { href: "/admin", label: "書籍管理", matchExact: true },
-  { href: "/admin/members", label: "成員管理", matchExact: false },
+  { href: "/admin/borrowers", label: "借閱人", matchExact: false },
   { href: "/admin/categories", label: "分類管理", matchExact: false },
   { href: "/admin/labels", label: "標籤列印", matchExact: false },
+  { href: "/admin/settings", label: "單位設定", matchExact: false },
 ];
 
 const bottomItemClass =
   "block w-full text-left px-3 py-2.5 rounded-lg text-sm bg-neutral-100 text-neutral-700 hover:bg-neutral-200 hover:text-neutral-900 transition";
 
-let cachedOrgName: string | null | undefined = undefined;
+type CachedMe = { orgName: string | null; publicSlug: string | null };
 
-function useOrgName() {
-  const [orgName, setOrgName] = useState<string | null>(
-    typeof cachedOrgName === "string" ? cachedOrgName : null
-  );
+let cachedMe: CachedMe | undefined = undefined;
+
+function useOrgInfo() {
+  const [info, setInfo] = useState<CachedMe>(cachedMe ?? { orgName: null, publicSlug: null });
 
   useEffect(() => {
-    if (cachedOrgName !== undefined) return;
+    if (cachedMe !== undefined) return;
     let alive = true;
     (async () => {
       try {
         const res = await fetch("/api/me", { cache: "no-store" });
         if (!res.ok) return;
-        const data = (await res.json()) as { orgName?: string | null };
+        const data = (await res.json()) as {
+          orgName?: string | null;
+          publicSlug?: string | null;
+        };
         if (!alive) return;
-        cachedOrgName = data.orgName ?? null;
-        setOrgName(cachedOrgName);
+        cachedMe = {
+          orgName: data.orgName ?? null,
+          publicSlug: data.publicSlug ?? null,
+        };
+        setInfo(cachedMe);
       } catch {
         // ignore
       }
@@ -42,14 +49,14 @@ function useOrgName() {
     };
   }, []);
 
-  return orgName;
+  return info;
 }
 
 function BrandHeader({ onClick }: { onClick?: () => void }) {
-  const orgName = useOrgName();
+  const { orgName } = useOrgInfo();
   return (
     <Link
-      href="/"
+      href="/admin"
       onClick={onClick}
       className="block mb-10 leading-tight hover:opacity-90 transition"
     >
@@ -59,6 +66,28 @@ function BrandHeader({ onClick }: { onClick?: () => void }) {
       <span className="block mt-1.5 text-sm text-neutral-600 truncate">
         {orgName ?? "—"}
       </span>
+    </Link>
+  );
+}
+
+function PublicLinkButton({ onClick }: { onClick?: () => void }) {
+  const { publicSlug } = useOrgInfo();
+  if (!publicSlug) {
+    return (
+      <span className={`${bottomItemClass} opacity-60 cursor-not-allowed`}>
+        公開頁待啟用
+      </span>
+    );
+  }
+  return (
+    <Link
+      href={`/o/${publicSlug}`}
+      onClick={onClick}
+      target="_blank"
+      rel="noopener"
+      className={bottomItemClass}
+    >
+      查看公開頁 ↗
     </Link>
   );
 }
@@ -108,9 +137,7 @@ export default function AdminSidebar() {
         <NavLinks />
       </nav>
       <div className="mt-6 space-y-3">
-        <Link href="/" className={bottomItemClass}>
-          回前台
-        </Link>
+        <PublicLinkButton />
         <SignOutButton />
       </div>
     </aside>
@@ -172,9 +199,7 @@ export function AdminMobileMenu({
           <NavLinks onItemClick={onClose} />
         </nav>
         <div className="mt-6 space-y-3">
-          <Link href="/" onClick={onClose} className={bottomItemClass}>
-            回前台
-          </Link>
+          <PublicLinkButton onClick={onClose} />
           <SignOutButton onClick={onClose} />
         </div>
       </aside>

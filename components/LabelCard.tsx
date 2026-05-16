@@ -7,19 +7,47 @@ import JsBarcode from "jsbarcode";
 type Props = {
   bookId: string;
   title: string;
+  /**
+   * Organization public slug. Embedded into the QR target URL so anonymous
+   * scanners land on the correct unit's borrow / return flow even across
+   * tenants with the same `book_id`.
+   */
+  slug: string;
   className?: string;
 };
 
-export default function LabelCard({ bookId, title, className = "" }: Props) {
+/**
+ * QR payload is the public deep-link URL `/o/{slug}/b/{bookId}` rather than
+ * a bare `book_id`. Native phone cameras open it directly in the browser, and
+ * the server-side route at `/o/{slug}/b/[bookId]` then dispatches to either
+ * the borrow or return flow based on current book status.
+ *
+ * Error correction is bumped to "M" so a small smudge or curved spine does
+ * not break decoding when the URL stretches the symbol density.
+ */
+export default function LabelCard({
+  bookId,
+  title,
+  slug,
+  className = "",
+}: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
 
   useEffect(() => {
     let alive = true;
-    QRCode.toDataURL(bookId, {
+    const origin =
+      typeof window !== "undefined" && window.location?.origin
+        ? window.location.origin
+        : "";
+    const target = `${origin}/o/${encodeURIComponent(slug)}/b/${encodeURIComponent(
+      bookId
+    )}`;
+    QRCode.toDataURL(target, {
       margin: 1,
-      width: 220,
+      width: 260,
       color: { dark: "#0a0a0a", light: "#ffffff" },
+      errorCorrectionLevel: "M",
     })
       .then((url) => {
         if (alive) setQrDataUrl(url);
@@ -28,7 +56,7 @@ export default function LabelCard({ bookId, title, className = "" }: Props) {
     return () => {
       alive = false;
     };
-  }, [bookId]);
+  }, [bookId, slug]);
 
   useEffect(() => {
     if (!svgRef.current) return;

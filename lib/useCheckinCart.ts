@@ -57,6 +57,10 @@ export function useCheckinCart(options?: { redirectIfNoAdmin?: boolean }) {
     if (typeof window === "undefined") return;
     const stored = sessionStorage.getItem(ADMIN_KEY);
     if (!stored) {
+      // `/checkin` re-seeds the operator name from the session, so a missing
+      // value usually means a hard refresh on the scan page. Bouncing through
+      // it picks the operator up again (or sends the user to /admin if the
+      // session expired).
       if (redirect) router.replace("/checkin");
       setHydrated(true);
       return;

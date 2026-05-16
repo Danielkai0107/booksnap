@@ -9,11 +9,16 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { bookId } = await params;
   const supabase = await createClient();
 
+  // Pull records joined with the borrower row so the admin UI can render the
+  // current display name without an extra round-trip per record. Borrower
+  // identity is keyed by `borrower_id` (phone-scoped per organization).
   const [bookRes, recordsRes] = await Promise.all([
     supabase.from("books").select("*").eq("book_id", bookId).maybeSingle(),
     supabase
       .from("borrow_records")
-      .select("*")
+      .select(
+        "id, book_id, borrower_id, borrowed_at, returned_at, location_note, organization_id, borrower:borrowers(id, display_name, phone)"
+      )
       .eq("book_id", bookId)
       .order("borrowed_at", { ascending: false }),
   ]);

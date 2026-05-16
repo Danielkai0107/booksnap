@@ -3,29 +3,48 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AdminShell from "@/components/AdminShell";
+import BorrowerPreviewSheet from "@/components/BorrowerPreviewSheet";
 import BottomSheet from "@/components/BottomSheet";
 import CategoryTag from "@/components/CategoryTag";
 import EditBookSheet from "@/components/EditBookSheet";
-import MemberPreviewSheet from "@/components/MemberPreviewSheet";
 import SwipeableTabs from "@/components/SwipeableTabs";
 import { useToast } from "@/components/ToastProvider";
 import ZoomableImage from "@/components/ZoomableImage";
-import { BookRow, BorrowRecordRow, type CategoryRow } from "@/lib/supabase";
+import { BookRow, type CategoryRow } from "@/lib/supabase";
 
 type Tab = "borrow" | "return";
+
+/**
+ * Record row joined with borrower display name (and phone for masking) on
+ * the API side. We keep `borrower_id` as the canonical key so the preview
+ * sheet can deep-link into `/admin/borrowers/{id}`.
+ */
+type RecordWithBorrower = {
+  id: string;
+  book_id: string;
+  borrower_id: string;
+  borrowed_at: string;
+  returned_at: string | null;
+  location_note: string | null;
+  borrower: {
+    id: string;
+    display_name: string;
+    phone: string;
+  } | null;
+};
 
 export default function BookDetailPage() {
   const router = useRouter();
   const params = useParams<{ bookId: string }>();
   const bookId = decodeURIComponent(params.bookId);
   const [book, setBook] = useState<BookRow | null>(null);
-  const [records, setRecords] = useState<BorrowRecordRow[]>([]);
+  const [records, setRecords] = useState<RecordWithBorrower[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("borrow");
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [previewMember, setPreviewMember] = useState<string | null>(null);
+  const [previewBorrowerId, setPreviewBorrowerId] = useState<string | null>(null);
   const toast = useToast();
 
   const fetchBook = useCallback(async () => {
@@ -41,7 +60,7 @@ export default function BookDetailPage() {
       const data = await bookRes.json();
       if (!bookRes.ok) throw new Error(data.error ?? `HTTP ${bookRes.status}`);
       setBook(data.book as BookRow);
-      setRecords((data.records ?? []) as BorrowRecordRow[]);
+      setRecords((data.records ?? []) as RecordWithBorrower[]);
       setCategories((catRes?.categories ?? []) as CategoryRow[]);
     } catch (err) {
       console.error("[admin/books/:id] fetch failed", err);
@@ -148,9 +167,22 @@ export default function BookDetailPage() {
                 {book.current_holder && (
                   <p className="mt-3 text-sm text-neutral-600">
                     目前持有者：
-                    <span className="text-neutral-900 font-medium">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        book.current_holder_id &&
+                        setPreviewBorrowerId(book.current_holder_id)
+                      }
+                      className="text-neutral-900 font-medium hover:underline disabled:cursor-default"
+                      disabled={!book.current_holder_id}
+                    >
                       {book.current_holder}
-                    </span>
+                    </button>
+                    {book.current_location && (
+                      <span className="ml-2 text-xs text-neutral-500">
+                        @ {book.current_location}
+                      </span>
+                    )}
                   </p>
                 )}
               </div>
@@ -172,7 +204,7 @@ export default function BookDetailPage() {
                     empty="尚無借書紀錄"
                     timeKey="borrowed_at"
                     timeLabel="借出時間"
-                    onNameClick={setPreviewMember}
+                    onBorrowerClick={setPreviewBorrowerId}
                   />
                 ),
               },
@@ -185,7 +217,7 @@ export default function BookDetailPage() {
                     empty="尚無還書紀錄"
                     timeKey="returned_at"
                     timeLabel="歸還時間"
-                    onNameClick={setPreviewMember}
+                    onBorrowerClick={setPreviewBorrowerId}
                   />
                 ),
               },
@@ -218,13 +250,13 @@ export default function BookDetailPage() {
             </button>
           </div>
 
-          <MemberPreviewSheet
-            open={previewMember !== null}
-            onClose={() => setPreviewMember(null)}
-            name={previewMember}
+          <BorrowerPreviewSheet
+            open={previewBorrowerId !== null}
+            onClose={() => setPreviewBorrowerId(null)}
+            borrowerId={previewBorrowerId}
             detailHref={
-              previewMember
-                ? `/admin/members/${encodeURIComponent(previewMember)}`
+              previewBorrowerId
+                ? `/admin/borrowers/${encodeURIComponent(previewBorrowerId)}`
                 : undefined
             }
           />
@@ -339,13 +371,13 @@ function RecordList({
   empty,
   timeKey,
   timeLabel,
-  onNameClick,
+  onBorrowerClick,
 }: {
-  records: BorrowRecordRow[];
+  records: RecordWithBorrower[];
   empty: string;
   timeKey: "borrowed_at" | "returned_at";
   timeLabel: string;
-  onNameClick: (name: string) => void;
+  onBorrowerClick: (borrowerId: string) => void;
 }) {
   if (records.length === 0) {
     return (
@@ -356,20 +388,29 @@ function RecordList({
     <ul className="space-y-2">
       {records.map((r) => {
         const t = r[timeKey];
+        const name = r.borrower?.display_name ?? "（已移除）";
         return (
           <li
             key={r.id}
-            className="px-4 py-3 flex items-center justify-between gap-3 bg-neutral-100 rounded-xl"
+            className="px-4 py-3 flex items-start justify-between gap-3 bg-neutral-100 rounded-xl"
           >
-            <button
-              type="button"
-              onClick={() => onNameClick(r.borrower_name)}
-              className="text-sm font-medium text-neutral-900 hover:underline text-left"
-            >
-              {r.borrower_name}
-            </button>
-            <div className="text-xs text-neutral-500 tabular-nums mt-1 text-right">
-              <span className="text-neutral-400">{timeLabel}</span>
+            <div className="min-w-0">
+              <button
+                type="button"
+                onClick={() => onBorrowerClick(r.borrower_id)}
+                disabled={!r.borrower}
+                className="text-sm font-medium text-neutral-900 hover:underline text-left disabled:cursor-default disabled:no-underline"
+              >
+                {name}
+              </button>
+              {r.location_note && (
+                <p className="text-xs text-neutral-500 mt-1 truncate">
+                  使用地點 · {r.location_note}
+                </p>
+              )}
+            </div>
+            <div className="text-xs text-neutral-500 tabular-nums text-right shrink-0">
+              <span className="text-neutral-400">{timeLabel} </span>
               {t ? new Date(t).toLocaleString("zh-TW") : "—"}
             </div>
           </li>

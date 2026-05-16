@@ -42,8 +42,8 @@ export default function CategoriesPage() {
   }, [categories, query]);
 
   return (
-    <AdminShell backHref="/admin">
-      <header className="mb-6">
+    <AdminShell mobileMode="topbar" topbarTitle="分類管理" scrollLifted>
+      <header className="hidden md:block mb-6">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
             分類管理
@@ -51,7 +51,7 @@ export default function CategoriesPage() {
           <button
             type="button"
             onClick={() => setAddOpen(true)}
-            className="hidden md:inline-flex shrink-0 items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-3 rounded-xl transition"
+            className="shrink-0 inline-flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-3 rounded-xl transition"
           >
             <svg
               width="16"

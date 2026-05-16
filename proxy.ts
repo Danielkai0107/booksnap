@@ -7,13 +7,15 @@ import { NextResponse, type NextRequest } from "next/server";
  * Responsibilities:
  *   1. Refresh Supabase session cookies on every request.
  *   2. Optimistic route guard:
- *      - unauthenticated visitors of unit pages → /login
+ *      - unauthenticated visitors of admin pages → /login
  *      - unauthenticated visitors of /super-admin → /super-admin/login
  *      - super-admin visiting unit pages → /super-admin
- *      - unit user visiting /super-admin → /
- *      - already-logged-in users visiting /login or /register → home
+ *      - unit user visiting /super-admin → /admin
+ *      - already-logged-in users visiting /login or /register → /admin
+ *      - `/o/{slug}/*` and `/api/public/*` are always public (no session checks)
  *
- * Real authorization is still enforced by Postgres RLS.
+ * Real authorization is still enforced by Postgres RLS for admin routes,
+ * and by service-role + slug→org scoping for `/api/public/*`.
  */
 
 const SUPER_ADMIN_LOGIN = "/super-admin/login";
@@ -25,6 +27,11 @@ function isPublicUnitPath(pathname: string): boolean {
     pathname.startsWith("/register") ||
     pathname === "/favicon.ico"
   );
+}
+
+function isOpenAccessPath(pathname: string): boolean {
+  // Public reader routes — no auth required, no role-based redirect.
+  return pathname.startsWith("/o/") || pathname.startsWith("/api/public/");
 }
 
 function isSuperAdminPath(pathname: string): boolean {
@@ -66,6 +73,13 @@ export async function proxy(request: NextRequest) {
   const role = (user?.app_metadata?.role as "unit" | "super_admin" | undefined) ?? null;
   const { pathname, search } = request.nextUrl;
 
+  // --- Public reader entry points (`/o/{slug}/*`, `/api/public/*`) ---------
+  // These must be reachable without a session and never get redirected based
+  // on role, otherwise QR-code flows for non-logged-in readers would break.
+  if (isOpenAccessPath(pathname)) {
+    return response;
+  }
+
   // --- /super-admin/* paths -------------------------------------------------
   if (isSuperAdminPath(pathname)) {
     if (isSuperAdminLoginPath(pathname)) {
@@ -97,7 +111,7 @@ export async function proxy(request: NextRequest) {
   if (isPublicUnitPath(pathname)) {
     if (user) {
       const url = request.nextUrl.clone();
-      url.pathname = role === "super_admin" ? "/super-admin" : "/";
+      url.pathname = role === "super_admin" ? "/super-admin" : "/admin";
       url.search = "";
       return NextResponse.redirect(url);
     }

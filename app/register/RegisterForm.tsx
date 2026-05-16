@@ -2,34 +2,10 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
+import { TW_CITIES } from "@/lib/cities";
 import { registerAction, type RegisterState } from "./actions";
 
 const initial: RegisterState = {};
-
-const CITIES = [
-  "台北市",
-  "新北市",
-  "桃園市",
-  "台中市",
-  "台南市",
-  "高雄市",
-  "基隆市",
-  "新竹市",
-  "嘉義市",
-  "新竹縣",
-  "苗栗縣",
-  "彰化縣",
-  "南投縣",
-  "雲林縣",
-  "嘉義縣",
-  "屏東縣",
-  "宜蘭縣",
-  "花蓮縣",
-  "台東縣",
-  "澎湖縣",
-  "金門縣",
-  "連江縣",
-];
 
 export default function RegisterForm() {
   const [state, formAction, pending] = useActionState(registerAction, initial);
@@ -64,7 +40,7 @@ export default function RegisterForm() {
             <option value="" disabled>
               請選擇縣市
             </option>
-            {CITIES.map((c) => (
+            {TW_CITIES.map((c) => (
               <option key={c} value={c} className="text-neutral-900">
                 {c}
               </option>

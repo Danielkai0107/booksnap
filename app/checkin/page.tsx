@@ -1,45 +1,17 @@
-"use client";
+import { requireUnitSession } from "@/lib/auth";
+import CheckinEntryClient from "./CheckinEntryClient";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import CloseButton from "@/components/CloseButton";
-import MemberPicker from "@/components/MemberPicker";
-
-export default function CheckinEntryPage() {
-  const router = useRouter();
-  const [open, setOpen] = useState(true);
-
-  useEffect(() => {
-    sessionStorage.removeItem("books");
-  }, []);
-
-  return (
-    <main className="min-h-screen bg-white flex flex-col">
-      <CloseButton href="/admin" />
-      <section className="flex-1 flex flex-col items-center justify-center px-6">
-        <div className="text-center max-w-md">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900">
-            開始入庫
-          </h1>
-          <p className="mt-3 text-sm text-neutral-500">
-            請先選擇本次負責入庫的成員
-          </p>
-        </div>
-      </section>
-
-      <MemberPicker
-        open={open}
-        onClose={() => {
-          setOpen(false);
-          router.replace("/admin");
-        }}
-        onSelect={(name) => {
-          sessionStorage.setItem("adminName", name);
-          router.push("/checkin/scan");
-        }}
-        title="負責入庫的人是？"
-        subtitle="此名稱會記錄為本次入庫的負責人"
-      />
-    </main>
-  );
+/**
+ * The unit's "start a checkin" doorway. After the PLG split there is no
+ * separate borrower-pick step (admins == authenticated unit users), so this
+ * page just seeds the operator name from the session and immediately bounces
+ * to `/checkin/scan`.
+ */
+export default async function CheckinEntryPage() {
+  const session = await requireUnitSession();
+  const operator =
+    session.organization?.name?.trim() ||
+    session.email?.split("@")[0] ||
+    "管理員";
+  return <CheckinEntryClient operator={operator} />;
 }
