@@ -84,7 +84,7 @@ export default function MemberPreviewSheet({
           <Link
             href={detailHref}
             onClick={onClose}
-            className="block w-full text-center bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+            className="press-feedback block w-full text-center bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg"
           >
             查看完整成員
           </Link>

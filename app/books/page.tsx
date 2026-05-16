@@ -152,7 +152,7 @@ export default function BooksListPage() {
                 <li key={b.book_id}>
                   <Link
                     href={`/books/${encodeURIComponent(b.book_id)}`}
-                    className="block bg-white border border-neutral-200 hover:border-neutral-400 rounded-xl overflow-hidden flex flex-col h-full transition"
+                    className="press-feedback block bg-white border border-neutral-200 hover:border-neutral-400 rounded-xl overflow-hidden flex flex-col h-full"
                   >
                     <div className="aspect-square bg-neutral-100 relative">
                       {b.image_url ? (

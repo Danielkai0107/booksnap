@@ -264,7 +264,7 @@ export default function AdminPage() {
               <li key={b.id} className="py-4 flex gap-3 items-start">
                 <Link
                   href={`/admin/books/${encodeURIComponent(b.book_id)}`}
-                  className="flex-1 flex gap-3 items-start min-w-0"
+                  className="press-feedback flex-1 flex gap-3 items-start min-w-0"
                 >
                   {b.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
