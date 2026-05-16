@@ -43,6 +43,48 @@ textarea {
   font-feature-settings: "tnum";
 }
 
+/* ─────────────────────────────────────────────────────────
+   全域「按下回饋」效果：所有 <button> 與顯式 role=button 的元素
+   在 :active 時微縮 3%，搭配短時長 spring 曲線回彈，提供敏捷感。
+
+   開發者可在不需要回饋的元素上加 `data-no-press` 退出。
+   既有的 Tailwind utility（例如 `active:scale-95`）會以較高
+   specificity 蓋過此規則，不衝突。
+   ───────────────────────────────────────────────────────── */
+@layer base {
+  button:not(:disabled):not([data-no-press]),
+  [role="button"]:not([aria-disabled="true"]):not([data-no-press]) {
+    transition-property:
+      transform, color, background-color, border-color, opacity, box-shadow,
+      filter;
+    transition-duration: 140ms;
+    transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+    will-change: transform;
+  }
+
+  button:not(:disabled):not([data-no-press]):active,
+  [role="button"]:not([aria-disabled="true"]):not([data-no-press]):active {
+    transform: scale(0.97);
+    transition-duration: 80ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+/* Tailwind utility for use on <Link>/<a> button-like elements
+   (those rendered as <a> won't be matched by the `button` rule above). */
+.press-feedback {
+  transition-property:
+    transform, color, background-color, border-color, opacity, box-shadow,
+    filter;
+  transition-duration: 140ms;
+  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.press-feedback:active {
+  transform: scale(0.97);
+  transition-duration: 80ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* Bottom sheet slide-up animation */
 @keyframes slide-up {
   from {

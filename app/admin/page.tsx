@@ -116,7 +116,7 @@ export default function AdminPage() {
       topbarRight={
         <a
           href="/api/export"
-          className="inline-flex items-center gap-1 text-sm font-medium text-neutral-800 hover:text-neutral-900 px-3 h-9 rounded-full bg-white border border-neutral-200 hover:border-neutral-400 transition"
+          className="press-feedback inline-flex items-center gap-1 text-sm font-medium text-neutral-800 hover:text-neutral-900 px-3 h-9 rounded-full bg-white border border-neutral-200 hover:border-neutral-400"
         >
           <svg
             width="14"
@@ -146,7 +146,7 @@ export default function AdminPage() {
         <div className="flex gap-2 shrink-0">
           <Link
             href="/checkin"
-            className="inline-flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-3 rounded-xl transition"
+            className="press-feedback inline-flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-3 rounded-xl"
           >
             <svg
               width="16"
@@ -166,7 +166,7 @@ export default function AdminPage() {
           </Link>
           <a
             href="/api/export"
-            className="inline-flex items-center gap-1.5 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-3 rounded-xl transition"
+            className="press-feedback inline-flex items-center gap-1.5 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-3 rounded-xl"
           >
             <svg
               width="16"
@@ -406,7 +406,7 @@ export default function AdminPage() {
       >
         <Link
           href="/checkin"
-          className="pointer-events-auto inline-flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 text-white text-base font-medium px-7 py-4 rounded-full shadow-lg shadow-neutral-900/20 transition"
+          className="press-feedback pointer-events-auto inline-flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 text-white text-base font-medium px-7 py-4 rounded-full shadow-lg shadow-neutral-900/20"
         >
           <svg
             width="18"
