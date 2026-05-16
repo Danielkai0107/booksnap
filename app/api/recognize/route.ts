@@ -88,7 +88,8 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 200,
+        // JSON 答案非常短（書名 + 可選分類）。80 tokens 對中文書名綽綽有餘。
+        max_tokens: categories.length > 0 ? 120 : 80,
         messages: [
           {
             role: "user",
