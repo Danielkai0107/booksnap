@@ -21,8 +21,14 @@ export default function ReturnScanPage() {
   const [candidates, setCandidates] = useState<BookRow[]>([]);
   const [books, setBooks] = useState<BookRow[]>([]);
   const [pending, setPending] = useState<BookRow | null>(null);
-  /** 該書是否已在清單中。決定彈窗只顯示「略過」按鈕，並提示已加入。 */
-  const [pendingAlreadyInList, setPendingAlreadyInList] = useState(false);
+  /**
+   * 該本書無法加入時的提示資訊。若為非空，彈窗會切到「請略過」模式：
+   * 隱藏加入按鈕、在最下方顯示阻擋原因。
+   */
+  const [pendingBlocked, setPendingBlocked] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const [notFoundOpen, setNotFoundOpen] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -97,7 +103,10 @@ export default function ReturnScanPage() {
     try {
       const dup = booksRef.current.find((b) => b.book_id === id);
       if (dup) {
-        setPendingAlreadyInList(true);
+        setPendingBlocked({
+          title: "已在清單中",
+          message: "此書已在還書清單中，可略過繼續掃描下一本。",
+        });
         setPending(dup);
         return;
       }
@@ -113,10 +122,14 @@ export default function ReturnScanPage() {
       }
       const book = data as BookRow;
       if (book.status === "available") {
-        setErrorMsg("這本書狀態為「在庫」，無須還書");
+        setPendingBlocked({
+          title: "此書狀態為在庫",
+          message: "此書狀態為「在庫」，無須加入還書清單，可略過繼續掃描下一本。",
+        });
+        setPending(book);
         return;
       }
-      setPendingAlreadyInList(false);
+      setPendingBlocked(null);
       setPending(book);
     } catch (err) {
       const m = err instanceof Error ? err.message : String(err);
@@ -215,7 +228,14 @@ export default function ReturnScanPage() {
       const inList = booksRef.current.some(
         (b) => b.book_id === match.book_id,
       );
-      setPendingAlreadyInList(inList);
+      setPendingBlocked(
+        inList
+          ? {
+              title: "已在清單中",
+              message: "此書已在還書清單中，可略過繼續掃描下一本。",
+            }
+          : null,
+      );
       setPending(match);
     } catch (err) {
       console.error("recognize error", err);
@@ -234,12 +254,12 @@ export default function ReturnScanPage() {
       kind: "success",
     });
     setPending(null);
-    setPendingAlreadyInList(false);
+    setPendingBlocked(null);
   }, [pending]);
 
   const handleSkip = useCallback(() => {
     setPending(null);
-    setPendingAlreadyInList(false);
+    setPendingBlocked(null);
   }, []);
 
   const handleRemove = useCallback((bookId: string) => {
@@ -367,13 +387,13 @@ export default function ReturnScanPage() {
         <BottomSheet
           open
           onClose={handleSkip}
-          title={pendingAlreadyInList ? "已在清單中" : "是這本嗎？"}
+          title={pendingBlocked?.title ?? "是這本嗎？"}
           subtitle={pending.title}
           footer={
-            pendingAlreadyInList ? (
+            pendingBlocked ? (
               <button
                 onClick={handleSkip}
-                className="w-full bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+                className="w-full bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
               >
                 略過
               </button>
@@ -395,11 +415,6 @@ export default function ReturnScanPage() {
             )
           }
         >
-          {pendingAlreadyInList && (
-            <p className="text-xs bg-amber-50 text-amber-800 border border-amber-100 rounded-lg px-3 py-2 mb-3">
-              此書已在還書清單中，可略過繼續掃描下一本。
-            </p>
-          )}
           <div className="flex gap-4 items-start pb-3">
             {pending.image_url ? (
               <ZoomableImage
@@ -425,9 +440,14 @@ export default function ReturnScanPage() {
               </div>
             </dl>
           </div>
-          {!pendingAlreadyInList && pending.current_holder !== member && (
+          {!pendingBlocked && pending.current_holder !== member && (
             <p className="text-xs bg-amber-50 text-amber-800 border border-amber-100 rounded-lg px-3 py-2 mb-2">
               此書並非由你（{member}）借出。仍要繼續歸還？
+            </p>
+          )}
+          {pendingBlocked && (
+            <p className="text-xs bg-amber-50 text-amber-800 border border-amber-100 rounded-lg px-3 py-2 mb-2">
+              {pendingBlocked.message}
             </p>
           )}
         </BottomSheet>

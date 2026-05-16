@@ -21,8 +21,14 @@ export default function BorrowScanPage() {
   const [candidates, setCandidates] = useState<BookRow[]>([]);
   const [books, setBooks] = useState<BookRow[]>([]);
   const [pending, setPending] = useState<BookRow | null>(null);
-  /** 該書是否已在清單中。決定彈窗只顯示「略過」按鈕，並提示已加入。 */
-  const [pendingAlreadyInList, setPendingAlreadyInList] = useState(false);
+  /**
+   * 該本書無法加入時的提示資訊。若為非空，BookConfirmSheet 會切到
+   * 「請略過」模式：隱藏加入按鈕、在最下方顯示阻擋原因。
+   */
+  const [pendingBlocked, setPendingBlocked] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const [notFoundOpen, setNotFoundOpen] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -99,7 +105,10 @@ export default function BorrowScanPage() {
       try {
         const dup = booksRef.current.find((b) => b.book_id === id);
         if (dup) {
-          setPendingAlreadyInList(true);
+          setPendingBlocked({
+            title: "已在清單中",
+            message: "此書已在借書清單中，可略過繼續掃描下一本。",
+          });
           setPending(dup);
           return;
         }
@@ -115,10 +124,14 @@ export default function BorrowScanPage() {
         }
         const book = data as BookRow;
         if (book.status === "borrowed" && book.current_holder === member) {
-          setErrorMsg("這本書已經在你手上");
+          setPendingBlocked({
+            title: "此書已在你手上",
+            message: "這本書目前持有者是你，無須再借，可略過繼續掃描下一本。",
+          });
+          setPending(book);
           return;
         }
-        setPendingAlreadyInList(false);
+        setPendingBlocked(null);
         setPending(book);
       } catch (err) {
         const m = err instanceof Error ? err.message : String(err);
@@ -221,7 +234,14 @@ export default function BorrowScanPage() {
       const inList = booksRef.current.some(
         (b) => b.book_id === match.book_id,
       );
-      setPendingAlreadyInList(inList);
+      setPendingBlocked(
+        inList
+          ? {
+              title: "已在清單中",
+              message: "此書已在借書清單中，可略過繼續掃描下一本。",
+            }
+          : null,
+      );
       setPending(match);
     } catch (err) {
       console.error("recognize error", err);
@@ -240,12 +260,12 @@ export default function BorrowScanPage() {
       kind: "success",
     });
     setPending(null);
-    setPendingAlreadyInList(false);
+    setPendingBlocked(null);
   }, [pending]);
 
   const handleSkip = useCallback(() => {
     setPending(null);
-    setPendingAlreadyInList(false);
+    setPendingBlocked(null);
   }, []);
 
   const handleRemove = useCallback((bookId: string) => {
@@ -377,7 +397,7 @@ export default function BorrowScanPage() {
           actionLabel="加入借書清單"
           onAction={handleAdd}
           onCancel={handleSkip}
-          alreadyInList={pendingAlreadyInList}
+          blocked={pendingBlocked}
         />
       )}
 
@@ -477,17 +497,18 @@ function BookConfirmSheet({
   actionLabel,
   onAction,
   onCancel,
-  alreadyInList = false,
+  blocked = null,
 }: {
   book: BookRow;
   currentMember: string;
   actionLabel: string;
   onAction: () => void;
   onCancel: () => void;
-  alreadyInList?: boolean;
+  blocked?: { title: string; message: string } | null;
 }) {
+  const isBlocked = blocked !== null;
   const warningOther =
-    !alreadyInList &&
+    !isBlocked &&
     book.status === "borrowed" &&
     book.current_holder &&
     book.current_holder !== currentMember;
@@ -496,13 +517,13 @@ function BookConfirmSheet({
     <BottomSheet
       open
       onClose={onCancel}
-      title={alreadyInList ? "已在清單中" : "是這本嗎？"}
+      title={blocked?.title ?? "是這本嗎？"}
       subtitle={book.title}
       footer={
-        alreadyInList ? (
+        isBlocked ? (
           <button
             onClick={onCancel}
-            className="w-full bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+            className="w-full bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
           >
             略過
           </button>
@@ -524,11 +545,6 @@ function BookConfirmSheet({
         )
       }
     >
-      {alreadyInList && (
-        <p className="text-xs bg-amber-50 text-amber-800 border border-amber-100 rounded-lg px-3 py-2 mb-3">
-          此書已在借書清單中，可略過繼續掃描下一本。
-        </p>
-      )}
       <div className="flex gap-4 items-start pb-3">
         {book.image_url ? (
           <ZoomableImage
@@ -566,6 +582,11 @@ function BookConfirmSheet({
         <p className="text-xs bg-amber-50 text-amber-800 border border-amber-100 rounded-lg px-3 py-2 mb-2">
           此書目前在「{book.current_holder}」手上。若仍要加入，會覆蓋為「
           {currentMember}」借出。
+        </p>
+      )}
+      {blocked && (
+        <p className="text-xs bg-amber-50 text-amber-800 border border-amber-100 rounded-lg px-3 py-2 mb-2">
+          {blocked.message}
         </p>
       )}
     </BottomSheet>
