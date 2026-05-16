@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPublicOrg } from "@/lib/publicOrg";
 import BrandedBackButton from "./BrandedBackButton";
+import BrandedShareButton from "./BrandedShareButton";
 
 type Props = {
   children: ReactNode;
@@ -38,6 +39,7 @@ export default async function BrandedLayout({ children, params }: Props) {
           >
             booksnap
           </Link>
+          <BrandedShareButton orgName={org.name} />
         </div>
       </header>
 

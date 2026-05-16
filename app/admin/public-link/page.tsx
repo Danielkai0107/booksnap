@@ -52,7 +52,7 @@ export default function PublicLinkPage() {
       } catch (err) {
         if (!alive) return;
         console.error("[admin/public-link] fetch failed", err);
-        toast.error(err instanceof Error ? err.message : "載入公開連結失敗");
+        toast.error(err instanceof Error ? err.message : "載入借還連結失敗");
       }
     })();
     return () => {
@@ -62,13 +62,13 @@ export default function PublicLinkPage() {
 
   return (
     <AdminShell
-      topbarTitle="公開連結"
+      topbarTitle="借還 QR／連結"
       topbarRight={
         settings && publicUrl ? (
           <ShareButton
             url={publicUrl}
-            title={`${settings.orgName || "booksnap"} · 公開借還`}
-            text="從這裡查詢館藏與借歸還"
+            title={`${settings.orgName || "booksnap"} · 借還書`}
+            text="掃描書上 QR 即可借書、還書"
           />
         ) : null
       }

@@ -20,7 +20,7 @@ export default function BrandedBackButton({ homeHref }: Props) {
     <Link
       href={homeHref}
       aria-label="返回"
-      className="absolute left-2 top-1/2 -translate-y-1/2 inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-700 hover:bg-neutral-100 transition"
+      className="press-feedback absolute left-2 top-1/2 -translate-y-1/2 inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-700 hover:bg-neutral-100 transition"
       style={{ marginTop: "calc(env(safe-area-inset-top) / 2)" }}
     >
       <svg

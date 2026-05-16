@@ -497,7 +497,7 @@ export default function BorrowClient({ slug, orgName, prefillBookId }: Props) {
               className="mt-1 w-full px-4 py-3 border border-neutral-200 rounded-xl text-base focus:outline-none focus:border-neutral-900"
             />
             <span className="mt-1.5 block text-[11px] text-neutral-400">
-              讓下一個人能在公開查書頁看到這本書目前去了哪裡。
+              讓下一個人能在查書頁看到這本書目前去了哪裡。
             </span>
           </label>
         </div>

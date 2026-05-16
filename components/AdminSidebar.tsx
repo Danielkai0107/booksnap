@@ -11,7 +11,7 @@ const items = [
   { href: "/admin/categories", label: "分類管理", matchExact: false },
   { href: "/admin/labels", label: "標籤列印", matchExact: false },
   { href: "/admin/settings", label: "單位資料", matchExact: false },
-  { href: "/admin/public-link", label: "公開連結", matchExact: false },
+  { href: "/admin/public-link", label: "借還 QR／連結", matchExact: false },
 ];
 
 const bottomItemClass =
@@ -98,7 +98,7 @@ function PublicLinkButton({ onClick }: { onClick?: () => void }) {
   if (!publicSlug) {
     return (
       <span className={`${bottomItemClass} opacity-60 cursor-not-allowed`}>
-        公開頁待啟用
+        借還頁尚未設定
       </span>
     );
   }
@@ -110,7 +110,7 @@ function PublicLinkButton({ onClick }: { onClick?: () => void }) {
       rel="noopener"
       className={bottomItemClass}
     >
-      查看公開頁 ↗
+      看看讀者畫面
     </Link>
   );
 }

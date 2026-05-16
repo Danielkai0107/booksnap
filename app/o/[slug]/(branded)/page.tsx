@@ -32,7 +32,7 @@ export default async function OrgLandingPage({ params }: Props) {
 
         {borrowDisabled && (
           <p className="mt-6 text-center text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-            本單位的公開借還功能目前已暫停。
+            本單位目前已暫停讀者借還，請聯絡單位人員。
           </p>
         )}
 
@@ -136,7 +136,7 @@ function ActionButton({
   primary?: boolean;
   fullWidth?: boolean;
 }) {
-  const className = `inline-flex ${fullWidth ? "w-full" : ""} items-center justify-center gap-2 px-4 py-4 rounded-2xl text-sm font-medium transition ${
+  const className = `press-feedback inline-flex ${fullWidth ? "w-full" : ""} items-center justify-center gap-2 px-4 py-4 rounded-2xl text-sm font-medium transition ${
     primary
       ? "bg-neutral-900 hover:bg-neutral-800 text-white"
       : "bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900"

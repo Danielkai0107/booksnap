@@ -230,7 +230,7 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 h-[26px] text-xs font-medium px-3 rounded-full border transition ${
+      className={`press-feedback inline-flex items-center gap-1.5 h-[26px] text-xs font-medium px-3 rounded-full border transition ${
         active
           ? "bg-neutral-900 text-white border-neutral-900"
           : "bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400"

@@ -14,7 +14,7 @@ export default async function PublicReturnPage({ params, searchParams }: Props) 
   if (!org.public_borrow_enabled) {
     return (
       <div className="pt-16 text-center text-sm text-amber-700">
-        本單位的公開借還功能目前已暫停。
+        本單位目前已暫停讀者借還，請聯絡單位人員。
       </div>
     );
   }

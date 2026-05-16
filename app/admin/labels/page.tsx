@@ -1,8 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminShell from "@/components/AdminShell";
 import LabelCard from "@/components/LabelCard";
+import LabelPrintOptions from "@/components/LabelPrintOptions";
+import {
+  a4GridForLabelSize,
+  readStoredLabelPrintMode,
+  readStoredLabelSize,
+  storeLabelPrintMode,
+  storeLabelSize,
+  LABEL_PRINT_MODES,
+  LABEL_SIZES,
+  type LabelPrintMode,
+  type LabelSizeId,
+} from "@/lib/labelSizes";
+import { buildLabelsZplBatch, downloadTextFile } from "@/lib/labelZpl";
+import { useLabelPrintPageSize } from "@/lib/useLabelPrintPageSize";
 import SearchInput from "@/components/SearchInput";
 import { useToast } from "@/components/ToastProvider";
 import ZoomableImage from "@/components/ZoomableImage";
@@ -14,14 +28,40 @@ export default function LabelsPage() {
   const [query, setQuery] = useState("");
   const [showLabels, setShowLabels] = useState(false);
   const [loading, setLoading] = useState(true);
-  /**
-   * Public slug + org display name used on each printed label. We fetch them
-   * once via `/api/me` instead of plumbing down from a server component
-   * because this page is "use client" end-to-end.
-   */
   const [slug, setSlug] = useState<string | null>(null);
   const [orgName, setOrgName] = useState<string | null>(null);
+  const [labelSize, setLabelSize] = useState<LabelSizeId>("40x30");
+  const [printMode, setPrintMode] = useState<LabelPrintMode>("thermal");
   const toast = useToast();
+
+  useEffect(() => {
+    setLabelSize(readStoredLabelSize());
+    setPrintMode(readStoredLabelPrintMode());
+  }, []);
+
+  useLabelPrintPageSize(labelSize, printMode, showLabels);
+
+  const a4Grid = useMemo(() => a4GridForLabelSize(labelSize), [labelSize]);
+
+  const a4SheetStyle = useMemo(() => {
+    if (printMode !== "a4") return undefined;
+    const { widthMm, heightMm } = LABEL_SIZES[labelSize];
+    return {
+      gridTemplateColumns: `repeat(${a4Grid.cols}, ${widthMm}mm)`,
+      gridAutoRows: `${heightMm}mm`,
+      gap: `${a4Grid.gapMm}mm`,
+    } as const;
+  }, [printMode, labelSize, a4Grid]);
+
+  function onLabelSizeChange(id: LabelSizeId) {
+    setLabelSize(id);
+    storeLabelSize(id);
+  }
+
+  function onPrintModeChange(mode: LabelPrintMode) {
+    setPrintMode(mode);
+    storeLabelPrintMode(mode);
+  }
 
   useEffect(() => {
     let alive = true;
@@ -70,6 +110,31 @@ export default function LabelsPage() {
     [books, selected],
   );
 
+  const handleDownloadZpl = useCallback(() => {
+    if (selectedBooks.length === 0) return;
+    const origin =
+      typeof window !== "undefined" && window.location?.origin
+        ? window.location.origin
+        : "";
+    if (!slug) {
+      toast.error("缺少單位 slug，無法產生 QR 連結");
+      return;
+    }
+    const zpl = buildLabelsZplBatch(
+      selectedBooks.map((b) => ({
+        bookId: b.book_id,
+        title: b.title,
+        slug,
+        orgName,
+        size: labelSize,
+        origin,
+      })),
+    );
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadTextFile(zpl, `booksnap-labels-${labelSize}-${stamp}.zpl`);
+    toast.success(`已下載 ${selectedBooks.length} 張標籤的 ZPL 檔`);
+  }, [selectedBooks, slug, orgName, labelSize, toast]);
+
   function toggle(bookId: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -87,44 +152,87 @@ export default function LabelsPage() {
     setSelected(new Set());
   }
 
+  const printHint = LABEL_PRINT_MODES[printMode].hint;
+  const sizeLabel = LABEL_SIZES[labelSize].label;
+  const a4Hint =
+    printMode === "a4"
+      ? `每張 A4 約可排 ${a4Grid.cols}×${a4Grid.rows}＝${a4Grid.perPage} 張（${sizeLabel}）`
+      : null;
+
+  const labelSheet = (
+    <div
+      className={`label-print-sheet label-print-sheet--${printMode}`}
+      style={a4SheetStyle}
+    >
+      {selectedBooks.map((b) => (
+        <LabelCard
+          key={`${b.book_id}-${labelSize}-${printMode}`}
+          bookId={b.book_id}
+          title={b.title}
+          slug={slug ?? ""}
+          orgName={orgName}
+          size={labelSize}
+        />
+      ))}
+    </div>
+  );
+
   if (showLabels) {
     return (
       <AdminShell
         onBack={() => setShowLabels(false)}
         topbarTitle="標籤預覽"
         topbarRight={
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="press-feedback inline-flex items-center gap-1 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 px-3 h-9 rounded-full"
-          >
-            <span className="leading-none">列印</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadZpl}
+              className="press-feedback inline-flex items-center gap-1 text-sm font-medium text-neutral-900 bg-white border border-neutral-200 hover:border-neutral-400 px-3 h-9 rounded-full"
+            >
+              <span className="leading-none">ZPL</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="press-feedback inline-flex items-center gap-1 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 px-3 h-9 rounded-full"
+            >
+              <span className="leading-none">列印</span>
+            </button>
+          </div>
         }
       >
-        <div className="no-print mb-6">
+        <div className="no-print mb-6 space-y-3">
+          <LabelPrintOptions
+            size={labelSize}
+            printMode={printMode}
+            onSizeChange={onLabelSizeChange}
+            onPrintModeChange={onPrintModeChange}
+          />
           <p className="text-sm text-neutral-500">
-            共 {selectedBooks.length} 張標籤
+            共 {selectedBooks.length} 張 · {sizeLabel}
+            {printMode === "a4" ? " · A4 拼版" : " · 熱感單張"}
+          </p>
+          <p className="text-xs text-neutral-400">{printHint}</p>
+          {a4Hint ? (
+            <p className="text-xs text-neutral-400">{a4Hint}</p>
+          ) : null}
+          <p className="text-xs text-neutral-400">
+            標籤機請用「下載 ZPL」→ 以 Zebra 驅動或 Zebra Setup Utilities
+            傳送 .zpl（203 dpi）。瀏覽器列印請選與上方相同的列印方式。
           </p>
         </div>
 
         <div className="print-area">
           {!slug && (
             <p className="no-print mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-              尚未取得單位公開 slug，QR 連結將缺少單位資訊。請重新整理。
+              尚未取得單位借還網址，書籤 QR 將無法對應單位。請重新整理。
             </p>
           )}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {selectedBooks.map((b) => (
-              <LabelCard
-                key={b.book_id}
-                bookId={b.book_id}
-                title={b.title}
-                slug={slug ?? ""}
-                orgName={orgName}
-              />
-            ))}
-          </div>
+          {printMode === "a4" ? (
+            <div className="label-a4-frame">{labelSheet}</div>
+          ) : (
+            labelSheet
+          )}
         </div>
       </AdminShell>
     );
@@ -135,7 +243,6 @@ export default function LabelsPage() {
       topbarTitle="標籤列印"
       scrollLifted
       topbarRight={
-        // 桌機 only：手機已有底部 FAB；disabled 樣式維持，提示需先勾選書籍
         <button
           type="button"
           onClick={() => setShowLabels(true)}
@@ -164,9 +271,16 @@ export default function LabelsPage() {
         </button>
       }
     >
-      {/* 搜尋 + 全選/清空 同一行：`items-stretch` 讓兩顆按鈕自動撐到
-          SearchInput 的高度，視覺上像同一條輸入列。
-          `wrapperClassName="flex-1 min-w-0"` 讓搜尋欄吃掉剩餘空間。 */}
+      <div className="no-print mb-4 space-y-2">
+        <LabelPrintOptions
+          size={labelSize}
+          printMode={printMode}
+          onSizeChange={onLabelSizeChange}
+          onPrintModeChange={onPrintModeChange}
+        />
+        <p className="text-xs text-neutral-400">{printHint}</p>
+      </div>
+
       <div className="flex items-stretch gap-2 mb-5">
         <SearchInput
           value={query}
@@ -236,10 +350,8 @@ export default function LabelsPage() {
         </ul>
       )}
 
-      {/* 手機版底部留白，避免列表被浮動按鈕遮擋 */}
       <div className="md:hidden h-24" aria-hidden />
 
-      {/* 手機版底部固定「批次列印」按鈕（呼應分類管理頁的浮動 CTA） */}
       <div
         className="md:hidden fixed inset-x-0 bottom-0 z-40 px-5 pt-6 flex justify-center pointer-events-none bg-gradient-to-t from-white via-white/95 to-white/0"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 20px)" }}

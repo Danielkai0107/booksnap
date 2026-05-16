@@ -137,7 +137,7 @@ export default function SettingsClient({ basic }: Props) {
 
         <Field
           label="聯絡 Email"
-          hint="這是公開聯絡用 Email，非登入 Email。若需更改登入帳號請聯絡營運方。"
+          hint="這是對外聯絡用 Email，非登入 Email。若需更改登入帳號請聯絡營運方。"
         >
           <input
             type="email"

@@ -35,7 +35,7 @@ export default function ShareButton({ url, title, text }: Props) {
     }
     try {
       await navigator.clipboard.writeText(url);
-      toast.success("已複製公開連結");
+      toast.success("已複製借還連結");
     } catch (err) {
       console.error("[ShareButton] copy failed", err);
       toast.error("分享失敗，請手動複製連結");
@@ -46,7 +46,7 @@ export default function ShareButton({ url, title, text }: Props) {
     <button
       type="button"
       onClick={handleShare}
-      aria-label="分享公開連結"
+      aria-label="分享借還連結"
       className="press-feedback md:hidden inline-flex items-center gap-1 text-sm font-medium text-neutral-800 hover:text-neutral-900 bg-white border border-neutral-200 hover:border-neutral-400 px-3 h-9 rounded-full"
     >
       <svg

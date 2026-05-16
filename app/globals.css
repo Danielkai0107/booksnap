@@ -246,7 +246,169 @@ textarea {
   }
 }
 
-/* Print styles */
+/* ── 書籍標籤（熱感貼紙 40×30 / 30×20 mm）────────────────────────
+   螢幕預覽與列印共用 mm 尺寸；@page 由 useLabelPrintPageSize 依選擇注入。 */
+.label-card,
+.print-label {
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #fff;
+  color: #0a0a0a;
+  display: flex;
+  flex-direction: column;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.label-size-40x30 {
+  width: 40mm;
+  height: 30mm;
+  padding: 1.2mm 1.4mm;
+  gap: 0.4mm;
+}
+
+.label-size-30x20 {
+  width: 30mm;
+  height: 20mm;
+  padding: 0.8mm 1mm;
+  gap: 0.25mm;
+}
+
+/* 螢幕預覽：加細框方便對齊，列印時會拿掉 */
+.label-card {
+  border: 0.2mm solid #e5e5e5;
+  border-radius: 0.8mm;
+}
+
+.label-org {
+  flex-shrink: 0;
+  font-size: 5.5pt;
+  line-height: 1.15;
+  color: #525252;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.label-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1mm;
+}
+
+.label-size-40x30 .label-qr-wrap {
+  width: 12.5mm;
+  height: 12.5mm;
+}
+
+.label-size-30x20 .label-qr-wrap {
+  width: 8mm;
+  height: 8mm;
+}
+
+.label-qr-wrap {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.label-qr {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.label-qr-placeholder {
+  background: #f5f5f5;
+}
+
+.label-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: left;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.label-size-40x30 .label-title {
+  font-size: 6.5pt;
+  -webkit-line-clamp: 3;
+}
+
+.label-size-30x20 .label-title {
+  font-size: 5.5pt;
+  -webkit-line-clamp: 2;
+}
+
+.label-size-40x30 .label-org {
+  font-size: 5.5pt;
+}
+
+.label-size-30x20 .label-org {
+  font-size: 4.5pt;
+  line-height: 1.1;
+}
+
+.label-size-40x30 .label-main {
+  gap: 1mm;
+}
+
+.label-size-30x20 .label-main {
+  gap: 0.6mm;
+}
+
+.label-barcode {
+  flex-shrink: 0;
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.label-size-40x30 .label-barcode {
+  max-height: 7.5mm;
+}
+
+.label-size-30x20 .label-barcode {
+  max-height: 5mm;
+}
+
+.label-print-sheet {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3mm;
+  align-content: flex-start;
+}
+
+/* A4 拼版預覽：模擬一張 A4 可列印區 */
+.label-a4-frame {
+  box-sizing: border-box;
+  width: 210mm;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 10mm;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+}
+
+.label-print-sheet--a4 {
+  display: grid;
+  gap: 3mm;
+  justify-content: start;
+}
+
+/* Print styles（@page 見 lib/useLabelPrintPageSize.ts） */
 @media print {
   body {
     background: white;
@@ -259,14 +421,47 @@ textarea {
     visibility: visible;
   }
   .print-area {
-    position: absolute;
-    inset: 0;
+    position: static;
+    inset: auto;
     background: white;
-    padding: 16px;
+    padding: 0;
   }
+  .label-a4-frame {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+    width: auto;
+    max-width: none;
+  }
+  .label-card,
   .print-label {
-    break-inside: avoid;
-    page-break-inside: avoid;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  /* 熱感：一張標籤一頁 */
+  .label-print-sheet--thermal {
+    display: block;
+  }
+  .label-print-sheet--thermal .label-card,
+  .label-print-sheet--thermal .print-label {
+    page-break-after: always;
+    break-after: page;
+  }
+  .label-print-sheet--thermal .label-card:last-child,
+  .label-print-sheet--thermal .print-label:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  /* A4：多張同頁，自動換頁 */
+  .label-print-sheet--a4 {
+    display: grid !important;
+  }
+  .label-print-sheet--a4 .label-card,
+  .label-print-sheet--a4 .print-label {
+    page-break-after: unset;
+    break-after: unset;
   }
   .no-print {
     display: none !important;

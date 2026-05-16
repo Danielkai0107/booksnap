@@ -44,7 +44,7 @@ export default async function DeepLinkBookPage({ params }: Props) {
       <ErrorState
         slug={org.public_slug}
         title="服務暫停"
-        message={`${org.name} 目前暫停公開借還，請改聯絡單位人員。`}
+        message={`${org.name} 目前暫停讀者借還，請聯絡單位人員。`}
       />
     );
   }

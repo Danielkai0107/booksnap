@@ -79,7 +79,7 @@ export default function BorrowersPage() {
       ) : filtered.length === 0 ? (
         <div className="py-24 text-center text-sm text-neutral-500">
           {borrowers.length === 0
-            ? "尚未有任何出借人。請把公開借還頁面分享給讀者使用。"
+            ? "尚未有任何出借人。把借還 QR 或連結傳給讀者，請他們掃碼試借一本書。"
             : "沒有符合的出借人"}
         </div>
       ) : (

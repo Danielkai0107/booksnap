@@ -130,7 +130,7 @@ export default function MyRecordsButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`inline-flex ${catalogEnabled ? "" : "w-full"} items-center justify-center gap-2 px-4 py-4 rounded-2xl text-sm font-medium transition bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900`}
+        className={`press-feedback inline-flex ${catalogEnabled ? "" : "w-full"} items-center justify-center gap-2 px-4 py-4 rounded-2xl text-sm font-medium transition bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900`}
       >
         <svg
           width="18"
@@ -168,7 +168,7 @@ export default function MyRecordsButton({
               <button
                 type="button"
                 onClick={handleClose}
-                className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3.5 rounded-xl transition"
+                className="press-feedback flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3.5 rounded-xl transition"
               >
                 關閉
               </button>
@@ -176,7 +176,7 @@ export default function MyRecordsButton({
                 type="button"
                 onClick={handleQuery}
                 disabled={loading}
-                className="flex-1 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-200 disabled:text-neutral-400 text-white text-sm font-medium py-3.5 rounded-xl transition"
+                className="press-feedback flex-1 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-200 disabled:text-neutral-400 text-white text-sm font-medium py-3.5 rounded-xl transition"
               >
                 {loading ? "查詢中…" : "查詢"}
               </button>
@@ -186,7 +186,7 @@ export default function MyRecordsButton({
               <button
                 type="button"
                 onClick={handleClose}
-                className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3.5 rounded-xl transition"
+                className="press-feedback flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3.5 rounded-xl transition"
               >
                 關閉
               </button>
@@ -196,7 +196,7 @@ export default function MyRecordsButton({
                   setPhase("lookup");
                   setData(null);
                 }}
-                className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-xl transition"
+                className="press-feedback flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-xl transition"
               >
                 重新查詢
               </button>

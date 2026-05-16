@@ -62,7 +62,7 @@ export async function registerAction(
   } catch (err) {
     await admin.auth.admin.deleteUser(userId);
     return {
-      error: err instanceof Error ? err.message : "建立公開連結失敗",
+      error: err instanceof Error ? err.message : "建立借還連結失敗",
       values,
     };
   }

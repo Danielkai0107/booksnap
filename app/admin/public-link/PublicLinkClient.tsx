@@ -46,7 +46,7 @@ export default function PublicLinkClient({
   async function copyUrl() {
     try {
       await navigator.clipboard.writeText(publicUrl);
-      toast.success("已複製公開連結");
+      toast.success("已複製借還連結");
     } catch (err) {
       console.error("[public-link] copy failed", err);
       toast.error("複製失敗，請手動選取");
@@ -82,10 +82,10 @@ export default function PublicLinkClient({
     <div className="space-y-6">
       <section className="border border-neutral-200 rounded-2xl p-5 md:p-7 text-center">
         <h2 className="text-base font-semibold text-neutral-900">
-          公開借還連結
+          給讀者的借還連結
         </h2>
         <p className="mt-1 text-xs text-neutral-500">
-          slug ·{" "}
+          網址代碼 ·{" "}
           <code className="font-mono text-neutral-700">{publicSlug}</code>
         </p>
 
@@ -94,7 +94,7 @@ export default function PublicLinkClient({
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={qrUrl}
-              alt="公開連結 QR"
+              alt="借還 QR"
               className="w-48 h-48 md:w-56 md:h-56 border border-neutral-200 rounded-lg"
             />
           ) : (
@@ -135,8 +135,8 @@ export default function PublicLinkClient({
 
       <section className="border border-neutral-200 rounded-2xl p-5 md:p-7 space-y-4">
         <ToggleRow
-          label="開放公開借還"
-          description="讓任何掃描 QR 或拿到連結的人使用。關閉後公開頁會顯示『暫停服務』。"
+          label="讓讀者可以掃碼借還"
+          description="開啟後，讀者掃 QR 或開連結即可借還。關閉後，讀者畫面會顯示暫停服務。"
           checked={borrowEnabled}
           disabled={savingFor === "borrow"}
           onChange={(v) => {
@@ -145,8 +145,8 @@ export default function PublicLinkClient({
           }}
         />
         <ToggleRow
-          label="顯示公開書籍目錄"
-          description="關閉後，不像讀者顯示館藏，只能透過 QR 直達借還。"
+          label="讓讀者可以查書"
+          description="關閉後，讀者無法瀏覽館藏列表，只能透過書上 QR 直達借還。"
           checked={catalogEnabled}
           disabled={savingFor === "catalog"}
           onChange={(v) => {

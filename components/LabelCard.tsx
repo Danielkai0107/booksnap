@@ -3,39 +3,48 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import JsBarcode from "jsbarcode";
+import {
+  LABEL_SIZES,
+  type LabelSizeId,
+} from "@/lib/labelSizes";
+
+export type { LabelSizeId };
+export const LABEL_WIDTH_MM = LABEL_SIZES["40x30"].widthMm;
+export const LABEL_HEIGHT_MM = LABEL_SIZES["40x30"].heightMm;
 
 type Props = {
   bookId: string;
   title: string;
-  /**
-   * Organization public slug. Embedded into the QR target URL so anonymous
-   * scanners land on the correct unit's borrow / return flow even across
-   * tenants with the same `book_id`.
-   */
   slug: string;
-  /**
-   * Organization display name shown as a header above the book title. Gives
-   * the printed label a clear "owned by" anchor — handy when several units
-   * end up on the same shelf at a venue.
-   */
   orgName?: string | null;
+  /** 熱感貼紙規格，預設 40×30 mm */
+  size?: LabelSizeId;
   className?: string;
 };
 
+const QR_PX: Record<LabelSizeId, number> = {
+  "40x30": 140,
+  "30x20": 96,
+};
+
+const BARCODE_OPTS: Record<
+  LabelSizeId,
+  { height: number; fontSize: number; width: number }
+> = {
+  "40x30": { height: 22, fontSize: 6, width: 1 },
+  "30x20": { height: 14, fontSize: 5, width: 0.85 },
+};
+
 /**
- * QR payload is the public deep-link URL `/o/{slug}/b/{bookId}` rather than
- * a bare `book_id`. Native phone cameras open it directly in the browser, and
- * the server-side route at `/o/{slug}/b/[bookId]` then dispatches to either
- * the borrow or return flow based on current book status.
- *
- * Error correction is bumped to "M" so a small smudge or curved spine does
- * not break decoding when the URL stretches the symbol density.
+ * 書籍標籤卡（40×30 或 30×20 mm）。版面：單位名 → QR + 書名 → CODE128。
+ * QR 連結 `/o/{slug}/b/{bookId}`。
  */
 export default function LabelCard({
   bookId,
   title,
   slug,
   orgName,
+  size = "40x30",
   className = "",
 }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -48,11 +57,11 @@ export default function LabelCard({
         ? window.location.origin
         : "";
     const target = `${origin}/o/${encodeURIComponent(slug)}/b/${encodeURIComponent(
-      bookId
+      bookId,
     )}`;
     QRCode.toDataURL(target, {
-      margin: 1,
-      width: 260,
+      margin: 0,
+      width: QR_PX[size],
       color: { dark: "#0a0a0a", light: "#ffffff" },
       errorCorrectionLevel: "M",
     })
@@ -63,45 +72,51 @@ export default function LabelCard({
     return () => {
       alive = false;
     };
-  }, [bookId, slug]);
+  }, [bookId, slug, size]);
 
   useEffect(() => {
     if (!svgRef.current) return;
+    const opts = BARCODE_OPTS[size];
     try {
       JsBarcode(svgRef.current, bookId, {
         format: "CODE128",
-        width: 1.6,
-        height: 50,
-        fontSize: 12,
+        width: opts.width,
+        height: opts.height,
+        fontSize: opts.fontSize,
         margin: 0,
         background: "#ffffff",
         lineColor: "#0a0a0a",
         displayValue: true,
+        textMargin: 1,
       });
     } catch (err) {
       console.error("[LabelCard] barcode error", err);
     }
-  }, [bookId]);
+  }, [bookId, size]);
 
   return (
     <div
-      className={`print-label bg-white border border-neutral-200 rounded-xl p-5 flex flex-col items-center text-center break-inside-avoid ${className}`}
+      className={`print-label label-card label-size-${size} ${className}`.trim()}
     >
-      {orgName && (
-        <p className="text-[11px] text-neutral-500 mb-1 line-clamp-1 w-full">
+      {orgName ? (
+        <p className="label-org" title={orgName}>
           {orgName}
         </p>
-      )}
-      <p className="font-medium text-sm text-neutral-900 mb-3 line-clamp-2 min-h-[2.5em]">
-        {title}
-      </p>
-      {qrDataUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={qrDataUrl} alt="qr" className="w-28 h-28 mb-2" />
-      ) : (
-        <div className="w-28 h-28 mb-2 bg-neutral-50" />
-      )}
-      <svg ref={svgRef} className="w-full max-w-[200px]" />
+      ) : null}
+      <div className="label-main">
+        <div className="label-qr-wrap">
+          {qrDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={qrDataUrl} alt="" className="label-qr" />
+          ) : (
+            <div className="label-qr label-qr-placeholder" aria-hidden />
+          )}
+        </div>
+        <p className="label-title" title={title}>
+          {title}
+        </p>
+      </div>
+      <svg ref={svgRef} className="label-barcode" aria-hidden />
     </div>
   );
 }
