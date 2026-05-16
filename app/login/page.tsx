@@ -26,7 +26,10 @@ export default async function LoginPage({
         <h1 className="text-center text-2xl font-semibold tracking-tight text-neutral-900">
           booksnap
         </h1>
-        <p className="mt-2 text-center text-sm text-neutral-500">
+        <p className="mt-2 text-center text-xs text-neutral-400 tracking-wide">
+          教育圖書資產管理系統
+        </p>
+        <p className="mt-5 text-center text-sm text-neutral-500">
           單位登入
         </p>
 

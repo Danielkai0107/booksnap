@@ -10,11 +10,13 @@ type Props = {
   children: ReactNode;
   /**
    * 手機版頂部樣式：
-   * - "topbar"：顯示漢堡 + logo + 右側操作（給 /admin 主頁用）
+   * - "topbar"：顯示漢堡 + 標題 + 右側操作（給 /admin 主頁用）
    * - "back"：左上角浮動 ← 圓鈕（給內頁用）
    */
   mobileMode?: "topbar" | "back";
-  /** topbar 模式時右側按鈕（例：入庫） */
+  /** topbar 模式中央標題，預設 "booksnap"。絕對置中，不受兩側元素寬度影響。 */
+  topbarTitle?: ReactNode;
+  /** topbar 模式時右側按鈕（例：匯出） */
   topbarRight?: ReactNode;
   /** back 模式的回上頁路徑 */
   backHref?: string;
@@ -34,6 +36,7 @@ type Props = {
 export default function AdminShell({
   children,
   mobileMode = "back",
+  topbarTitle,
   topbarRight,
   backHref,
   desktopBack,
@@ -46,7 +49,7 @@ export default function AdminShell({
     <div className="min-h-screen bg-white">
       {mobileMode === "topbar" ? (
         <header className="md:hidden sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-neutral-100">
-          <div className="flex items-center justify-between h-14 px-3">
+          <div className="relative flex items-center h-14 px-3">
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
@@ -62,10 +65,14 @@ export default function AdminShell({
                 />
               </svg>
             </button>
-            <span className="text-base font-semibold tracking-tight text-neutral-900">
-              booksnap
+            <span
+              className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-base font-semibold tracking-tight text-neutral-900 max-w-[55%] truncate text-center"
+            >
+              {topbarTitle ?? "booksnap"}
             </span>
-            <div className="min-w-[40px] flex justify-end">{topbarRight}</div>
+            <div className="ml-auto flex items-center justify-end">
+              {topbarRight}
+            </div>
           </div>
         </header>
       ) : onBack ? (

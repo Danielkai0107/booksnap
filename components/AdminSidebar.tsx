@@ -53,10 +53,10 @@ function BrandHeader({ onClick }: { onClick?: () => void }) {
       onClick={onClick}
       className="block mb-10 leading-tight hover:opacity-90 transition"
     >
-      <span className="block text-base font-semibold tracking-tight text-neutral-900">
+      <span className="block text-xl font-semibold tracking-tight text-neutral-900">
         booksnap
       </span>
-      <span className="block mt-1 text-xs text-neutral-500 truncate">
+      <span className="block mt-1.5 text-sm text-neutral-600 truncate">
         {orgName ?? "—"}
       </span>
     </Link>

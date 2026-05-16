@@ -10,6 +10,7 @@ import BottomSheet from "@/components/BottomSheet";
 import CategorySelect from "@/components/CategorySelect";
 import CategoryTag from "@/components/CategoryTag";
 import EditBookSheet from "@/components/EditBookSheet";
+import SearchInput from "@/components/SearchInput";
 import Toast, { type ToastKind } from "@/components/Toast";
 
 type EditTarget = BookRow | null;
@@ -109,15 +110,43 @@ export default function AdminPage() {
   const borrowedCount = books.length - availableCount;
 
   return (
-    <AdminShell mobileMode="topbar">
-      <header className="mb-6 flex items-center justify-between gap-3">
+    <AdminShell
+      mobileMode="topbar"
+      topbarTitle="所有書籍"
+      topbarRight={
+        <a
+          href="/api/export"
+          className="inline-flex items-center gap-1 text-sm font-medium text-neutral-800 hover:text-neutral-900 px-3 h-9 rounded-full bg-white border border-neutral-200 hover:border-neutral-400 transition"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="shrink-0"
+            aria-hidden
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span className="leading-none">匯出</span>
+        </a>
+      }
+    >
+      {/* 桌機版頁面標題列；手機版標題已搬到 AdminShell topbar */}
+      <header className="hidden md:flex mb-6 items-center justify-between gap-3">
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
-          書籍庫存
+          所有書籍
         </h1>
         <div className="flex gap-2 shrink-0">
           <Link
             href="/checkin"
-            className="hidden md:inline-flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-3 rounded-xl transition"
+            className="inline-flex items-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-3 rounded-xl transition"
           >
             <svg
               width="16"
@@ -168,12 +197,12 @@ export default function AdminPage() {
       </dl>
 
       <div className="mb-5 flex gap-2">
-        <input
-          type="text"
+        <SearchInput
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onValueChange={setQuery}
           placeholder="搜尋書名或編號"
-          className="flex-1 min-w-0 h-[42px] px-4 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
+          wrapperClassName="flex-1 min-w-0"
+          className="w-full h-[42px] px-4 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
         />
         <div className="w-1/3 shrink-0">
           <CategorySelect
