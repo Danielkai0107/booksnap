@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import AdminShell from "@/components/AdminShell";
 import { useToast } from "@/components/ToastProvider";
 import PublicLinkClient from "./PublicLinkClient";
-import ShareButton from "./ShareButton";
 
 type Settings = {
   publicSlug: string;
@@ -61,18 +60,7 @@ export default function PublicLinkPage() {
   }, [toast]);
 
   return (
-    <AdminShell
-      topbarTitle="借還 QR／連結"
-      topbarRight={
-        settings && publicUrl ? (
-          <ShareButton
-            url={publicUrl}
-            title={`${settings.orgName || "booksnap"} · 借還書`}
-            text="掃描書上 QR 即可借書、還書"
-          />
-        ) : null
-      }
-    >
+    <AdminShell topbarTitle="借還 QR／連結">
       {settings === null ? (
         <div className="py-20 flex justify-center">
           <div className="w-7 h-7 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />
@@ -81,6 +69,7 @@ export default function PublicLinkPage() {
         <PublicLinkClient
           publicUrl={publicUrl}
           publicSlug={settings.publicSlug}
+          orgName={settings.orgName}
           publicBorrowEnabled={settings.publicBorrowEnabled}
           publicCatalogEnabled={settings.publicCatalogEnabled}
         />

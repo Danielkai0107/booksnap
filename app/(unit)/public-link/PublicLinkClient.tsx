@@ -7,13 +7,14 @@ import { useToast } from "@/components/ToastProvider";
 type Props = {
   publicUrl: string;
   publicSlug: string;
+  orgName: string;
   publicBorrowEnabled: boolean;
   publicCatalogEnabled: boolean;
 };
 
 /**
  * UI for the unit's public sharing surface. Two stacked cards:
- *  1. QR poster + copy button + downloadable PNG — what admins hand out.
+ *  1. QR poster + share / download buttons — what admins hand out.
  *  2. Two opt-out toggles that gate the anonymous `/o/{slug}` pages.
  *
  * Toggles save instantly with optimistic UI and revert on server-side
@@ -23,6 +24,7 @@ type Props = {
 export default function PublicLinkClient({
   publicUrl,
   publicSlug,
+  orgName,
   publicBorrowEnabled,
   publicCatalogEnabled,
 }: Props) {
@@ -43,13 +45,35 @@ export default function PublicLinkClient({
       .catch((err) => console.error("[public-link] qr error", err));
   }, [publicUrl]);
 
-  async function copyUrl() {
+  /**
+   * 「分享連結」按鈕：手機優先用 OS 原生分享面板（iOS Share Sheet / Android
+   * Intent Chooser）；桌機或裝置不支援 navigator.share 時退回剪貼簿。
+   * 使用者取消（AbortError）視為正常流程、不顯示錯誤。
+   */
+  async function shareLink() {
+    const shareData = {
+      url: publicUrl,
+      title: `${orgName || "booksnap"} · 借還書`,
+      text: "掃描書上 QR 即可借書、還書",
+    };
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return;
+        console.warn(
+          "[public-link] native share failed, fallback to copy",
+          err,
+        );
+      }
+    }
     try {
       await navigator.clipboard.writeText(publicUrl);
       toast.success("已複製借還連結");
     } catch (err) {
       console.error("[public-link] copy failed", err);
-      toast.error("複製失敗，請手動選取");
+      toast.error("分享失敗，請手動複製連結");
     }
   }
 
@@ -80,16 +104,8 @@ export default function PublicLinkClient({
 
   return (
     <div className="space-y-6">
-      <section className="border border-neutral-200 rounded-2xl p-5 md:p-7 text-center">
-        <h2 className="text-base font-semibold text-neutral-900">
-          給讀者的借還連結
-        </h2>
-        <p className="mt-1 text-xs text-neutral-500">
-          網址代碼 ·{" "}
-          <code className="font-mono text-neutral-700">{publicSlug}</code>
-        </p>
-
-        <div className="mt-5 flex justify-center">
+      <section className="rounded-2xl p-5 md:p-7 text-center">
+        <div className="mb-5 flex justify-center">
           {qrUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -101,35 +117,31 @@ export default function PublicLinkClient({
             <div className="w-48 h-48 md:w-56 md:h-56 bg-neutral-50 rounded-lg" />
           )}
         </div>
+        <p className="text-sm font-light text-neutral-500">給讀者的借還連結</p>
 
-        <div className="mt-5 text-left">
-          <p className="text-xs text-neutral-500 mb-1 text-center">連結</p>
-          <div className="flex gap-2">
-            <input
-              readOnly
-              value={publicUrl}
-              onFocus={(e) => e.target.select()}
-              className="flex-1 min-w-0 px-3 py-2.5 text-sm font-mono text-neutral-900 border border-neutral-200 rounded-lg bg-neutral-50 focus:outline-none focus:border-neutral-400 text-center"
-            />
-            <button
-              type="button"
-              onClick={copyUrl}
-              className="shrink-0 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition"
-            >
-              複製
-            </button>
-          </div>
-          {qrUrl && (
-            <div className="mt-3 text-center">
-              <a
-                href={qrUrl}
-                download={`booksnap-${publicSlug}.png`}
-                className="text-xs text-neutral-600 hover:text-neutral-900 underline-offset-2 hover:underline"
-              >
-                下載 QR 圖（適合張貼）
-              </a>
-            </div>
-          )}
+        <div className="mt-6 flex gap-3 md:justify-center">
+          <button
+            type="button"
+            onClick={shareLink}
+            className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition"
+          >
+            <ShareIcon />
+            <span>分享連結</span>
+          </button>
+          <a
+            href={qrUrl || undefined}
+            download={qrUrl ? `booksnap-${publicSlug}.png` : undefined}
+            aria-disabled={!qrUrl}
+            onClick={(e) => {
+              if (!qrUrl) e.preventDefault();
+            }}
+            className={`flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2.5 rounded-lg transition ${
+              qrUrl ? "" : "opacity-50 cursor-not-allowed"
+            }`}
+          >
+            <DownloadIcon />
+            <span>下載 QR 圖</span>
+          </a>
         </div>
       </section>
 
@@ -156,6 +168,46 @@ export default function PublicLinkClient({
         />
       </section>
     </div>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+      <polyline points="16 6 12 2 8 6" />
+      <line x1="12" y1="2" x2="12" y2="15" />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
   );
 }
 
