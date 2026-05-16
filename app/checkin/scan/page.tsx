@@ -285,7 +285,11 @@ export default function CheckinScanPage() {
   const handleUnpickCandidate = useCallback(() => {
     setPickedCandidate(null);
     setEditedIsbn("");
-  }, []);
+    // 回到當初 AI 辨識的書名（候選清單保留不動，使用者可以再選一張）。
+    if (currentCapture) {
+      setEditedTitle(currentCapture.detectedTitle);
+    }
+  }, [currentCapture]);
 
   // 確認彈窗最終要送出的 ISBN：直接信任使用者在 input 內看到的值。
   const effectiveIsbn = useMemo(
