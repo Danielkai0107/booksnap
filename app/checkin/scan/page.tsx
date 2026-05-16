@@ -145,6 +145,9 @@ export default function CheckinScanPage() {
     } catch (err) {
       // 詳細錯誤只給 dev 排查，UI 顯示友善訊息 + 重新請求按鈕。
       console.error("[scan] camera init failed", err);
+      // 明確把 streamRef 清掉，建立「cameraError=true ⇒ 無 stream」的不變式，
+      // 之後 render 就只需檢查 `cameraError`，不必讀 ref（React 19 不允許）。
+      streamRef.current = null;
       setCameraError(true);
       setMode("camera");
     }
@@ -474,7 +477,7 @@ export default function CheckinScanPage() {
                 <span className="focus-br" />
               </div>
             </div>
-            {cameraError && !streamRef.current && (
+            {cameraError && (
               <CameraErrorDialog
                 onRetry={() => startCamera()}
                 onClose={() => {
