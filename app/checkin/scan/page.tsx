@@ -12,10 +12,16 @@ import CategorySelect from "@/components/CategorySelect";
 import Toast, { type ToastKind } from "@/components/Toast";
 import ZoomableImage from "@/components/ZoomableImage";
 
-type Mode = "loading" | "camera" | "processing" | "confirming";
+type Mode = "loading" | "camera" | "processing" | "looking-up" | "confirming";
+
+type CaptureSource = "camera" | "barcode";
 
 type CurrentCapture = {
-  imageDataUrl: string;
+  source: CaptureSource;
+  /** 相機拍下的 base64；條碼模式為 null。 */
+  imageDataUrl: string | null;
+  /** Google 提供的封面 URL；條碼模式優先用，相機模式維持 null。 */
+  remoteImageUrl: string | null;
   detectedTitle: string;
   suggestedCategoryId: string | null;
   pickedIsbn: string | null;
@@ -33,10 +39,28 @@ type DuplicateMatch = {
   current_holder: string | null;
 };
 
+// 為了不污染全域型別，只宣告必要 surface。
+type BarcodeDetectorLike = {
+  detect: (
+    source: CanvasImageSource,
+  ) => Promise<{ rawValue: string; format: string }[]>;
+};
+
+type BarcodeDetectorCtor = {
+  new (options?: { formats: string[] }): BarcodeDetectorLike;
+  getSupportedFormats?: () => Promise<string[]>;
+};
+
 export default function CheckinScanPage() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const detectorRef = useRef<BarcodeDetectorLike | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const nativeRunningRef = useRef(false);
+  const zxingControlsRef = useRef<{ stop: () => void } | null>(null);
+  const lastDetectedRef = useRef<{ isbn: string; at: number } | null>(null);
+
   const {
     adminName,
     books: confirmedBooks,
@@ -65,7 +89,7 @@ export default function CheckinScanPage() {
     [categories],
   );
 
-  // Google 候選清單（debounce）。沒有 ISBN 才需要查，已選一筆後就不再覆寫。
+  // Google 候選清單（debounce）。只有相機 source 且尚未選一筆才會查。
   const [candidates, setCandidates] = useState<LookupCandidate[]>([]);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [pickedCandidateKey, setPickedCandidateKey] = useState<string | null>(
@@ -106,12 +130,29 @@ export default function CheckinScanPage() {
     };
   }, []);
 
+  const stopBarcodeScanners = useCallback(() => {
+    nativeRunningRef.current = false;
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (zxingControlsRef.current) {
+      try {
+        zxingControlsRef.current.stop();
+      } catch {
+        // ignore
+      }
+      zxingControlsRef.current = null;
+    }
+  }, []);
+
   const stopStream = useCallback(() => {
+    stopBarcodeScanners();
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
-  }, []);
+  }, [stopBarcodeScanners]);
 
   const attachStreamToVideo = useCallback(async () => {
     const video = videoRef.current;
@@ -125,6 +166,141 @@ export default function CheckinScanPage() {
     }
   }, []);
 
+  // 條碼掃到後的共用處理：lookup -> 進 confirming。
+  const handleDetectedIsbn = useCallback(async (raw: string) => {
+    const cleaned = raw.replace(/[-\s]/g, "");
+    // EAN-13 中 978 / 979 才是 ISBN（書籍）；其他 prefix 是商品條碼，忽略。
+    if (!/^97[89]\d{10}$/.test(cleaned)) return;
+
+    // 1.5 秒內同一個 ISBN 不重複觸發。
+    const now = Date.now();
+    if (
+      lastDetectedRef.current &&
+      lastDetectedRef.current.isbn === cleaned &&
+      now - lastDetectedRef.current.at < 1500
+    ) {
+      return;
+    }
+    lastDetectedRef.current = { isbn: cleaned, at: now };
+
+    stopBarcodeScanners();
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setMode("looking-up");
+    setCurrentCapture({
+      source: "barcode",
+      imageDataUrl: null,
+      remoteImageUrl: null,
+      detectedTitle: "",
+      suggestedCategoryId: null,
+      pickedIsbn: cleaned,
+      pickedAuthors: null,
+      pickedPublisher: null,
+      pickedPublishedDate: null,
+    });
+
+    let candidate: LookupCandidate | null = null;
+    try {
+      const res = await fetch(
+        `/api/books/lookup?isbn=${encodeURIComponent(cleaned)}`,
+        { cache: "no-store" },
+      );
+      const data = (await res.json()) as { candidates?: LookupCandidate[] };
+      candidate = data.candidates?.[0] ?? null;
+    } catch (err) {
+      console.warn("[checkin] lookup-by-isbn failed", err);
+    }
+
+    setCurrentCapture({
+      source: "barcode",
+      imageDataUrl: null,
+      remoteImageUrl: candidate?.thumbnail ?? null,
+      detectedTitle: candidate?.title ?? "",
+      suggestedCategoryId: null,
+      pickedIsbn: cleaned,
+      pickedAuthors:
+        candidate && candidate.authors.length > 0
+          ? candidate.authors.join("、")
+          : null,
+      pickedPublisher: candidate?.publisher ?? null,
+      pickedPublishedDate: candidate?.publishedDate ?? null,
+    });
+    setEditedTitle(candidate?.title ?? "");
+    setEditedCategoryId("");
+    setCandidates([]);
+    setPickedCandidateKey(null);
+    setMode("confirming");
+  }, [stopBarcodeScanners]);
+
+  // 在已啟動的 video 上跑被動條碼偵測。原生優先，沒有就動態載 ZXing。
+  const startBarcodeDetectorOnVideo = useCallback(
+    async (video: HTMLVideoElement) => {
+      stopBarcodeScanners();
+
+      const Ctor = (
+        window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }
+      ).BarcodeDetector;
+      if (Ctor) {
+        try {
+          const supported = Ctor.getSupportedFormats
+            ? await Ctor.getSupportedFormats()
+            : ["ean_13"];
+          const formats = ["ean_13"].filter((f) => supported.includes(f));
+          if (formats.length > 0) {
+            detectorRef.current = new Ctor({ formats });
+            nativeRunningRef.current = true;
+            const loop = async () => {
+              if (!nativeRunningRef.current) return;
+              const detector = detectorRef.current;
+              if (detector) {
+                try {
+                  const codes = await detector.detect(video);
+                  for (const code of codes) {
+                    if (code.rawValue) {
+                      void handleDetectedIsbn(code.rawValue);
+                    }
+                  }
+                } catch {
+                  // 單幀失敗就跳過，繼續下一幀。
+                }
+              }
+              if (nativeRunningRef.current) {
+                rafRef.current = requestAnimationFrame(loop);
+              }
+            };
+            rafRef.current = requestAnimationFrame(loop);
+            return;
+          }
+        } catch (err) {
+          console.warn("[scan] native detector init failed, fallback", err);
+        }
+      }
+
+      // Fallback: ZXing 1D 條碼解碼。
+      try {
+        const { BrowserMultiFormatOneDReader } = await import(
+          "@zxing/browser"
+        );
+        const reader = new BrowserMultiFormatOneDReader();
+        const controls = await reader.decodeFromVideoElement(
+          video,
+          (result) => {
+            if (result) {
+              const text = result.getText();
+              if (text) void handleDetectedIsbn(text);
+            }
+          },
+        );
+        zxingControlsRef.current = controls;
+      } catch (err) {
+        console.error("[scan] zxing init failed", err);
+      }
+    },
+    [handleDetectedIsbn, stopBarcodeScanners],
+  );
+
   const startCamera = useCallback(async () => {
     setErrorMsg(null);
     setMode("camera");
@@ -135,6 +311,20 @@ export default function CheckinScanPage() {
       });
       streamRef.current = stream;
       await attachStreamToVideo();
+      // 相機就緒後啟動被動條碼偵測。等下個 tick 確保 video 已 attach。
+      const video = videoRef.current;
+      if (video) {
+        // 等 video 有實際尺寸再啟動 detector，避免空幀。
+        if (video.readyState >= 2) {
+          void startBarcodeDetectorOnVideo(video);
+        } else {
+          const onReady = () => {
+            video.removeEventListener("loadeddata", onReady);
+            void startBarcodeDetectorOnVideo(video);
+          };
+          video.addEventListener("loadeddata", onReady);
+        }
+      }
     } catch (err) {
       console.error("camera error", err);
       const name = err instanceof Error ? err.name : "";
@@ -160,7 +350,7 @@ export default function CheckinScanPage() {
       setErrorMsg(msg);
       setMode("camera");
     }
-  }, [attachStreamToVideo]);
+  }, [attachStreamToVideo, startBarcodeDetectorOnVideo]);
 
   useEffect(() => {
     if (!adminName) return;
@@ -177,9 +367,11 @@ export default function CheckinScanPage() {
   }, [mode, attachStreamToVideo]);
 
   // Debounce Google Books 查詢：使用者改書名時 300ms 後送出。
-  // 已經選過候選 (pickedCandidateKey != null) 就暫停查詢，避免覆寫使用者選擇。
+  // 只在 source === "camera" 時跑（條碼模式 ISBN 已經精準匹配，不需要再查）。
+  // 已經選過候選 (pickedCandidateKey != null) 也暫停查詢，避免覆寫使用者選擇。
   useEffect(() => {
     if (mode !== "confirming") return;
+    if (!currentCapture || currentCapture.source !== "camera") return;
     if (pickedCandidateKey) return;
     const query = normalizeForGoogleSearch(editedTitle);
     if (query.length < 2) {
@@ -212,7 +404,7 @@ export default function CheckinScanPage() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [editedTitle, mode, pickedCandidateKey]);
+  }, [editedTitle, mode, pickedCandidateKey, currentCapture]);
 
   const handleCapture = useCallback(async () => {
     const video = videoRef.current;
@@ -233,7 +425,9 @@ export default function CheckinScanPage() {
     setCandidates([]);
     setPickedCandidateKey(null);
     setCurrentCapture({
+      source: "camera",
       imageDataUrl: base64,
+      remoteImageUrl: null,
       detectedTitle: "",
       suggestedCategoryId: null,
       pickedIsbn: null,
@@ -253,7 +447,9 @@ export default function CheckinScanPage() {
         ? (categories.find((c) => c.name === category) ?? null)
         : null;
       setCurrentCapture({
+        source: "camera",
         imageDataUrl: base64,
+        remoteImageUrl: null,
         detectedTitle: finalTitle,
         suggestedCategoryId: suggested?.id ?? null,
         pickedIsbn: null,
@@ -267,7 +463,9 @@ export default function CheckinScanPage() {
     } catch (err) {
       console.error("recognize error", err);
       setCurrentCapture({
+        source: "camera",
         imageDataUrl: base64,
+        remoteImageUrl: null,
         detectedTitle: "",
         suggestedCategoryId: null,
         pickedIsbn: null,
@@ -318,9 +516,12 @@ export default function CheckinScanPage() {
       if (!currentCapture) return;
       cartAddBook({
         title,
+        // 相機模式留下使用者拍的照片，條碼模式沒有照片就交給 Google 縮圖。
         imageDataUrl: currentCapture.imageDataUrl,
-        // AI 模式保留使用者拍的照片當封面，不用 Google 縮圖（解析度更好、是書本身）。
-        remoteImageUrl: null,
+        remoteImageUrl:
+          currentCapture.source === "barcode"
+            ? currentCapture.remoteImageUrl
+            : null,
         categoryId: editedCategoryId || null,
         isbn: currentCapture.pickedIsbn,
         authors: currentCapture.pickedAuthors,
@@ -332,6 +533,7 @@ export default function CheckinScanPage() {
       setEditedCategoryId("");
       setCandidates([]);
       setPickedCandidateKey(null);
+      lastDetectedRef.current = null;
       setToast({
         open: true,
         message: `已加入：${title}`,
@@ -348,7 +550,6 @@ export default function CheckinScanPage() {
     const baseFromInput = stripCopySuffix(raw);
 
     const inList = confirmedBooks.filter((b) => {
-      // ISBN 一致就是同一本，否則退回比對 base title。
       if (currentCapture.pickedIsbn && b.isbn) {
         return b.isbn === currentCapture.pickedIsbn;
       }
@@ -393,6 +594,7 @@ export default function CheckinScanPage() {
     setEditedCategoryId("");
     setCandidates([]);
     setPickedCandidateKey(null);
+    lastDetectedRef.current = null;
     startCamera();
   }, [startCamera]);
 
@@ -406,6 +608,7 @@ export default function CheckinScanPage() {
     setEditedCategoryId("");
     setCandidates([]);
     setPickedCandidateKey(null);
+    lastDetectedRef.current = null;
     startCamera();
   }, [startCamera]);
 
@@ -441,6 +644,11 @@ export default function CheckinScanPage() {
     router.push("/admin");
   }, [router, stopStream]);
 
+  // 確認彈窗預覽圖：相機模式用拍的照片，條碼模式用 Google 縮圖（沒有就空底）。
+  const previewSrc = currentCapture
+    ? currentCapture.imageDataUrl ?? currentCapture.remoteImageUrl
+    : null;
+
   return (
     <div className="fixed inset-0 bg-black text-white flex flex-col">
       <div className="relative flex-1 overflow-hidden">
@@ -451,7 +659,9 @@ export default function CheckinScanPage() {
           </div>
         )}
 
-        {(mode === "camera" || mode === "processing") && (
+        {(mode === "camera" ||
+          mode === "processing" ||
+          mode === "looking-up") && (
           <>
             <video
               ref={videoRef}
@@ -495,8 +705,8 @@ export default function CheckinScanPage() {
             {mode === "camera" && !errorMsg && (
               <>
                 <div className="absolute top-4 inset-x-0 flex flex-col items-center gap-3 z-10 px-6">
-                  <p className="text-xs text-white/70 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
-                    對準書封拍照辨識 · {adminName || "—"}
+                  <p className="text-xs text-white/70 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full text-center max-w-[90%]">
+                    對準 ISBN 條碼自動偵測，或按下方按鈕拍封面辨識 · {adminName || "—"}
                   </p>
                 </div>
                 <div className="absolute bottom-8 inset-x-0 flex flex-col items-center z-10 px-6">
@@ -510,7 +720,7 @@ export default function CheckinScanPage() {
                 </div>
               </>
             )}
-            {mode === "processing" && currentCapture && (
+            {mode === "processing" && currentCapture?.imageDataUrl && (
               <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center text-center px-6">
                 <ZoomableImage
                   src={currentCapture.imageDataUrl}
@@ -521,6 +731,15 @@ export default function CheckinScanPage() {
                 <p className="text-sm text-white/80">辨識中</p>
               </div>
             )}
+            {mode === "looking-up" && currentCapture && (
+              <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center text-center px-6">
+                <div className="w-7 h-7 border-2 border-white/20 border-t-white rounded-full animate-spin mb-3" />
+                <p className="text-sm text-white/80">查詢中</p>
+                <p className="text-xs text-white/40 mt-2 font-mono">
+                  ISBN {currentCapture.pickedIsbn}
+                </p>
+              </div>
+            )}
           </>
         )}
 
@@ -529,25 +748,46 @@ export default function CheckinScanPage() {
             <div className="w-full bg-white text-neutral-900 rounded-t-3xl px-6 pt-6 pb-8 animate-slide-up max-h-[90vh] overflow-y-auto shadow-2xl">
               <div className="w-10 h-1 bg-neutral-200 rounded-full mx-auto mb-5" />
               <div className="flex gap-4 items-start">
-                <ZoomableImage
-                  src={currentCapture.imageDataUrl}
-                  alt="cover"
-                  className="w-20 h-28 object-cover rounded-md border border-neutral-200 shrink-0"
-                />
+                {previewSrc ? (
+                  <ZoomableImage
+                    src={previewSrc}
+                    alt="cover"
+                    className="w-20 h-28 object-cover rounded-md border border-neutral-200 shrink-0"
+                  />
+                ) : (
+                  <div className="w-20 h-28 rounded-md bg-neutral-100 flex items-center justify-center text-[10px] text-neutral-400 shrink-0">
+                    無封面
+                  </div>
+                )}
                 <div className="flex-1 min-w-0 space-y-3">
                   <div>
                     <label className="block text-xs font-medium text-neutral-500 mb-1.5">
                       書名
+                      {currentCapture.source === "barcode" && (
+                        <span className="ml-1.5 inline-flex items-center text-[10px] text-neutral-400 font-normal">
+                          · 來自條碼
+                        </span>
+                      )}
                     </label>
                     <input
                       type="text"
                       value={editedTitle}
                       onChange={(e) => {
                         setEditedTitle(e.target.value);
-                        if (pickedCandidateKey) handleClearPickedCandidate();
+                        if (
+                          currentCapture.source === "camera" &&
+                          pickedCandidateKey
+                        ) {
+                          handleClearPickedCandidate();
+                        }
                       }}
                       className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-base focus:outline-none focus:border-neutral-900 transition"
-                      placeholder="輸入書名"
+                      placeholder={
+                        currentCapture.source === "barcode" &&
+                        !currentCapture.detectedTitle
+                          ? "Google 查無此 ISBN，請手動輸入書名"
+                          : "輸入書名"
+                      }
                       autoFocus
                     />
                   </div>
@@ -577,101 +817,124 @@ export default function CheckinScanPage() {
                 </div>
               </div>
 
-              {/* Google Books 候選清單 */}
-              <div className="mt-5">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-neutral-500">
-                    Google Books 比對
-                    {candidatesLoading && (
-                      <span className="ml-1.5 text-neutral-400 font-normal">
-                        · 搜尋中
-                      </span>
-                    )}
+              {/* 條碼模式：顯示已自動帶入的 metadata；不需要候選清單 */}
+              {currentCapture.source === "barcode" && (
+                <div className="mt-5 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+                  <p className="text-[11px] text-neutral-500 font-mono">
+                    ISBN {currentCapture.pickedIsbn}
                   </p>
-                  {currentCapture.pickedIsbn && (
-                    <button
-                      type="button"
-                      onClick={handleClearPickedCandidate}
-                      className="text-[11px] text-neutral-400 hover:text-neutral-700 transition"
-                    >
-                      取消對應
-                    </button>
+                  {(currentCapture.pickedAuthors ||
+                    currentCapture.pickedPublisher) && (
+                    <p className="text-xs text-neutral-700 mt-1">
+                      {currentCapture.pickedAuthors ?? "—"}
+                      {currentCapture.pickedPublisher
+                        ? ` · ${currentCapture.pickedPublisher}`
+                        : ""}
+                      {currentCapture.pickedPublishedDate
+                        ? ` · ${currentCapture.pickedPublishedDate.slice(0, 4)}`
+                        : ""}
+                    </p>
                   )}
                 </div>
+              )}
 
-                {currentCapture.pickedIsbn ? (
-                  <div className="rounded-lg border border-neutral-900 bg-neutral-50 px-3 py-2.5">
-                    <p className="text-xs text-neutral-500">
-                      ISBN {currentCapture.pickedIsbn}
+              {/* 相機模式：Google Books 候選清單 */}
+              {currentCapture.source === "camera" && (
+                <div className="mt-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-neutral-500">
+                      Google Books 比對
+                      {candidatesLoading && (
+                        <span className="ml-1.5 text-neutral-400 font-normal">
+                          · 搜尋中
+                        </span>
+                      )}
                     </p>
-                    {currentCapture.pickedAuthors && (
-                      <p className="text-xs text-neutral-600 mt-0.5">
-                        {currentCapture.pickedAuthors}
-                        {currentCapture.pickedPublisher
-                          ? ` · ${currentCapture.pickedPublisher}`
-                          : ""}
-                      </p>
+                    {currentCapture.pickedIsbn && (
+                      <button
+                        type="button"
+                        onClick={handleClearPickedCandidate}
+                        className="text-[11px] text-neutral-400 hover:text-neutral-700 transition"
+                      >
+                        取消對應
+                      </button>
                     )}
                   </div>
-                ) : candidates.length > 0 ? (
-                  <ul className="space-y-2">
-                    {candidates.map((c) => {
-                      const key = c.isbn13 ?? c.isbn10 ?? c.title;
-                      return (
-                        <li key={key}>
-                          <button
-                            type="button"
-                            onClick={() => handlePickCandidate(c)}
-                            className="w-full flex gap-3 items-start text-left rounded-lg border border-neutral-200 hover:border-neutral-900 px-3 py-2.5 transition"
-                          >
-                            {c.thumbnail ? (
-                              /* eslint-disable-next-line @next/next/no-img-element */
-                              <img
-                                src={c.thumbnail}
-                                alt={c.title}
-                                className="w-10 h-14 object-cover rounded border border-neutral-100 shrink-0"
-                              />
-                            ) : (
-                              <div className="w-10 h-14 rounded bg-neutral-100 shrink-0" />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-neutral-900 truncate">
-                                {c.title}
-                              </p>
-                              <p className="text-[11px] text-neutral-500 mt-0.5 truncate">
-                                {c.authors.join("、") || "—"}
-                                {c.publishedDate
-                                  ? ` · ${c.publishedDate.slice(0, 4)}`
-                                  : ""}
-                              </p>
-                              {(c.isbn13 ?? c.isbn10) && (
-                                <p className="text-[10px] text-neutral-400 mt-0.5">
-                                  ISBN {c.isbn13 ?? c.isbn10}
-                                </p>
+
+                  {currentCapture.pickedIsbn ? (
+                    <div className="rounded-lg border border-neutral-900 bg-neutral-50 px-3 py-2.5">
+                      <p className="text-[11px] text-neutral-500 font-mono">
+                        ISBN {currentCapture.pickedIsbn}
+                      </p>
+                      {currentCapture.pickedAuthors && (
+                        <p className="text-xs text-neutral-700 mt-0.5">
+                          {currentCapture.pickedAuthors}
+                          {currentCapture.pickedPublisher
+                            ? ` · ${currentCapture.pickedPublisher}`
+                            : ""}
+                        </p>
+                      )}
+                    </div>
+                  ) : candidates.length > 0 ? (
+                    <ul className="space-y-2">
+                      {candidates.map((c) => {
+                        const key = c.isbn13 ?? c.isbn10 ?? c.title;
+                        return (
+                          <li key={key}>
+                            <button
+                              type="button"
+                              onClick={() => handlePickCandidate(c)}
+                              className="w-full flex gap-3 items-start text-left rounded-lg border border-neutral-200 hover:border-neutral-900 px-3 py-2.5 transition"
+                            >
+                              {c.thumbnail ? (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img
+                                  src={c.thumbnail}
+                                  alt={c.title}
+                                  className="w-10 h-14 object-cover rounded border border-neutral-100 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-10 h-14 rounded bg-neutral-100 shrink-0" />
                               )}
-                            </div>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <p className="text-[11px] text-neutral-400 px-1">
-                    {candidatesLoading
-                      ? "搜尋中…"
-                      : editedTitle.trim().length < 2
-                        ? "輸入書名後會自動搜尋對應的 ISBN"
-                        : "查無對應書目，可直接入庫（ISBN 留空）"}
-                  </p>
-                )}
-              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-neutral-900 truncate">
+                                  {c.title}
+                                </p>
+                                <p className="text-[11px] text-neutral-500 mt-0.5 truncate">
+                                  {c.authors.join("、") || "—"}
+                                  {c.publishedDate
+                                    ? ` · ${c.publishedDate.slice(0, 4)}`
+                                    : ""}
+                                </p>
+                                {(c.isbn13 ?? c.isbn10) && (
+                                  <p className="text-[10px] text-neutral-400 mt-0.5 font-mono">
+                                    ISBN {c.isbn13 ?? c.isbn10}
+                                  </p>
+                                )}
+                              </div>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="text-[11px] text-neutral-400 px-1">
+                      {candidatesLoading
+                        ? "搜尋中…"
+                        : editedTitle.trim().length < 2
+                          ? "輸入書名後會自動搜尋對應的 ISBN"
+                          : "查無對應書目，可直接入庫（ISBN 留空）"}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={handleRetake}
                   className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
                 >
-                  重拍
+                  {currentCapture.source === "barcode" ? "重掃" : "重拍"}
                 </button>
                 <button
                   onClick={handleConfirm}
@@ -789,30 +1052,34 @@ export default function CheckinScanPage() {
               目前入庫清單中
             </p>
             <ul className="space-y-3 pb-2">
-              {duplicateInList.map((b, idx) => (
-                <li
-                  key={`inlist-${idx}`}
-                  className="flex gap-3 items-start border border-neutral-100 rounded-xl p-3"
-                >
-                  {b.imageDataUrl || b.remoteImageUrl ? (
-                    <ZoomableImage
-                      src={b.imageDataUrl ?? b.remoteImageUrl ?? ""}
-                      alt={b.title}
-                      className="w-14 h-20 object-cover rounded-md border border-neutral-100"
-                    />
-                  ) : (
-                    <div className="w-14 h-20 rounded-md bg-neutral-100" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-neutral-900 truncate">
-                      {b.title}
-                    </p>
-                    <p className="text-xs text-neutral-400 mt-1">
-                      尚未送出入庫
-                    </p>
-                  </div>
-                </li>
-              ))}
+              {duplicateInList.map((b, idx) => {
+                const inListPreview =
+                  b.imageDataUrl ?? b.remoteImageUrl ?? "";
+                return (
+                  <li
+                    key={`inlist-${idx}`}
+                    className="flex gap-3 items-start border border-neutral-100 rounded-xl p-3"
+                  >
+                    {inListPreview ? (
+                      <ZoomableImage
+                        src={inListPreview}
+                        alt={b.title}
+                        className="w-14 h-20 object-cover rounded-md border border-neutral-100"
+                      />
+                    ) : (
+                      <div className="w-14 h-20 rounded-md bg-neutral-100" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-neutral-900 truncate">
+                        {b.title}
+                      </p>
+                      <p className="text-xs text-neutral-400 mt-1">
+                        尚未送出入庫
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </>
         )}
@@ -843,15 +1110,15 @@ export default function CheckinScanPage() {
               const categoryName = b.categoryId
                 ? (categoryNameById.get(b.categoryId) ?? null)
                 : null;
-              const previewSrc = b.imageDataUrl ?? b.remoteImageUrl ?? "";
+              const itemPreview = b.imageDataUrl ?? b.remoteImageUrl ?? "";
               return (
                 <li
                   key={idx}
                   className="flex gap-3 items-center border border-neutral-100 rounded-xl p-3"
                 >
-                  {previewSrc ? (
+                  {itemPreview ? (
                     <ZoomableImage
-                      src={previewSrc}
+                      src={itemPreview}
                       alt={b.title}
                       className="w-12 h-16 object-cover rounded-md border border-neutral-100"
                     />
@@ -865,7 +1132,7 @@ export default function CheckinScanPage() {
                     <p className="text-xs text-neutral-400 mt-1">
                       #{idx + 1}
                       {b.isbn && (
-                        <span className="ml-2 text-neutral-500">
+                        <span className="ml-2 text-neutral-500 font-mono">
                           · ISBN {b.isbn}
                         </span>
                       )}
