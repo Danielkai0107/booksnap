@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { BrowserMultiFormatReader, IScannerControls } from "@zxing/browser";
 import { supabase, BookRow } from "@/lib/supabase";
 import { recognizeBookCover } from "@/lib/ocr";
-import { findBookByTitle } from "@/lib/titleMatch";
+import { findBestBookMatch } from "@/lib/titleMatch";
+import { compressImageDataUrl } from "@/lib/imageCompress";
 import BottomSheet from "@/components/BottomSheet";
 import Toast, { type ToastKind } from "@/components/Toast";
 import ZoomableImage from "@/components/ZoomableImage";
@@ -207,7 +208,12 @@ export default function ReturnScanPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    const rawDataUrl = canvas.toDataURL("image/jpeg", 0.9);
+    // 壓到長邊 768 + JPEG 0.7：Claude vision input tokens 減少約 65%。
+    const dataUrl = await compressImageDataUrl(rawDataUrl, {
+      maxDimension: 768,
+      quality: 0.7,
+    });
 
     stopScanner();
     setCapturing(true);
@@ -219,12 +225,13 @@ export default function ReturnScanPage() {
         setNotFoundOpen(true);
         return;
       }
-      // 全部 candidate（含已加入者）都比對，讓「已在清單中」的書能明確提示。
-      const match = findBookByTitle(title, candidates);
-      if (!match) {
+      // 模糊比對：補上「副標題、雙向包含、編輯距離、Jaccard」幾道防線。
+      const result = findBestBookMatch(title, candidates);
+      if (!result) {
         setNotFoundOpen(true);
         return;
       }
+      const match = result.book;
       const inList = booksRef.current.some(
         (b) => b.book_id === match.book_id,
       );
@@ -478,13 +485,21 @@ export default function ReturnScanPage() {
         title={`已選 ${books.length} 本書`}
         subtitle={`還書人：${member}`}
         footer={
-          <button
-            onClick={handleSubmit}
-            disabled={books.length === 0 || submitting}
-            className="w-full bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-lg transition disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
-          >
-            {submitting ? "送出中…" : "完成還書"}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setListOpen(false)}
+              className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3.5 rounded-lg transition"
+            >
+              繼續加入
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={books.length === 0 || submitting}
+              className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-lg transition disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
+            >
+              {submitting ? "送出中…" : "完成還書"}
+            </button>
+          </div>
         }
       >
         {books.length === 0 ? (

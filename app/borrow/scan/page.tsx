@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { BrowserMultiFormatReader, IScannerControls } from "@zxing/browser";
 import { supabase, BookRow } from "@/lib/supabase";
 import { recognizeBookCover } from "@/lib/ocr";
-import { findBookByTitle } from "@/lib/titleMatch";
+import { findBestBookMatch } from "@/lib/titleMatch";
+import { compressImageDataUrl } from "@/lib/imageCompress";
 import BottomSheet from "@/components/BottomSheet";
 import Toast, { type ToastKind } from "@/components/Toast";
 import ZoomableImage from "@/components/ZoomableImage";
@@ -212,7 +213,13 @@ export default function BorrowScanPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    // 直接抓原始解析度會讓 Claude vision 吃 ~1500 tokens。
+    // 先壓到長邊 768 + JPEG 0.7，input tokens 約剩 1/3。
+    const rawDataUrl = canvas.toDataURL("image/jpeg", 0.9);
+    const dataUrl = await compressImageDataUrl(rawDataUrl, {
+      maxDimension: 768,
+      quality: 0.7,
+    });
 
     stopScanner();
     setCapturing(true);
@@ -224,13 +231,14 @@ export default function BorrowScanPage() {
         setNotFoundOpen(true);
         return;
       }
-      // 改成在「全部 candidate」找匹配，這樣即使該書已加入清單也能被認出，
-      // 給予「已在清單中」的明確提示，而不是回報「庫存沒有此書」。
-      const match = findBookByTitle(title, candidates);
-      if (!match) {
+      // 模糊比對：去副標題 / 雙向包含 / 編輯距離 / Jaccard，
+      // 解決「Claude 多吐副標」與「DB 只存主書名」的常見不對齊。
+      const result = findBestBookMatch(title, candidates);
+      if (!result) {
         setNotFoundOpen(true);
         return;
       }
+      const match = result.book;
       const inList = booksRef.current.some(
         (b) => b.book_id === match.book_id,
       );
@@ -426,13 +434,21 @@ export default function BorrowScanPage() {
         title={`已選 ${books.length} 本書`}
         subtitle={`借書人：${member}`}
         footer={
-          <button
-            onClick={handleSubmit}
-            disabled={books.length === 0 || submitting}
-            className="w-full bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-lg transition disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
-          >
-            {submitting ? "送出中…" : "完成借書"}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setListOpen(false)}
+              className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3.5 rounded-lg transition"
+            >
+              繼續加入
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={books.length === 0 || submitting}
+              className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-lg transition disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
+            >
+              {submitting ? "送出中…" : "完成借書"}
+            </button>
+          </div>
         }
       >
         {books.length === 0 ? (

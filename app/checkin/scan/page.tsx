@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { recognizeBookCover } from "@/lib/ocr";
 import { type CategoryRow } from "@/lib/supabase";
 import { normalizeForGoogleSearch, stripCopySuffix } from "@/lib/titleMatch";
+import { compressImageDataUrl } from "@/lib/imageCompress";
 import { useCheckinCart, type ConfirmedBook } from "@/lib/useCheckinCart";
 import type { LookupCandidate } from "@/app/api/books/lookup/route";
 import BottomSheet from "@/components/BottomSheet";
@@ -229,7 +230,12 @@ export default function CheckinScanPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(video, 0, 0);
-    const base64 = canvas.toDataURL("image/jpeg", 0.8);
+    const rawBase64 = canvas.toDataURL("image/jpeg", 0.9);
+    // 壓縮給 OCR（省 Claude tokens）也順便當儲存圖檔，省 Supabase storage。
+    const base64 = await compressImageDataUrl(rawBase64, {
+      maxDimension: 768,
+      quality: 0.7,
+    });
 
     stopStream();
     setMode("processing");
@@ -887,13 +893,21 @@ export default function CheckinScanPage() {
         title={`已掃 ${totalCount} 本書`}
         subtitle={adminName ? `負責人：${adminName}` : undefined}
         footer={
-          <button
-            onClick={handleSubmit}
-            disabled={totalCount === 0 || submitting}
-            className="w-full bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-lg transition disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
-          >
-            {submitting ? "送出中…" : "完成入庫"}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setListOpen(false)}
+              className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3.5 rounded-lg transition"
+            >
+              繼續加入
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={totalCount === 0 || submitting}
+              className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-lg transition disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
+            >
+              {submitting ? "送出中…" : "完成入庫"}
+            </button>
+          </div>
         }
       >
         {totalCount === 0 ? (
