@@ -48,11 +48,21 @@ export default function ManualCheckinSheet({
   const [publishedDate, setPublishedDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
+  // Quota state — 從 /api/me 取得；用來在開啟時就先擋「冊數已滿」，
+  // 不要等使用者填完整張表單按下確認才被 server 回 402。
+  const [bookCount, setBookCount] = useState(0);
+  const [bookLimit, setBookLimit] = useState(0);
+  const [quotaEnforced, setQuotaEnforced] = useState(false);
 
   const categoryOptions = useMemo(
     () => categories.map((c) => ({ value: c.id, label: c.name })),
     [categories],
   );
+
+  const remainingSlots = quotaEnforced
+    ? Math.max(0, bookLimit - bookCount)
+    : Number.POSITIVE_INFINITY;
+  const quotaFull = quotaEnforced && remainingSlots <= 0;
 
   // 每次打開都把表單清空，避免上一次填過的內容殘留誤導使用者。
   useEffect(() => {
@@ -65,6 +75,32 @@ export default function ManualCheckinSheet({
     setPublishedDate("");
     setSubmitting(false);
     setLookupLoading(false);
+  }, [open]);
+
+  // 開啟時抓最新用量。Sheet 是駐留 DOM 的，使用者每次重開都會重打一次，
+  // 不需做 caching；失敗就讓 server 端的 402 fallback 接手。
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/me", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          usage?: { books?: { count: number; limit: number } } | null;
+          quotaEnforced?: boolean;
+        };
+        if (!alive) return;
+        setBookCount(data.usage?.books?.count ?? 0);
+        setBookLimit(data.usage?.books?.limit ?? 0);
+        setQuotaEnforced(data.quotaEnforced ?? false);
+      } catch (err) {
+        console.warn("[manual checkin] fetch /api/me failed", err);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, [open]);
 
   async function handleLookup() {
@@ -199,12 +235,18 @@ export default function ManualCheckinSheet({
     }
   }
 
+  const subtitle = quotaEnforced
+    ? quotaFull
+      ? `館藏 ${bookCount}/${bookLimit} 已達上限 · 升級方案後即可繼續新增`
+      : `剩 ${remainingSlots} 本可入庫 · 封面可至書本詳情頁補上`
+    : "手動填寫基本資料 · 封面可至書本詳情頁補上";
+
   return (
     <BottomSheet
       open={open}
       onClose={onClose}
       title="新書入庫"
-      subtitle="手動填寫基本資料 · 封面可至書本詳情頁補上"
+      subtitle={subtitle}
       footer={
         <div className="flex gap-3">
           <button
@@ -214,17 +256,35 @@ export default function ManualCheckinSheet({
           >
             取消
           </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={submitting || !title.trim()}
-            className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition disabled:bg-neutral-300"
-          >
-            {submitting ? "新增中…" : "確認入庫"}
-          </button>
+          {quotaFull ? (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                router.push("/billing?reason=book_quota");
+              }}
+              className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+            >
+              升級才能再入庫
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={submitting || !title.trim()}
+              className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition disabled:bg-neutral-300"
+            >
+              {submitting ? "新增中…" : "確認入庫"}
+            </button>
+          )}
         </div>
       }
     >
+      {quotaFull && (
+        <div className="mb-3 rounded-lg border border-red-100 bg-red-50/60 px-3 py-2.5 text-xs text-red-700 leading-relaxed">
+          館藏冊數已達 {bookLimit} 本上限。升級方案後即可繼續新增。
+        </div>
+      )}
       <div className="space-y-3 pb-3">
         <div>
           <label className="block text-xs font-medium text-neutral-500 mb-1.5">
@@ -236,7 +296,8 @@ export default function ManualCheckinSheet({
             onChange={(e) => setTitle(e.target.value)}
             placeholder="輸入書名"
             autoFocus
-            className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
+            disabled={quotaFull}
+            className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition disabled:bg-neutral-50 disabled:text-neutral-400"
           />
         </div>
         <div>
@@ -252,7 +313,7 @@ export default function ManualCheckinSheet({
                 ? "尚無分類，請先至分類管理新增"
                 : "未分類"
             }
-            disabled={categoryOptions.length === 0}
+            disabled={categoryOptions.length === 0 || quotaFull}
           />
         </div>
       </div>
@@ -270,12 +331,13 @@ export default function ManualCheckinSheet({
               value={isbn}
               onChange={(e) => setIsbn(e.target.value)}
               placeholder="例：9789861371955"
-              className="flex-1 h-[46px] border border-neutral-200 rounded-md px-3 text-sm font-mono tabular-nums focus:outline-none focus:border-neutral-900 transition"
+              disabled={quotaFull}
+              className="flex-1 h-[46px] border border-neutral-200 rounded-md px-3 text-sm font-mono tabular-nums focus:outline-none focus:border-neutral-900 transition disabled:bg-neutral-50 disabled:text-neutral-400"
             />
             <button
               type="button"
               onClick={handleLookup}
-              disabled={lookupLoading || !isbn.trim()}
+              disabled={lookupLoading || !isbn.trim() || quotaFull}
               className="h-[46px] px-4 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-xs font-medium rounded-md transition disabled:bg-neutral-50 disabled:text-neutral-300"
             >
               {lookupLoading ? "查詢中" : "查 ISBN"}
@@ -291,7 +353,8 @@ export default function ManualCheckinSheet({
             value={authors}
             onChange={(e) => setAuthors(e.target.value)}
             placeholder="多位作者請用「、」分隔"
-            className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
+            disabled={quotaFull}
+            className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition disabled:bg-neutral-50 disabled:text-neutral-400"
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -303,7 +366,8 @@ export default function ManualCheckinSheet({
               type="text"
               value={publisher}
               onChange={(e) => setPublisher(e.target.value)}
-              className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
+              disabled={quotaFull}
+              className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition disabled:bg-neutral-50 disabled:text-neutral-400"
             />
           </div>
           <div>
@@ -314,7 +378,8 @@ export default function ManualCheckinSheet({
               type="date"
               value={publishedDate}
               onChange={(e) => setPublishedDate(e.target.value)}
-              className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
+              disabled={quotaFull}
+              className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition disabled:bg-neutral-50 disabled:text-neutral-400"
             />
           </div>
         </div>

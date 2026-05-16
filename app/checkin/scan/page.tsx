@@ -33,6 +33,12 @@ type DuplicateMatch = {
   current_holder: string | null;
 };
 
+/**
+ * 與 server 端 `app/api/recognize/route.ts` 內的 QUOTA_GRACE 對齊；
+ * 讓使用者掃到一半剛好碰到上限時還能多拍幾本完成這批。
+ */
+const AI_QUOTA_GRACE = 3;
+
 function candidateKey(c: LookupCandidate): string {
   return c.isbn13 ?? c.isbn10 ?? c.title;
 }
@@ -96,6 +102,25 @@ export default function CheckinScanPage() {
   // 鍵盤打開時把 confirming sheet 往上推（避開 iOS 上的 fixed inset-0 鍵盤遮擋問題）
   const keyboardInset = useKeyboardInset(mode === "confirming");
 
+  // Quota state — 從 /api/me 拿到目前用量 / 上限，讓相機頁能：
+  //  1) 在 overlay 顯示「智能 X/Y · 館藏 N/M」
+  //  2) 拍照前先擋 AI 配額用盡
+  //  3) 加入入庫書單前先擋冊數會超出
+  // 沒抓到（API 失敗 / quota 未開）就 quotaEnforced=false，走原本流程。
+  const [aiUsed, setAiUsed] = useState(0);
+  const [aiLimit, setAiLimit] = useState(0);
+  const [bookCount, setBookCount] = useState(0);
+  const [bookLimit, setBookLimit] = useState(0);
+  const [quotaEnforced, setQuotaEnforced] = useState(false);
+  const [aiBlockOpen, setAiBlockOpen] = useState(false);
+  /** AI 擋下來時保留剛拍的書封 base64，讓使用者點「手動新增」能直接進 confirming */
+  const [pendingCapture, setPendingCapture] = useState<string | null>(null);
+
+  const remainingSlots = quotaEnforced
+    ? bookLimit - bookCount - confirmedBooks.length
+    : Number.POSITIVE_INFINITY;
+  const cartFull = quotaEnforced && remainingSlots <= 0;
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -107,6 +132,34 @@ export default function CheckinScanPage() {
         setCategories(data.categories ?? []);
       } catch (err) {
         console.warn("[checkin] load categories failed", err);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/me", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          usage?: {
+            ai?: { used: number; limit: number };
+            books?: { count: number; limit: number };
+          } | null;
+          quotaEnforced?: boolean;
+        };
+        if (!alive) return;
+        setAiUsed(data.usage?.ai?.used ?? 0);
+        setAiLimit(data.usage?.ai?.limit ?? 0);
+        setBookCount(data.usage?.books?.count ?? 0);
+        setBookLimit(data.usage?.books?.limit ?? 0);
+        setQuotaEnforced(data.quotaEnforced ?? false);
+      } catch (err) {
+        console.warn("[checkin] load usage failed", err);
       }
     })();
     return () => {
@@ -230,6 +283,16 @@ export default function CheckinScanPage() {
       quality: 0.7,
     });
 
+    // 拍照前先攔截：本月 AI 配額已用完就不打 /api/recognize，
+    // 改顯示 dialog 讓使用者選「前往升級」或「手動新增」。
+    if (quotaEnforced && aiLimit > 0 && aiUsed >= aiLimit + AI_QUOTA_GRACE) {
+      stopStream();
+      setPendingCapture(base64);
+      setAiBlockOpen(true);
+      setMode("camera");
+      return;
+    }
+
     stopStream();
     setMode("processing");
     setCandidates([]);
@@ -248,6 +311,8 @@ export default function CheckinScanPage() {
         base64,
         categoryNames,
       );
+      // recognize 成功就把 aiUsed 樂觀 +1，避免每張都重新打 /api/me。
+      setAiUsed((n) => n + 1);
       const finalTitle = title?.trim() ?? "";
       const suggested = category
         ? (categories.find((c) => c.name === category) ?? null)
@@ -265,10 +330,14 @@ export default function CheckinScanPage() {
     } catch (err) {
       console.error("recognize error", err);
       if (err instanceof QuotaExceededError) {
-        toast.error(err.payload.message);
+        // server 端 race condition 才會跑到這（前端 state 還沒拿到最新用量）。
+        // 同樣交給 dialog 引導：保留剛拍的書封讓「手動新增」能直接用。
+        if (aiLimit === 0) setAiLimit(err.payload.limit);
+        setAiUsed(err.payload.used);
         setCurrentCapture(null);
+        setPendingCapture(base64);
+        setAiBlockOpen(true);
         setMode("camera");
-        router.push("/billing?reason=ai_quota");
         return;
       }
       setCurrentCapture({
@@ -280,7 +349,46 @@ export default function CheckinScanPage() {
       setEditedCategoryId("");
       setMode("confirming");
     }
-  }, [stopStream, categories, fetchCandidatesOnce, toast, router]);
+  }, [
+    stopStream,
+    categories,
+    fetchCandidatesOnce,
+    toast,
+    quotaEnforced,
+    aiLimit,
+    aiUsed,
+  ]);
+
+  const handleAiBlockUpgrade = useCallback(() => {
+    setAiBlockOpen(false);
+    setPendingCapture(null);
+    router.push("/billing?reason=ai_quota");
+  }, [router]);
+
+  /**
+   * AI 用完時點「手動新增」：跳過 OCR，直接進入既有的 confirming 表單，
+   * 帶入剛拍的書封（pendingCapture）讓使用者手填書名／分類／ISBN。
+   */
+  const handleAiBlockManual = useCallback(() => {
+    if (!pendingCapture) {
+      setAiBlockOpen(false);
+      return;
+    }
+    setCurrentCapture({
+      imageDataUrl: pendingCapture,
+      detectedTitle: "",
+      suggestedCategoryId: null,
+    });
+    setEditedTitle("");
+    setEditedCategoryId("");
+    setEditedIsbn("");
+    setCandidates([]);
+    setCandidatesError(null);
+    setPickedCandidate(null);
+    setMode("confirming");
+    setAiBlockOpen(false);
+    setPendingCapture(null);
+  }, [pendingCapture]);
 
   const handleUnpickCandidate = useCallback(() => {
     setPickedCandidate(null);
@@ -501,10 +609,16 @@ export default function CheckinScanPage() {
             )}
             {mode === "camera" && !cameraError && (
               <>
-                <div className="absolute top-4 inset-x-0 flex flex-col items-center gap-3 z-10 px-6">
+                <div className="absolute top-4 inset-x-0 flex flex-col items-center gap-2 z-10 px-6">
                   <p className="text-xs text-white/70 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
                     對準書封拍照辨識 · {adminName || "—"}
                   </p>
+                  {quotaEnforced && (
+                    <p className="text-[11px] text-white/60 bg-black/30 backdrop-blur-md px-2.5 py-1 rounded-full tabular-nums">
+                      智能 {aiUsed}/{aiLimit} · 館藏{" "}
+                      {bookCount + confirmedBooks.length}/{bookLimit}
+                    </p>
+                  )}
                 </div>
                 <div className="absolute bottom-8 inset-x-0 flex flex-col items-center z-10 px-6">
                   <button
@@ -720,6 +834,11 @@ export default function CheckinScanPage() {
 
               {/* 下半：固定按鈕區 */}
               <div className="px-6 pt-3 pb-8 border-t border-neutral-100 shrink-0">
+                {cartFull && (
+                  <p className="mb-3 text-[11px] text-red-600 text-center">
+                    館藏冊數已達 {bookLimit} 本上限，升級方案後即可繼續新增。
+                  </p>
+                )}
                 <div className="flex gap-3">
                   <button
                     onClick={handleRetake}
@@ -727,12 +846,21 @@ export default function CheckinScanPage() {
                   >
                     重拍
                   </button>
-                  <button
-                    onClick={handleConfirm}
-                    className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
-                  >
-                    加入入庫書單
-                  </button>
+                  {cartFull ? (
+                    <button
+                      onClick={() => router.push("/billing?reason=book_quota")}
+                      className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+                    >
+                      升級才能再入庫
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleConfirm}
+                      className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+                    >
+                      加入入庫書單
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -881,7 +1009,18 @@ export default function CheckinScanPage() {
         open={listOpen}
         onClose={() => setListOpen(false)}
         title={`已掃 ${totalCount} 本書`}
-        subtitle={adminName ? `負責人：${adminName}` : undefined}
+        subtitle={
+          [
+            adminName ? `負責人：${adminName}` : null,
+            quotaEnforced
+              ? remainingSlots >= 0
+                ? `剩 ${remainingSlots} 本可入庫`
+                : `超出 ${-remainingSlots} 本，請移除或升級`
+              : null,
+          ]
+            .filter(Boolean)
+            .join("　·　") || undefined
+        }
         footer={
           <div className="flex gap-3">
             <button
@@ -890,13 +1029,22 @@ export default function CheckinScanPage() {
             >
               繼續加入
             </button>
-            <button
-              onClick={handleSubmit}
-              disabled={totalCount === 0 || submitting}
-              className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-lg transition disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
-            >
-              {submitting ? "送出中…" : "完成入庫"}
-            </button>
+            {quotaEnforced && remainingSlots < 0 ? (
+              <button
+                onClick={() => router.push("/billing?reason=book_quota")}
+                className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-lg transition"
+              >
+                升級才能入庫
+              </button>
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={totalCount === 0 || submitting}
+                className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-lg transition disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
+              >
+                {submitting ? "送出中…" : "完成入庫"}
+              </button>
+            )}
           </div>
         }
       >
@@ -960,6 +1108,38 @@ export default function CheckinScanPage() {
       {navigating && (
         <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
           <div className="w-9 h-9 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        </div>
+      )}
+
+      {aiBlockOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center px-6"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white text-neutral-900 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <h3 className="text-base font-semibold">智能辨識次數已用完</h3>
+            <p className="mt-2 text-sm text-neutral-600 leading-relaxed">
+              本月 {aiLimit > 0 ? `${aiLimit} 次的` : ""}智能辨識配額已使用完畢。
+              可升級方案取得更多用量，或直接手動輸入新增這本書。
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={handleAiBlockUpgrade}
+                className="flex-1 px-3 py-2.5 rounded-lg border border-neutral-200 hover:border-neutral-400 text-sm font-medium text-neutral-900 transition"
+              >
+                前往升級
+              </button>
+              <button
+                type="button"
+                onClick={handleAiBlockManual}
+                className="flex-1 px-3 py-2.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium transition"
+              >
+                手動新增
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
