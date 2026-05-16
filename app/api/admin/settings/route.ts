@@ -1,9 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUnitSession } from "@/lib/auth";
+import { getSession, requireUnitSession } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isTwCity } from "@/lib/cities";
 
 export const runtime = "nodejs";
+
+/**
+ * 回傳目前單位的「單位資料」與「公開設定」。
+ * 由 `/admin/settings` 與 `/admin/public-link` 兩個 client page 共用，
+ * 把原本 server-component 的 await `requireUnitSession()` 移到背景 fetch，
+ * 讓側欄切換時能立即顯示 AdminShell skeleton（與其他 admin 頁一致）。
+ *
+ * 注意：未登入時不走 `redirect()`（在 route handler 裡 redirect 會回 307，
+ * 客戶端 fetch follow 後變成 HTML 解析失敗），改回 401 讓前端決定如何處理。
+ */
+export async function GET() {
+  const session = await getSession();
+  if (!session || !session.organization) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const org = session.organization;
+  return NextResponse.json({
+    basic: {
+      name: org.name,
+      city: org.city,
+      contact_email: org.contact_email,
+      contact_phone: org.contact_phone,
+    },
+    publicSlug: org.public_slug,
+    publicBorrowEnabled: org.public_borrow_enabled,
+    publicCatalogEnabled: org.public_catalog_enabled,
+  });
+}
 
 /**
  * Update the caller's organization. Two concerns share this endpoint:
