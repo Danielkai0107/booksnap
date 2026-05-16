@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  PLAN_QUOTAS,
+  effectivePlan,
+  getOrgPeriod,
+} from "@/lib/plans";
+import { isQuotaEnforced } from "@/lib/billing/flags";
+import { loadOrgBillingState } from "@/lib/billing/state";
 
 export const runtime = "nodejs";
+
+/**
+ * Free riders / generous slack for users who hit the cap right as they're
+ * scanning a stack. Lets a single shelf-scan complete instead of hard-stopping
+ * mid-batch.
+ */
+const QUOTA_GRACE = 3;
 
 type RecognizeBody = {
   imageBase64?: string;
@@ -35,6 +49,36 @@ export async function POST(req: NextRequest) {
     .eq("id", userData.user.id)
     .maybeSingle();
   const organizationId = profile?.organization_id ?? null;
+
+  if (organizationId) {
+    const { org, subscription } = await loadOrgBillingState(
+      organizationId,
+      admin,
+    );
+    if (org && isQuotaEnforced(org)) {
+      const plan = effectivePlan(org, subscription);
+      const limit = PLAN_QUOTAS[plan].ai;
+      const { start } = getOrgPeriod(org, subscription);
+      const { count } = await admin
+        .from("ai_usage_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", org.id)
+        .gte("created_at", start.toISOString());
+      const used = count ?? 0;
+      if (used >= limit + QUOTA_GRACE) {
+        return NextResponse.json(
+          {
+            error: "ai_quota_exceeded",
+            limit,
+            used,
+            plan,
+            message: "本月智能辨識次數已用完，請升級方案後再試。",
+          },
+          { status: 402 },
+        );
+      }
+    }
+  }
 
   let body: RecognizeBody;
   try {

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { recognizeBookCover } from "@/lib/ocr";
+import { QuotaExceededError } from "@/lib/billing/clientErrors";
 import { type CategoryRow } from "@/lib/supabase";
 import { normalizeForGoogleSearch, stripCopySuffix } from "@/lib/titleMatch";
 import { compressImageDataUrl } from "@/lib/imageCompress";
@@ -263,6 +264,13 @@ export default function CheckinScanPage() {
       void fetchCandidatesOnce(finalTitle);
     } catch (err) {
       console.error("recognize error", err);
+      if (err instanceof QuotaExceededError) {
+        toast.error(err.payload.message);
+        setCurrentCapture(null);
+        setMode("camera");
+        router.push("/admin/billing?reason=ai_quota");
+        return;
+      }
       setCurrentCapture({
         imageDataUrl: base64,
         detectedTitle: "",
@@ -272,7 +280,7 @@ export default function CheckinScanPage() {
       setEditedCategoryId("");
       setMode("confirming");
     }
-  }, [stopStream, categories, fetchCandidatesOnce]);
+  }, [stopStream, categories, fetchCandidatesOnce, toast, router]);
 
   const handleUnpickCandidate = useCallback(() => {
     setPickedCandidate(null);
@@ -440,9 +448,14 @@ export default function CheckinScanPage() {
     } catch (err) {
       console.error("[checkin] submit failed", err);
       setNavigating(false);
+      if (err instanceof QuotaExceededError) {
+        toast.error(err.payload.message);
+        router.push("/admin/billing?reason=book_quota");
+        return;
+      }
       toast.error("入庫失敗，請稍後再試");
     }
-  }, [submitAll, toast]);
+  }, [submitAll, toast, router]);
 
   const handleClose = useCallback(() => {
     setNavigating(true);

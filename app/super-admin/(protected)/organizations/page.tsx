@@ -1,7 +1,17 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { OrganizationRow, OrgStatus } from "@/lib/supabase/types";
-import { PLAN_META, PLAN_QUOTAS, getPeriodRange } from "@/lib/plans";
+import type {
+  OrganizationRow,
+  OrgStatus,
+  SubscriptionRow,
+  SubscriptionStatus,
+} from "@/lib/supabase/types";
+import {
+  PLAN_META,
+  PLAN_QUOTAS,
+  effectivePlan,
+  getOrgPeriod,
+} from "@/lib/plans";
 import OrgRowActions from "./OrgRowActions";
 
 type TabKey = "pending" | "approved" | "rejected" | "suspended" | "all";
@@ -36,6 +46,32 @@ function statusPillClass(s: OrgStatus): string {
     : "bg-neutral-100 text-neutral-600 border-neutral-200";
 }
 
+function subscriptionStatusPillClass(s: SubscriptionStatus): string {
+  if (s === "active") {
+    return "bg-emerald-50 text-emerald-700 border-emerald-100";
+  }
+  if (s === "past_due") {
+    return "bg-amber-50 text-amber-700 border-amber-100";
+  }
+  if (s === "cancelled") {
+    return "bg-orange-50 text-orange-700 border-orange-100";
+  }
+  if (s === "expired") {
+    return "bg-neutral-100 text-neutral-500 border-neutral-200";
+  }
+  return "bg-blue-50 text-blue-700 border-blue-100";
+}
+
+function subscriptionStatusLabel(s: SubscriptionStatus): string {
+  return {
+    pending: "處理中",
+    active: "進行中",
+    past_due: "扣款失敗",
+    cancelled: "已取消",
+    expired: "已過期",
+  }[s];
+}
+
 export default async function OrganizationsPage({
   searchParams,
 }: {
@@ -55,16 +91,30 @@ export default async function OrganizationsPage({
   const { data, error } = await query;
   const orgs = (data ?? []) as OrganizationRow[];
 
-  // 本期 AI 用量：以「每個單位自己的啟用日」當週期錨點，回傳該週期內的 log 數
-  // 一次撈出所有 (organization_id, created_at)，再前端 per-org 過濾聚合。
+  // 撈訂閱資訊，後續用來決定 effective plan / billing-anchored period
+  const orgIds = orgs.map((o) => o.id);
+  const { data: subsRaw } =
+    orgIds.length === 0
+      ? { data: [] }
+      : await admin
+          .from("subscriptions")
+          .select("*")
+          .in("organization_id", orgIds);
+  const subByOrgId = new Map<string, SubscriptionRow>();
+  ((subsRaw ?? []) as SubscriptionRow[]).forEach((s) =>
+    subByOrgId.set(s.organization_id, s),
+  );
+
+  // 本期 AI 用量：以訂閱期或啟用日當錨點。一次撈出所有 (organization_id, created_at)
+  // 再前端 per-org 過濾聚合，避免 N 次 round trip。
   const { data: aiRows } = await admin
     .from("ai_usage_logs")
     .select("organization_id, created_at");
   const aiUsedByOrg = new Map<string, number>();
   const now = new Date();
   for (const o of orgs) {
-    const anchorISO = o.approved_at ?? o.created_at;
-    const { start } = getPeriodRange(anchorISO, now);
+    const sub = subByOrgId.get(o.id) ?? null;
+    const { start } = getOrgPeriod(o, sub, now);
     const startMs = start.getTime();
     const count = (aiRows ?? []).reduce((acc, r) => {
       const row = r as { organization_id: string; created_at: string };
@@ -124,7 +174,10 @@ export default async function OrganizationsPage({
         </p>
       ) : (
         <ul className="mt-5 space-y-3">
-          {orgs.map((o) => (
+          {orgs.map((o) => {
+            const sub = subByOrgId.get(o.id) ?? null;
+            const ePlan = effectivePlan(o, sub);
+            return (
             <li
               key={o.id}
               className="bg-white border border-neutral-200 rounded-2xl p-5"
@@ -143,10 +196,27 @@ export default async function OrganizationsPage({
                       {statusLabel(o.status)}
                     </span>
                     <span
-                      className={`inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium ${PLAN_META[o.plan].pillClass}`}
+                      className={`inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium ${PLAN_META[ePlan].pillClass}`}
                     >
-                      {PLAN_META[o.plan].label}
+                      {PLAN_META[ePlan].label}
                     </span>
+                    {sub && (
+                      <span
+                        className={`inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium ${subscriptionStatusPillClass(sub.status)}`}
+                      >
+                        {subscriptionStatusLabel(sub.status)}
+                      </span>
+                    )}
+                    {sub?.cancel_at_period_end && sub.status === "active" && (
+                      <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium bg-amber-50 text-amber-700 border-amber-100">
+                        期末取消
+                      </span>
+                    )}
+                    {o.bypass_quota && (
+                      <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
+                        免配額
+                      </span>
+                    )}
                   </div>
                   <dl className="mt-3 text-sm text-neutral-600 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
                     <Pair k="縣市" v={o.city} />
@@ -162,16 +232,22 @@ export default async function OrganizationsPage({
                         v={new Date(o.approved_at).toLocaleString("zh-TW")}
                       />
                     )}
+                    {sub && (
+                      <Pair
+                        k="本期"
+                        v={`${new Date(sub.current_period_start).toLocaleDateString("zh-TW")} ~ ${new Date(sub.current_period_end).toLocaleDateString("zh-TW")}`}
+                      />
+                    )}
                     {o.rejected_reason && (
                       <Pair k="退回原因" v={o.rejected_reason} />
                     )}
                     <Pair
                       k="本期 AI 用量"
-                      v={`${(aiUsedByOrg.get(o.id) ?? 0).toLocaleString()} / ${PLAN_QUOTAS[o.plan].ai.toLocaleString()} 次`}
+                      v={`${(aiUsedByOrg.get(o.id) ?? 0).toLocaleString()} / ${PLAN_QUOTAS[ePlan].ai.toLocaleString()} 次`}
                     />
                     <Pair
                       k="館藏冊數"
-                      v={`${(bookCountByOrg.get(o.id) ?? 0).toLocaleString()} / ${PLAN_QUOTAS[o.plan].books.toLocaleString()} 冊`}
+                      v={`${(bookCountByOrg.get(o.id) ?? 0).toLocaleString()} / ${PLAN_QUOTAS[ePlan].books.toLocaleString()} 冊`}
                     />
                   </dl>
                 </div>
@@ -183,10 +259,12 @@ export default async function OrganizationsPage({
                   city={o.city}
                   contactEmail={o.contact_email}
                   contactPhone={o.contact_phone}
+                  bypassQuota={o.bypass_quota}
                 />
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

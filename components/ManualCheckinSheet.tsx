@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import BottomSheet from "./BottomSheet";
 import CategorySelect from "./CategorySelect";
 import { useToast } from "./ToastProvider";
 import { supabase, type CategoryRow } from "@/lib/supabase";
 import { formatDateYMD, generateBookId } from "@/lib/bookId";
+import { isQuotaErrorPayload } from "@/lib/billing/clientErrors";
 import type { LookupCandidate } from "@/app/api/books/lookup/route";
 
 type Props = {
@@ -37,6 +39,7 @@ export default function ManualCheckinSheet({
   onCreated,
 }: Props) {
   const toast = useToast();
+  const router = useRouter();
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [isbn, setIsbn] = useState("");
@@ -172,6 +175,16 @@ export default function ManualCheckinSheet({
           ],
         }),
       });
+      if (res.status === 402) {
+        const data = await res.json().catch(() => ({}));
+        if (isQuotaErrorPayload(data)) {
+          toast.error(data.message);
+          setSubmitting(false);
+          onClose();
+          router.push("/admin/billing?reason=book_quota");
+          return;
+        }
+      }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `HTTP ${res.status}`);

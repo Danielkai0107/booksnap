@@ -5,14 +5,16 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PLAN_ORDER, type OrgPlan } from "@/lib/plans";
+import { writeAuditLog } from "@/lib/billing/apply";
 
-async function assertSuperAdmin(): Promise<void> {
+async function assertSuperAdmin(): Promise<{ userId: string }> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   const role = data.user?.app_metadata?.role;
   if (role !== "super_admin") {
     throw new Error("forbidden");
   }
+  return { userId: data.user!.id };
 }
 
 export async function approveOrganization(orgId: string): Promise<void> {
@@ -198,11 +200,16 @@ export async function updateOrganizationPlan(
   orgId: string,
   plan: OrgPlan
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  await assertSuperAdmin();
+  const { userId } = await assertSuperAdmin();
   if (!PLAN_ORDER.includes(plan)) {
     return { ok: false, error: "不支援的方案" };
   }
   const admin = createAdminClient();
+  const { data: before } = await admin
+    .from("organizations")
+    .select("plan")
+    .eq("id", orgId)
+    .maybeSingle();
   const { error } = await admin
     .from("organizations")
     .update({ plan })
@@ -210,8 +217,45 @@ export async function updateOrganizationPlan(
   if (error) {
     return { ok: false, error: error.message };
   }
+  // 人工切換方案會繞過金流；audit log 留紀錄，便於日後對帳。
+  await writeAuditLog(admin, {
+    actor_id: userId,
+    actor_role: "super_admin",
+    action: "plan.changed.by_admin",
+    target_org_id: orgId,
+    meta: {
+      from_plan: before?.plan ?? null,
+      to_plan: plan,
+    },
+  });
   revalidatePath("/super-admin");
   revalidatePath("/super-admin/organizations");
+  return { ok: true };
+}
+
+export async function setOrganizationBypassQuota(
+  orgId: string,
+  bypass: boolean
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { userId } = await assertSuperAdmin();
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("organizations")
+    .update({ bypass_quota: bypass })
+    .eq("id", orgId);
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+  await writeAuditLog(admin, {
+    actor_id: userId,
+    actor_role: "super_admin",
+    action: bypass ? "org.bypass_quota.granted" : "org.bypass_quota.revoked",
+    target_org_id: orgId,
+    meta: null,
+  });
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/organizations");
+  revalidatePath("/super-admin/settings");
   return { ok: true };
 }
 

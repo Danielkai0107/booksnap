@@ -22,11 +22,32 @@ npm run dev
 
 ## 環境變數（`.env.local`）
 
-| Key                             | 預先填入 | 說明                           |
-| ------------------------------- | :------: | ------------------------------ |
-| `NEXT_PUBLIC_SUPABASE_URL`      |    ✅    | Supabase 專案 URL              |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` |    ✅    | Supabase anon key              |
-| `ANTHROPIC_API_KEY`             |    ❌    | 書封 OCR 辨識（Claude vision） |
+| Key                              | 預先填入 | 說明                                                     |
+| -------------------------------- | :------: | -------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`       |    ✅    | Supabase 專案 URL                                        |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  |    ✅    | Supabase anon key                                        |
+| `SUPABASE_SERVICE_ROLE_KEY`      |    ✅    | Server-only，bypasses RLS                                |
+| `ANTHROPIC_API_KEY`              |    ❌    | 書封 OCR 辨識（Claude vision）                           |
+| `GOOGLE_BOOKS_API_KEY`           |    ❌    | Google Books ISBN 查詢的 quota（沒給走匿名 1000/day）    |
+| `BILLING_PROVIDER`               |    ✅    | `instant`（預設）：點擊即升級。改 `ecpay`/`jkopay` 接金流 |
+| `BILLING_QUOTA_ENFORCED`         |    ✅    | `true` 才會在 `/api/recognize`、`/api/books` 回 402     |
+| `NEXT_PUBLIC_BILLING_RETURN_URL` |    ✅    | 訂閱完成後 redirect 用，上線改成 prod URL                |
+
+## 計費（Billing）
+
+第一版用 `InstantGateway`：使用者按下訂閱就升級、不收錢，後續再接街口／綠界。
+- 設計重點在 [`lib/billing/gateway.ts`](lib/billing/gateway.ts) interface；換 provider 只動 `lib/billing/index.ts` factory 與新增實作檔。
+- 所有 DB 變更走 [`lib/billing/apply.ts`](lib/billing/apply.ts) → `applyGatewayEvent`，InstantGateway 與真實 webhook 共用。
+- 用戶端訂閱設定頁：`/admin/billing`（仿 Cursor 樣式：當前訂閱、取消／恢復、帳單記錄）。
+- 配額硬擋：`BILLING_QUOTA_ENFORCED=true` + 單位 `bypass_quota=false` 時，`/api/recognize`、`/api/books` POST 會回 402。可在 Super Admin → 設定查看，並逐筆在「單位管理」勾「免配額」豁免。
+- Super Admin → 訂閱：所有訂閱列表 + 最近一筆扣款。
+- Super Admin → 總覽：MRR、本月新訂閱／取消、Pro／Plus 進行中數量。
+
+要接真實金流：
+1. 在 [`lib/billing/`](lib/billing/) 新增 `ecpay.ts`（或 `jkopay.ts`），實作 `PaymentGateway`。
+2. 在 [`lib/billing/index.ts`](lib/billing/index.ts) factory 加 `case`。
+3. 將 `BILLING_PROVIDER` 環境變數改成新 provider。
+4. 其他 UI／業務邏輯／配額擋下均不需修改。
 
 ## 頁面導覽
 
@@ -41,12 +62,17 @@ npm run dev
 
 ## API
 
-| Method & Path         | 功能                                                               |
-| --------------------- | ------------------------------------------------------------------ |
-| `POST /api/recognize` | 呼叫 Anthropic Claude vision（`claude-sonnet-4-20250514`）辨識書封 |
-| `POST /api/books`     | 批次上傳書封到 Storage bucket，並 insert 到 `books`                |
-| `POST /api/return`    | 更新書籍為「已借出」並記錄書架與時間                               |
-| `GET /api/export`     | 將 `books` 表匯出為 Excel（xlsx）                                  |
+| Method & Path                 | 功能                                                               |
+| ----------------------------- | ------------------------------------------------------------------ |
+| `POST /api/recognize`         | 呼叫 Anthropic Claude vision（`claude-sonnet-4-20250514`）辨識書封 |
+| `POST /api/books`             | 批次上傳書封到 Storage bucket，並 insert 到 `books`                |
+| `POST /api/return`            | 更新書籍為「已借出」並記錄書架與時間                               |
+| `GET /api/export`             | 將 `books` 表匯出為 Excel（xlsx）                                  |
+| `GET /api/me`                 | 當前 session 的 org / plan / subscription / usage                  |
+| `POST /api/billing/subscribe` | 訂閱（plan=pro/plus）；回傳 redirectUrl                            |
+| `POST /api/billing/cancel`    | 期末取消                                                           |
+| `POST /api/billing/resume`    | 期內恢復                                                           |
+| `POST /api/billing/webhook`   | 金流商 webhook 入口（InstantGateway 不會收到）                     |
 
 ## Supabase 結構
 

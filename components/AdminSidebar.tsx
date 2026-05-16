@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signOutAction } from "@/app/auth/actions";
 import {
   PLAN_META,
@@ -162,6 +162,7 @@ function PlanInfoModal({
   usage: UsageInfo;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const [selected, setSelected] = useState<OrgPlan>(currentPlan ?? "free");
 
   useEffect(() => {
@@ -298,11 +299,19 @@ function PlanInfoModal({
 
         <button
           type="button"
-          onClick={onClose}
-          disabled={isSameAsCurrent}
+          onClick={() => {
+            if (isSameAsCurrent) {
+              onClose();
+              return;
+            }
+            onClose();
+            // 即使 selected === 'free' 也讓使用者進 billing 頁，方便取消訂閱。
+            const q = selected === "free" ? "" : `?plan=${selected}`;
+            router.push(`/admin/billing${q}`);
+          }}
           className="mt-5 w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-200 disabled:text-neutral-500 text-white text-sm font-medium px-4 py-3 rounded-xl transition"
         >
-          {ctaText}
+          {isSameAsCurrent ? ctaText : `前往訂閱設定 · ${PLAN_META[selected].label} · ${PLAN_PRICE[selected].label}`}
         </button>
       </div>
     </div>
@@ -364,6 +373,14 @@ function CloseIcon() {
         strokeLinecap="round"
       />
     </svg>
+  );
+}
+
+function BillingLinkButton({ onClick }: { onClick?: () => void }) {
+  return (
+    <Link href="/admin/billing" onClick={onClick} className={bottomItemClass}>
+      訂閱設定
+    </Link>
   );
 }
 
@@ -435,6 +452,7 @@ export default function AdminSidebar() {
       </nav>
       <div className="mt-6 space-y-3">
         <PublicLinkButton />
+        <BillingLinkButton />
         <SignOutButton />
       </div>
     </aside>
@@ -478,6 +496,7 @@ export function AdminMobileMenu({
         </nav>
         <div className="mt-6 space-y-3">
           <PublicLinkButton onClick={onClose} />
+          <BillingLinkButton onClick={onClose} />
           <SignOutButton onClick={onClose} />
         </div>
       </aside>

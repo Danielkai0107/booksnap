@@ -1,3 +1,8 @@
+import {
+  QuotaExceededError,
+  isQuotaErrorPayload,
+} from "./billing/clientErrors";
+
 export type RecognizeResult = {
   title: string;
   category: string | null;
@@ -9,8 +14,12 @@ export type RecognizeResult = {
  *
  * Default engine: Anthropic Claude vision (高準確率，對中文書封表現最佳)。
  * 若提供 `categories`，Claude 會從清單中挑選最合適的分類。
- * 失敗時不再 fallback 到 Tesseract，避免拖慢使用者體驗；
- * 改為回傳空字串讓使用者手動輸入。
+ *
+ * Errors:
+ *  - 402 (quota): throws `QuotaExceededError`. Caller should show the upgrade
+ *    prompt and stop the scan loop.
+ *  - other failures: returns empty title (legacy behaviour) so the user can
+ *    still type a title manually.
  */
 export async function recognizeBookCover(
   imageBase64: string,
@@ -22,6 +31,12 @@ export async function recognizeBookCover(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageBase64, categories: categories ?? [] }),
     });
+    if (response.status === 402) {
+      const data = await response.json().catch(() => ({}));
+      if (isQuotaErrorPayload(data)) {
+        throw new QuotaExceededError(data);
+      }
+    }
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       console.warn("[ocr] /api/recognize not ok", response.status, data);
@@ -39,6 +54,7 @@ export async function recognizeBookCover(
       source: data.source ?? "claude",
     };
   } catch (err) {
+    if (err instanceof QuotaExceededError) throw err;
     console.error("[ocr] recognize request failed", err);
     return { title: "", category: null, source: "claude" };
   }

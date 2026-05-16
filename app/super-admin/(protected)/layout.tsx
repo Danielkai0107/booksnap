@@ -32,6 +32,18 @@ export default async function SuperAdminProtectedLayout({
             >
               單位管理
             </Link>
+            <Link
+              href="/super-admin/subscriptions"
+              className="px-3 py-1.5 rounded-md text-neutral-700 hover:bg-neutral-100 transition"
+            >
+              訂閱
+            </Link>
+            <Link
+              href="/super-admin/settings"
+              className="px-3 py-1.5 rounded-md text-neutral-700 hover:bg-neutral-100 transition"
+            >
+              設定
+            </Link>
             <form action={superAdminSignOut}>
               <button
                 type="submit"

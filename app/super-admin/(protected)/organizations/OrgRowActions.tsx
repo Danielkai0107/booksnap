@@ -8,6 +8,7 @@ import {
   suspendOrganization,
   reactivateOrganization,
   resetOrganizationPassword,
+  setOrganizationBypassQuota,
   updateOrganization,
   updateOrganizationPlan,
 } from "../../actions";
@@ -22,9 +23,17 @@ type Props = {
   city: string;
   contactEmail: string;
   contactPhone: string;
+  bypassQuota: boolean;
 };
 
-type DialogKind = "reject" | "suspend" | "reset" | "edit" | "plan" | null;
+type DialogKind =
+  | "reject"
+  | "suspend"
+  | "reset"
+  | "edit"
+  | "plan"
+  | "bypass"
+  | null;
 
 const CITIES = [
   "台北市",
@@ -59,6 +68,7 @@ export default function OrgRowActions({
   city,
   contactEmail,
   contactPhone,
+  bypassQuota,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [dialog, setDialog] = useState<DialogKind>(null);
@@ -113,6 +123,9 @@ export default function OrgRowActions({
           <SecondaryBtn onClick={() => setDialog("plan")} disabled={pending}>
             變更方案
           </SecondaryBtn>
+          <SecondaryBtn onClick={() => setDialog("bypass")} disabled={pending}>
+            {bypassQuota ? "取消免配額" : "免配額"}
+          </SecondaryBtn>
           <SecondaryBtn onClick={() => setDialog("reset")} disabled={pending}>
             重設密碼
           </SecondaryBtn>
@@ -162,7 +175,69 @@ export default function OrgRowActions({
           />
         </Modal>
       )}
+      {dialog === "bypass" && (
+        <Modal
+          title={
+            bypassQuota
+              ? `取消「${orgName}」的免配額？`
+              : `將「${orgName}」設為免配額？`
+          }
+          onClose={close}
+        >
+          <BypassDialog
+            orgId={orgId}
+            current={bypassQuota}
+            onDone={close}
+            onError={reportError}
+          />
+        </Modal>
+      )}
     </div>
+  );
+}
+
+function BypassDialog({
+  orgId,
+  current,
+  onDone,
+  onError,
+}: {
+  orgId: string;
+  current: boolean;
+  onDone: () => void;
+  onError: (m: string) => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const next = !current;
+  return (
+    <>
+      <p className="text-sm text-neutral-600 leading-relaxed">
+        {next
+          ? "此單位將不受配額硬擋影響，即使全站開啟也不會被擋。常用於 VIP / 大客戶。"
+          : "取消後此單位回到一般配額管制，超量時會被擋。"}
+        操作會記入 audit log。
+      </p>
+      <div className="mt-5 flex gap-2 justify-end">
+        <SecondaryBtn onClick={onDone} disabled={pending}>
+          取消
+        </SecondaryBtn>
+        <PrimaryBtn
+          onClick={() => {
+            startTransition(async () => {
+              const res = await setOrganizationBypassQuota(orgId, next);
+              if (res.ok) {
+                onDone();
+              } else {
+                onError(res.error);
+              }
+            });
+          }}
+          disabled={pending}
+        >
+          {pending ? "儲存中…" : next ? "設為免配額" : "取消免配額"}
+        </PrimaryBtn>
+      </div>
+    </>
   );
 }
 
@@ -185,6 +260,10 @@ function PlanDialog({
       <p className="text-sm text-neutral-600">
         立即變更此單位的方案。變更後配額會即時套用到單位後台與本頁顯示。
       </p>
+      <div className="mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-800 leading-relaxed">
+        ⚠ 此操作會
+        <strong>繞過金流商</strong>，僅供測試／緊急處理使用，不會建立訂閱與付款紀錄。動作會記入 audit log。
+      </div>
       <div className="mt-4 space-y-2">
         {PLAN_ORDER.map((p) => {
           const meta = PLAN_META[p];

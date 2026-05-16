@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { PLAN_QUOTAS, effectivePlan } from "@/lib/plans";
+import { isQuotaEnforced } from "@/lib/billing/flags";
+import { loadOrgBillingState } from "@/lib/billing/state";
 
 export const runtime = "nodejs";
 
@@ -64,6 +67,33 @@ export async function POST(req: NextRequest) {
   }
   if (!books || !Array.isArray(books) || books.length === 0) {
     return NextResponse.json({ error: "books required" }, { status: 400 });
+  }
+
+  // Quota check: refuse the whole batch if it would push the org past their
+  // plan's `books` limit. We don't attempt partial inserts — the front end
+  // shows the dialog and asks the user to remove items or upgrade.
+  const { org, subscription } = await loadOrgBillingState(orgId, admin);
+  if (org && isQuotaEnforced(org)) {
+    const plan = effectivePlan(org, subscription);
+    const limit = PLAN_QUOTAS[plan].books;
+    const { count } = await admin
+      .from("books")
+      .select("*", { count: "exact", head: true })
+      .eq("organization_id", org.id);
+    const current = count ?? 0;
+    if (current + books.length > limit) {
+      return NextResponse.json(
+        {
+          error: "book_quota_exceeded",
+          limit,
+          used: current,
+          adding: books.length,
+          plan,
+          message: `館藏冊數已達上限（${current}/${limit}）。請升級方案後再新增 ${books.length} 本。`,
+        },
+        { status: 402 },
+      );
+    }
   }
 
   const rows: Array<{

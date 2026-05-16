@@ -1,23 +1,35 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PLAN_META, PLAN_ORDER, type OrgPlan } from "@/lib/plans";
+import {
+  PLAN_META,
+  PLAN_ORDER,
+  PLAN_PRICE,
+  type OrgPlan,
+} from "@/lib/plans";
+import type { SubscriptionRow } from "@/lib/supabase/types";
 
 export default async function SuperAdminDashboard() {
   const admin = createAdminClient();
-  const [{ data: orgs }, { count: usersCount }, { count: aiCount }] =
-    await Promise.all([
-      admin
-        .from("organizations")
-        .select("status, plan")
-        .order("created_at", { ascending: false }),
-      admin
-        .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .eq("role", "unit"),
-      admin
-        .from("ai_usage_logs")
-        .select("*", { count: "exact", head: true }),
-    ]);
+  const [
+    { data: orgs },
+    { count: usersCount },
+    { count: aiCount },
+    { data: subsRaw },
+  ] = await Promise.all([
+    admin
+      .from("organizations")
+      .select("status, plan")
+      .order("created_at", { ascending: false }),
+    admin
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .eq("role", "unit"),
+    admin
+      .from("ai_usage_logs")
+      .select("*", { count: "exact", head: true }),
+    admin.from("subscriptions").select("*"),
+  ]);
+  const subs = (subsRaw ?? []) as SubscriptionRow[];
 
   const counts = {
     total: orgs?.length ?? 0,
@@ -33,6 +45,42 @@ export default async function SuperAdminDashboard() {
   for (const o of approvedOrgs) {
     const p = o.plan as OrgPlan | undefined;
     if (p && p in planCounts) planCounts[p] += 1;
+  }
+
+  // 訂閱統計：active / past_due 算「進行中」；MRR 用 active 訂閱的方案月費加總。
+  // active 同時 cancel_at_period_end=true 仍視為進行中（本期還會扣款）。
+  // 本月新增 / 取消數 用 started_at / cancelled_at 落在當月來判斷。
+  const now = new Date();
+  const monthStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0),
+  ).getTime();
+
+  let mrr = 0;
+  const subStatusCounts = {
+    active: 0,
+    past_due: 0,
+    cancelled: 0,
+    expired: 0,
+    pending: 0,
+  };
+  const activePerPlan: Record<Exclude<OrgPlan, "free">, number> = {
+    pro: 0,
+    plus: 0,
+  };
+  let monthlyNew = 0;
+  let monthlyCancelled = 0;
+  for (const s of subs) {
+    subStatusCounts[s.status] += 1;
+    if (s.status === "active" || s.status === "past_due") {
+      mrr += PLAN_PRICE[s.plan].monthly;
+      activePerPlan[s.plan] += 1;
+    }
+    if (new Date(s.started_at).getTime() >= monthStart) {
+      monthlyNew += 1;
+    }
+    if (s.cancelled_at && new Date(s.cancelled_at).getTime() >= monthStart) {
+      monthlyCancelled += 1;
+    }
   }
 
   return (
@@ -65,6 +113,44 @@ export default async function SuperAdminDashboard() {
         >
           前往審核
         </Link>
+      </div>
+
+      <div className="mt-10 p-5 border border-neutral-200 rounded-2xl bg-white">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <p className="text-sm font-medium text-neutral-900">收入概況</p>
+            <p className="mt-1 text-xs text-neutral-500">
+              MRR ＝ 進行中訂閱方案月費加總（含 past_due）。
+            </p>
+          </div>
+          <Link
+            href="/super-admin/subscriptions"
+            className="text-xs text-neutral-500 hover:text-neutral-900 transition"
+          >
+            查看訂閱列表 →
+          </Link>
+        </div>
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Stat
+            label="MRR"
+            value={mrr}
+            format={(n) => `NT$ ${n.toLocaleString()}`}
+            accent="emerald"
+          />
+          <Stat label="進行中" value={subStatusCounts.active} />
+          <Stat label="本月新訂閱" value={monthlyNew} accent="emerald" />
+          <Stat label="本月取消" value={monthlyCancelled} accent="amber" />
+        </div>
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Stat label="Plus 進行中" value={activePerPlan.plus} />
+          <Stat label="Pro 進行中" value={activePerPlan.pro} />
+          <Stat
+            label="扣款失敗"
+            value={subStatusCounts.past_due}
+            accent="amber"
+          />
+          <Stat label="已過期" value={subStatusCounts.expired} />
+        </div>
       </div>
 
       <div className="mt-10 p-5 border border-neutral-200 rounded-2xl bg-white">
@@ -116,10 +202,12 @@ function Stat({
   label,
   value,
   accent,
+  format,
 }: {
   label: string;
   value: number;
   accent?: "amber" | "emerald";
+  format?: (n: number) => string;
 }) {
   const accentClass =
     accent === "amber"
@@ -131,7 +219,7 @@ function Stat({
     <div className="border border-neutral-200 rounded-2xl bg-white px-4 py-4">
       <p className="text-xs text-neutral-500">{label}</p>
       <p className={`mt-1 text-2xl font-semibold tabular-nums ${accentClass}`}>
-        {value}
+        {format ? format(value) : value}
       </p>
     </div>
   );

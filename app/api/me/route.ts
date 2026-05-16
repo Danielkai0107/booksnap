@@ -1,13 +1,32 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PLAN_QUOTAS, getPeriodRange, type OrgPlan } from "@/lib/plans";
+import {
+  PLAN_QUOTAS,
+  effectivePlan,
+  getOrgPeriod,
+  type OrgPlan,
+} from "@/lib/plans";
+import { isQuotaEnforced } from "@/lib/billing/flags";
+import { maybeExpireSubscription } from "@/lib/billing/expire";
+import type { SubscriptionRow } from "@/lib/supabase/types";
 
 export const runtime = "nodejs";
 
 type UsagePayload = {
   ai: { used: number; limit: number; periodEnd: string };
   books: { count: number; limit: number };
+};
+
+type SubscriptionPayload = {
+  status: SubscriptionRow["status"];
+  plan: SubscriptionRow["plan"];
+  startedAt: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  cancelledAt: string | null;
+  gateway: string;
 };
 
 export async function GET() {
@@ -17,15 +36,23 @@ export async function GET() {
   }
 
   const org = session.organization;
-  const plan: OrgPlan | null = org?.plan ?? null;
+  const storedPlan: OrgPlan | null = org?.plan ?? null;
 
   let usage: UsagePayload | null = null;
-  if (org && plan) {
-    const anchorISO = org.approved_at ?? org.created_at;
-    const { start, end } = getPeriodRange(anchorISO);
+  let plan: OrgPlan | null = storedPlan;
+  let subscription: SubscriptionRow | null = null;
+
+  if (org) {
+    const admin = createAdminClient();
+    // maybeExpireSubscription is idempotent and cheap (one indexed lookup + at
+    // most one update). We do it here so any stale `past_due` / `cancelled`
+    // row is normalised before the dashboard reads its plan.
+    subscription = await maybeExpireSubscription(org.id, admin);
+    plan = effectivePlan(org, subscription);
+
+    const { start, end } = getOrgPeriod(org, subscription);
     const quotas = PLAN_QUOTAS[plan];
 
-    const admin = createAdminClient();
     const [aiRes, booksRes] = await Promise.all([
       admin
         .from("ai_usage_logs")
@@ -51,6 +78,19 @@ export async function GET() {
     };
   }
 
+  const subscriptionPayload: SubscriptionPayload | null = subscription
+    ? {
+        status: subscription.status,
+        plan: subscription.plan,
+        startedAt: subscription.started_at,
+        currentPeriodStart: subscription.current_period_start,
+        currentPeriodEnd: subscription.current_period_end,
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        cancelledAt: subscription.cancelled_at,
+        gateway: subscription.gateway,
+      }
+    : null;
+
   return NextResponse.json({
     orgId: org?.id ?? null,
     orgName: org?.name ?? null,
@@ -58,6 +98,9 @@ export async function GET() {
     role: session.profile.role,
     email: session.email,
     plan,
+    storedPlan,
+    subscription: subscriptionPayload,
     usage,
+    quotaEnforced: isQuotaEnforced(org ?? undefined),
   });
 }

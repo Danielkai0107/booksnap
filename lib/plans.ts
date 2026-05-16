@@ -1,21 +1,32 @@
 /**
  * Single source of truth for plan metadata, monthly/total quotas, and billing-anchored period math.
  *
- * v1 is display-only: nothing in the codebase blocks behaviour based on these numbers. Both the
- * sidebar and the super-admin pages call into this module so the displayed quota / pill label
- * stay consistent whenever we tweak the limits or add a new tier.
+ * Quotas are enforced server-side in `/api/recognize` and `/api/books` POST when
+ * `BILLING_QUOTA_ENFORCED=true` and the org has `bypass_quota=false`. See
+ * `lib/billing/flags.ts`. Both the sidebar and the super-admin pages call into
+ * this module so the displayed quota / pill label stay consistent whenever we
+ * tweak the limits or add a new tier.
  */
 
-import type { OrgPlan } from "./supabase/types";
+import type {
+  OrgPlan,
+  OrganizationRow,
+  SubscriptionRow,
+} from "./supabase/types";
 
 export type { OrgPlan } from "./supabase/types";
 
-export const PLAN_ORDER: readonly OrgPlan[] = ["free", "pro", "plus"] as const;
+/**
+ * Tier ordering, from lowest to highest. Pro is intentionally the top tier
+ * (more expensive, larger quotas); Plus is the entry-level paid tier. Keep
+ * this in sync with PLAN_QUOTAS / PLAN_PRICE below.
+ */
+export const PLAN_ORDER: readonly OrgPlan[] = ["free", "plus", "pro"] as const;
 
 export const PLAN_QUOTAS: Record<OrgPlan, { ai: number; books: number }> = {
   free: { ai: 20, books: 100 },
-  pro: { ai: 200, books: 500 },
-  plus: { ai: 1000, books: 3000 },
+  plus: { ai: 200, books: 500 },
+  pro: { ai: 1000, books: 3000 },
 };
 
 export const PLAN_META: Record<
@@ -26,24 +37,24 @@ export const PLAN_META: Record<
     label: "Free",
     pillClass: "bg-neutral-100 text-neutral-700 border-neutral-200",
   },
-  pro: {
-    label: "Pro",
-    pillClass: "bg-emerald-50 text-emerald-700 border-emerald-100",
-  },
   plus: {
     label: "Plus",
+    pillClass: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  },
+  pro: {
+    label: "Pro",
     pillClass: "bg-indigo-50 text-indigo-700 border-indigo-100",
   },
 };
 
 /**
- * Monthly subscription prices in TWD. v1 is display-only — these strings show up on
- * the upgrade modal, no payment is collected yet. Adjust here when pricing is finalised.
+ * Monthly subscription prices in TWD. Plus is the entry paid tier; Pro is the
+ * top tier. The label is rendered as-is on the upgrade modal & billing page.
  */
 export const PLAN_PRICE: Record<OrgPlan, { monthly: number; label: string }> = {
   free: { monthly: 0, label: "免費" },
-  pro: { monthly: 299, label: "NT$ 299／月" },
-  plus: { monthly: 999, label: "NT$ 999／月" },
+  plus: { monthly: 299, label: "NT$ 299／月" },
+  pro: { monthly: 999, label: "NT$ 999／月" },
 };
 
 /**
@@ -104,4 +115,62 @@ export function getPeriodRange(
   const end = new Date(Date.UTC(endYear, endMonth, endDay, 0, 0, 0, 0));
 
   return { start, end };
+}
+
+/**
+ * Returns the *currently effective* plan for an organization, taking the
+ * subscription state into account. Used everywhere we display the plan pill
+ * or check quota.
+ *
+ * - active / past_due → subscription.plan (paid window still applies)
+ * - cancelled but still inside `current_period_end` → subscription.plan
+ * - everything else → org.plan (which defaults to 'free' for new orgs)
+ *
+ * NOTE: callers should pass the org's stored `plan` column too, because the
+ * "variance escape hatch" (super admin manually setting plan on org) still
+ * needs to work for legacy / VIP rows that don't have a real subscription.
+ */
+export function effectivePlan(
+  org: Pick<OrganizationRow, "plan">,
+  subscription: SubscriptionRow | null,
+  now: Date = new Date(),
+): OrgPlan {
+  if (!subscription) return org.plan;
+  const periodEnd = new Date(subscription.current_period_end).getTime();
+  if (subscription.status === "active" || subscription.status === "past_due") {
+    return subscription.plan;
+  }
+  if (
+    subscription.status === "cancelled" &&
+    periodEnd > now.getTime()
+  ) {
+    return subscription.plan;
+  }
+  return org.plan;
+}
+
+/**
+ * Returns the current billing period for an organization. If the org has an
+ * active subscription, use the subscription's period (paid-day-of-month
+ * anchor). Otherwise fall back to the legacy approved_at/created_at anchor so
+ * Free-tier counters keep the same monthly behaviour.
+ */
+export function getOrgPeriod(
+  org: Pick<OrganizationRow, "approved_at" | "created_at">,
+  subscription: SubscriptionRow | null,
+  now: Date = new Date(),
+): { start: Date; end: Date } {
+  if (
+    subscription &&
+    (subscription.status === "active" ||
+      subscription.status === "past_due" ||
+      subscription.status === "cancelled")
+  ) {
+    return {
+      start: new Date(subscription.current_period_start),
+      end: new Date(subscription.current_period_end),
+    };
+  }
+  const anchorISO = org.approved_at ?? org.created_at;
+  return getPeriodRange(anchorISO, now);
 }
