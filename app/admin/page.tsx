@@ -104,6 +104,19 @@ export default function AdminPage() {
   const availableCount = books.filter((b) => b.status === "available").length;
   const borrowedCount = books.length - availableCount;
 
+  // 匯出 URL：把目前的搜尋／分類／狀態帶進 query string，讓下載的內容
+  // 與螢幕上的篩選結果一致（WYSIWYG）。後端 /api/export 會做同樣的
+  // 篩選；沒有任何篩選時就是匯出整館。
+  const exportHref = useMemo(() => {
+    const params = new URLSearchParams();
+    const trimmed = query.trim();
+    if (trimmed) params.set("q", trimmed);
+    if (categoryFilter) params.set("category", categoryFilter);
+    if (statusFilter) params.set("status", statusFilter);
+    const qs = params.toString();
+    return qs ? `/api/export?${qs}` : "/api/export";
+  }, [query, categoryFilter, statusFilter]);
+
   return (
     <AdminShell
       topbarTitle="書籍管理"
@@ -134,7 +147,7 @@ export default function AdminPage() {
             <span className="leading-none">新書入庫</span>
           </button>
           <a
-            href="/api/export"
+            href={exportHref}
             className="press-feedback inline-flex items-center gap-1 text-sm font-medium text-neutral-800 hover:text-neutral-900 px-3 h-9 rounded-full bg-white border border-neutral-200 hover:border-neutral-400"
           >
             <svg
