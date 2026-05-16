@@ -3,7 +3,8 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ToastProvider";
 import { TW_CITIES } from "@/lib/cities";
-import { registerAction, type RegisterState } from "./actions";
+import { registerAction } from "./actions";
+import type { RegisterState } from "./types";
 
 const initial: RegisterState = {};
 

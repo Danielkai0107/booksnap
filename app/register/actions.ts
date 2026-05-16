@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateUniqueOrgSlug } from "@/lib/slug";
 import { isTwCity } from "@/lib/cities";
+import type { RegisterState } from "./types";
 
 export async function registerAction(
   _prev: RegisterState,
