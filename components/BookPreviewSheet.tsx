@@ -92,16 +92,14 @@ export default function BookPreviewSheet({
             <div className="w-20 md:w-24 self-stretch rounded-lg bg-white border border-neutral-200 shrink-0" />
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-neutral-400 font-mono">
-              {book.book_id}
-            </p>
+            <p className="text-xs text-neutral-400 font-mono">{book.book_id}</p>
             {book.admin_name && (
               <p className="mt-2 text-xs text-neutral-500">
                 入庫 · {book.admin_name}
               </p>
             )}
             {book.checkin_time && (
-              <p className="text-xs text-neutral-500 tabular-nums">
+              <p className="text-xs text-neutral-500 tabular-nums mt-1">
                 {new Date(book.checkin_time).toLocaleString("zh-TW")}
               </p>
             )}

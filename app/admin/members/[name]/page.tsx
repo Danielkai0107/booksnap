@@ -251,7 +251,9 @@ export default function MemberDetailPage() {
           {/* 手機版固定底部編輯/刪除按鈕 */}
           <div
             className="md:hidden fixed inset-x-0 bottom-0 z-40 px-5 pt-3 flex gap-3 bg-white border-t border-neutral-100"
-            style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
+            style={{
+              paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)",
+            }}
           >
             <button
               type="button"
@@ -443,7 +445,7 @@ function RecordList({
             >
               {title}
             </button>
-            <div className="text-xs text-neutral-500 tabular-nums text-right shrink-0">
+            <div className="text-xs text-neutral-500 tabular-nums mt-1 text-right shrink-0">
               <p className="text-neutral-400">{timeLabel}</p>
               <p className="mt-0.5">
                 {t ? new Date(t).toLocaleString("zh-TW") : "—"}

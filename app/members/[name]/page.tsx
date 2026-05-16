@@ -267,7 +267,7 @@ function RecordList({
             >
               {title}
             </button>
-            <div className="text-xs text-neutral-500 tabular-nums text-right shrink-0">
+            <div className="text-xs text-neutral-500 tabular-nums mt-1 text-right shrink-0">
               <p className="text-neutral-400">{timeLabel}</p>
               <p className="mt-0.5">
                 {t ? new Date(t).toLocaleString("zh-TW") : "—"}

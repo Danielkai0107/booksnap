@@ -7,6 +7,7 @@ import CategorySelect from "@/components/CategorySelect";
 import CategoryTag from "@/components/CategoryTag";
 import CloseButton from "@/components/CloseButton";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
+import SearchInput from "@/components/SearchInput";
 
 export default function BooksListPage() {
   const [books, setBooks] = useState<BookRow[]>([]);
@@ -73,12 +74,12 @@ export default function BooksListPage() {
         <div className="max-w-3xl mx-auto px-3 sm:px-6 py-3 flex items-center">
           <CloseButton href="/" inline />
           <div className="flex items-center gap-2 ml-4 flex-1 min-w-0">
-            <input
-              type="text"
+            <SearchInput
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onValueChange={setQuery}
               placeholder="搜尋書名、編號或持有人"
-              className="flex-1 min-w-0 h-[42px] px-4 rounded-full border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
+              wrapperClassName="flex-1 min-w-0"
+              className="w-full h-[42px] px-4 rounded-full border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
             />
             <div className="w-28 sm:w-40 shrink-0">
               <CategorySelect
@@ -97,7 +98,7 @@ export default function BooksListPage() {
       <div className="max-w-3xl mx-auto px-5 sm:px-8 pt-6 pb-12">
         <header className="mb-6 flex items-center justify-between gap-3">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900">
-            書籍清單
+            書籍查詢
           </h1>
           <p className="text-sm text-neutral-500 shrink-0">
             共 {filtered.length} 本書

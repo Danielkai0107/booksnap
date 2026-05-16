@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AdminShell from "@/components/AdminShell";
 import LabelCard from "@/components/LabelCard";
+import SearchInput from "@/components/SearchInput";
 import ZoomableImage from "@/components/ZoomableImage";
 import { supabase, BookRow } from "@/lib/supabase";
 
@@ -71,25 +72,16 @@ export default function LabelsPage() {
       >
         <div className="no-print mb-6">
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-neutral-900">
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
               標籤預覽
             </h1>
-            <div className="flex gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowLabels(false)}
-                className="bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2.5 rounded-lg transition"
-              >
-                返回選擇
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition"
-              >
-                列印
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="shrink-0 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition"
+            >
+              列印
+            </button>
           </div>
           <p className="mt-2 text-sm text-neutral-500">
             共 {selectedBooks.length} 張標籤
@@ -146,12 +138,12 @@ export default function LabelsPage() {
         </p>
       </header>
 
-      <input
-        type="text"
+      <SearchInput
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onValueChange={setQuery}
         placeholder="搜尋書名或編號"
-        className="w-full mb-3 px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
+        wrapperClassName="mb-3"
+        className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
       />
       <div className="flex justify-end gap-2 mb-5">
         <button

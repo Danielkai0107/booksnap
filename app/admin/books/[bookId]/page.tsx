@@ -143,7 +143,7 @@ export default function BookDetailPage() {
                 <p className="mt-2 text-xs text-neutral-500">
                   入庫 · {book.admin_name}
                 </p>
-                <p className="text-xs text-neutral-500 tabular-nums">
+                <p className="text-xs text-neutral-500 tabular-nums mt-1">
                   {new Date(book.checkin_time).toLocaleString("zh-TW")}
                 </p>
                 {book.current_holder && (
@@ -199,7 +199,9 @@ export default function BookDetailPage() {
           {/* 手機版固定底部編輯/刪除按鈕 */}
           <div
             className="md:hidden fixed inset-x-0 bottom-0 z-40 px-5 pt-3 flex gap-3 bg-white border-t border-neutral-100"
-            style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
+            style={{
+              paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)",
+            }}
           >
             <button
               type="button"
@@ -363,7 +365,7 @@ function RecordList({
             >
               {r.borrower_name}
             </button>
-            <div className="text-xs text-neutral-500 tabular-nums text-right">
+            <div className="text-xs text-neutral-500 tabular-nums mt-1 text-right">
               <span className="text-neutral-400">{timeLabel}</span>
               {t ? new Date(t).toLocaleString("zh-TW") : "—"}
             </div>

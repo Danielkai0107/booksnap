@@ -190,7 +190,7 @@ export default function HomeClient({ orgName, aiRecognizeCount }: Props) {
               <line x1="3.5" y1="12" x2="3.51" y2="12" />
               <line x1="3.5" y1="18" x2="3.51" y2="18" />
             </svg>
-            <span className="leading-none">書籍清單</span>
+            <span className="leading-none">書籍查詢</span>
           </button>
         </div>
       </div>

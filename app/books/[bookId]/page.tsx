@@ -65,7 +65,7 @@ export default function BookDetailPage() {
 
   return (
     <main className="min-h-screen bg-white">
-      <CloseButton href="/books" icon="arrow-left" ariaLabel="回書籍清單" />
+      <CloseButton href="/books" icon="arrow-left" ariaLabel="回書籍查詢" />
 
       <div className="max-w-3xl mx-auto px-5 sm:px-8 pt-20 pb-12">
         {loading ? (
@@ -109,7 +109,7 @@ export default function BookDetailPage() {
                   <p className="mt-2 text-xs text-neutral-500">
                     入庫 · {book.admin_name}
                   </p>
-                  <p className="text-xs text-neutral-500 tabular-nums">
+                  <p className="text-xs text-neutral-500 tabular-nums mt-1">
                     {new Date(book.checkin_time).toLocaleString("zh-TW")}
                   </p>
                   {book.current_holder && (
@@ -265,7 +265,7 @@ function RecordList({
             >
               {r.borrower_name}
             </button>
-            <div className="text-xs text-neutral-500 tabular-nums text-right">
+            <div className="text-xs text-neutral-500 tabular-nums mt-1 text-right">
               <span className="text-neutral-400">{timeLabel}</span>
               {t ? new Date(t).toLocaleString("zh-TW") : "—"}
             </div>
