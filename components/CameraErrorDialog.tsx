@@ -26,7 +26,6 @@ export default function CameraErrorDialog({
   return (
     <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-center justify-center px-6">
       <div className="bg-white text-neutral-900 max-w-sm w-full rounded-2xl p-6 shadow-2xl text-center">
-        <div className="w-12 h-12 rounded-full bg-neutral-100 mx-auto mb-4 flex items-center justify-center text-neutral-500"></div>
         <p className="text-base font-medium text-neutral-900 mb-1.5">
           需要使用相機
         </p>
