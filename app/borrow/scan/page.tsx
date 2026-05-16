@@ -21,6 +21,8 @@ export default function BorrowScanPage() {
   const [candidates, setCandidates] = useState<BookRow[]>([]);
   const [books, setBooks] = useState<BookRow[]>([]);
   const [pending, setPending] = useState<BookRow | null>(null);
+  /** 該書是否已在清單中。決定彈窗只顯示「略過」按鈕，並提示已加入。 */
+  const [pendingAlreadyInList, setPendingAlreadyInList] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [notFoundOpen, setNotFoundOpen] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -28,7 +30,7 @@ export default function BorrowScanPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [navigating, setNavigating] = useState(false);
-  // 用來強制 useEffect 重啟相機（例如重複掃描、瞬時錯誤後）。
+  // 用來強制 useEffect 重啟相機（例如瞬時錯誤訊息後）。
   const [scanGen, setScanGen] = useState(0);
   const [toast, setToast] = useState<{
     open: boolean;
@@ -90,14 +92,6 @@ export default function BorrowScanPage() {
     }
   }, []);
 
-  const flashAlreadyAdded = useCallback((title: string) => {
-    setToast({
-      open: true,
-      message: `已在清單中：${title}`,
-      kind: "info",
-    });
-  }, []);
-
   const handleQrScanned = useCallback(
     async (id: string) => {
       setBusy(true);
@@ -105,7 +99,8 @@ export default function BorrowScanPage() {
       try {
         const dup = booksRef.current.find((b) => b.book_id === id);
         if (dup) {
-          flashAlreadyAdded(dup.title);
+          setPendingAlreadyInList(true);
+          setPending(dup);
           return;
         }
         const { data, error } = await supabase
@@ -123,17 +118,18 @@ export default function BorrowScanPage() {
           setErrorMsg("這本書已經在你手上");
           return;
         }
+        setPendingAlreadyInList(false);
         setPending(book);
       } catch (err) {
         const m = err instanceof Error ? err.message : String(err);
         setErrorMsg(`查詢失敗：${m}`);
       } finally {
         setBusy(false);
-        // 若沒有開啟 pending 模態，重新喚醒相機。
+        // 若這趟沒有開啟 pending 模態（例如僅 setErrorMsg），喚醒相機繼續掃描。
         setScanGen((g) => g + 1);
       }
     },
-    [member, flashAlreadyAdded],
+    [member],
   );
 
   const startScanner = useCallback(async () => {
@@ -222,10 +218,10 @@ export default function BorrowScanPage() {
         setNotFoundOpen(true);
         return;
       }
-      if (booksRef.current.some((b) => b.book_id === match.book_id)) {
-        flashAlreadyAdded(match.title);
-        return;
-      }
+      const inList = booksRef.current.some(
+        (b) => b.book_id === match.book_id,
+      );
+      setPendingAlreadyInList(inList);
       setPending(match);
     } catch (err) {
       console.error("recognize error", err);
@@ -233,7 +229,7 @@ export default function BorrowScanPage() {
     } finally {
       setCapturing(false);
     }
-  }, [candidates, flashAlreadyAdded, stopScanner]);
+  }, [candidates, stopScanner]);
 
   const handleAdd = useCallback(() => {
     if (!pending) return;
@@ -244,10 +240,12 @@ export default function BorrowScanPage() {
       kind: "success",
     });
     setPending(null);
+    setPendingAlreadyInList(false);
   }, [pending]);
 
   const handleSkip = useCallback(() => {
     setPending(null);
+    setPendingAlreadyInList(false);
   }, []);
 
   const handleRemove = useCallback((bookId: string) => {
@@ -379,6 +377,7 @@ export default function BorrowScanPage() {
           actionLabel="加入借書清單"
           onAction={handleAdd}
           onCancel={handleSkip}
+          alreadyInList={pendingAlreadyInList}
         />
       )}
 
@@ -478,14 +477,17 @@ function BookConfirmSheet({
   actionLabel,
   onAction,
   onCancel,
+  alreadyInList = false,
 }: {
   book: BookRow;
   currentMember: string;
   actionLabel: string;
   onAction: () => void;
   onCancel: () => void;
+  alreadyInList?: boolean;
 }) {
   const warningOther =
+    !alreadyInList &&
     book.status === "borrowed" &&
     book.current_holder &&
     book.current_holder !== currentMember;
@@ -494,25 +496,39 @@ function BookConfirmSheet({
     <BottomSheet
       open
       onClose={onCancel}
-      title="是這本嗎？"
+      title={alreadyInList ? "已在清單中" : "是這本嗎？"}
       subtitle={book.title}
       footer={
-        <div className="flex gap-3">
+        alreadyInList ? (
           <button
             onClick={onCancel}
-            className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
+            className="w-full bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
           >
             略過
           </button>
-          <button
-            onClick={onAction}
-            className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
-          >
-            {actionLabel}
-          </button>
-        </div>
+        ) : (
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
+            >
+              略過
+            </button>
+            <button
+              onClick={onAction}
+              className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+            >
+              {actionLabel}
+            </button>
+          </div>
+        )
       }
     >
+      {alreadyInList && (
+        <p className="text-xs bg-amber-50 text-amber-800 border border-amber-100 rounded-lg px-3 py-2 mb-3">
+          此書已在借書清單中，可略過繼續掃描下一本。
+        </p>
+      )}
       <div className="flex gap-4 items-start pb-3">
         {book.image_url ? (
           <ZoomableImage

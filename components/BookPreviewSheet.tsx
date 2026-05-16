@@ -64,20 +64,18 @@ export default function BookPreviewSheet({
       }
     >
       <section className="bg-neutral-100 border border-neutral-200 rounded-2xl p-4 md:p-5 mb-2">
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <h2 className="flex-1 min-w-0 text-base md:text-lg font-semibold tracking-tight text-neutral-900 leading-snug">
-            {book.title}
-          </h2>
-          <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
-            <StatusPill status={book.status ?? "available"} />
-            {book.category_name && <CategoryTag name={book.category_name} />}
-            {book.shelf_id && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-white text-neutral-700 border border-neutral-200">
-                書架 {book.shelf_id}
-              </span>
-            )}
-          </div>
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <StatusPill status={book.status ?? "available"} />
+          {book.category_name && <CategoryTag name={book.category_name} />}
+          {book.shelf_id && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-white text-neutral-700 border border-neutral-200">
+              書架 {book.shelf_id}
+            </span>
+          )}
         </div>
+        <h2 className="text-base md:text-lg font-semibold tracking-tight text-neutral-900 leading-snug mb-4">
+          {book.title}
+        </h2>
 
         <div className="flex gap-4 items-stretch">
           {book.image_url ? (
@@ -93,11 +91,6 @@ export default function BookPreviewSheet({
             <p className="text-xs text-neutral-400 font-mono">
               {book.book_id}
             </p>
-            {book.category_name && (
-              <p className="mt-2">
-                <CategoryTag name={book.category_name} />
-              </p>
-            )}
             {book.admin_name && (
               <p className="mt-2 text-xs text-neutral-500">
                 入庫 · {book.admin_name}

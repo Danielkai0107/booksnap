@@ -7,10 +7,9 @@ import BookPreviewSheet, {
 } from "@/components/BookPreviewSheet";
 import CloseButton from "@/components/CloseButton";
 import SwipeableTabs from "@/components/SwipeableTabs";
-import ZoomableImage from "@/components/ZoomableImage";
 import { BorrowRecordRow, MemberRow } from "@/lib/supabase";
 
-type Tab = "borrow" | "return";
+type Tab = "holding" | "borrow" | "return";
 
 type Holding = {
   book_id: string;
@@ -29,7 +28,7 @@ export default function MemberDetailPage() {
   const [records, setRecords] = useState<BorrowRecordRow[]>([]);
   const [books, setBooks] = useState<BookMap>({});
   const [previewBookId, setPreviewBookId] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("borrow");
+  const [tab, setTab] = useState<Tab>("holding");
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -44,9 +43,27 @@ export default function MemberDetailPage() {
         if (!alive) return;
         if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
         setMember(data.member as MemberRow);
-        setHolding((data.holding ?? []) as Holding[]);
+        const holdingData = (data.holding ?? []) as Holding[];
+        setHolding(holdingData);
         setRecords((data.records ?? []) as BorrowRecordRow[]);
-        setBooks((data.books ?? {}) as BookMap);
+        // 把目前持有合進 books map，這樣即使該書沒有借閱紀錄也能展開預覽。
+        const bookMap = { ...((data.books ?? {}) as BookMap) };
+        for (const h of holdingData) {
+          if (!bookMap[h.book_id]) {
+            bookMap[h.book_id] = {
+              book_id: h.book_id,
+              title: h.title,
+              image_url: h.image_url,
+              status: "borrowed",
+              shelf_id: null,
+              current_holder: name,
+              admin_name: null,
+              checkin_time: null,
+              category_name: null,
+            };
+          }
+        }
+        setBooks(bookMap);
       } catch (err) {
         if (!alive) return;
         setErrorMsg(err instanceof Error ? err.message : String(err));
@@ -101,40 +118,22 @@ export default function MemberDetailPage() {
                   </p>
                 )}
               </div>
-
-              <div className="mt-5">
-                <p className="text-[18px] font-bold text-neutral-900 mb-4">
-                  目前持有 {holding.length} 本
-                </p>
-                {holding.length === 0 ? (
-                  <p className="text-sm text-neutral-400">無持有書本</p>
-                ) : (
-                  <ul className="flex gap-3 overflow-x-auto pb-1">
-                    {holding.map((b) => (
-                      <li key={b.book_id} className="shrink-0 w-20">
-                        {b.image_url ? (
-                          <ZoomableImage
-                            src={b.image_url}
-                            alt={b.title}
-                            className="w-20 h-20 object-cover rounded-md border border-neutral-200"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-white rounded-md border border-neutral-200" />
-                        )}
-                        <p className="mt-1.5 text-xs text-neutral-700 truncate text-center">
-                          {b.title}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
             </section>
 
             <SwipeableTabs
               active={tab}
               onChange={(id) => setTab(id as Tab)}
               tabs={[
+                {
+                  id: "holding",
+                  label: `目前持有 (${holding.length})`,
+                  content: (
+                    <HoldingList
+                      items={holding}
+                      onPick={(bookId) => setPreviewBookId(bookId)}
+                    />
+                  ),
+                },
                 {
                   id: "borrow",
                   label: `借書紀錄 (${records.length})`,
@@ -180,6 +179,54 @@ export default function MemberDetailPage() {
         ) : null}
       </div>
     </main>
+  );
+}
+
+function HoldingList({
+  items,
+  onPick,
+}: {
+  items: Holding[];
+  onPick: (bookId: string) => void;
+}) {
+  if (items.length === 0) {
+    return (
+      <p className="py-12 text-center text-sm text-neutral-500">
+        目前沒有持有任何書本
+      </p>
+    );
+  }
+  return (
+    <ul className="space-y-2">
+      {items.map((b) => (
+        <li key={b.book_id} className="bg-neutral-100 rounded-xl">
+          <button
+            type="button"
+            onClick={() => onPick(b.book_id)}
+            className="w-full flex gap-3 items-center p-3 text-left hover:bg-neutral-200 transition rounded-xl"
+          >
+            {b.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={b.image_url}
+                alt={b.title}
+                className="w-12 h-16 object-cover rounded-md border border-neutral-200 shrink-0"
+              />
+            ) : (
+              <div className="w-12 h-16 bg-white rounded-md border border-neutral-200 shrink-0" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-neutral-900 truncate">
+                {b.title}
+              </p>
+              <p className="text-xs text-neutral-400 mt-1 font-mono truncate">
+                {b.book_id}
+              </p>
+            </div>
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 
