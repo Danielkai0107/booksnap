@@ -106,11 +106,6 @@ export default function BookDetailPage() {
                   <p className="text-xs text-neutral-400 font-mono">
                     {book.book_id}
                   </p>
-                  {categoryName && (
-                    <p className="mt-2">
-                      <CategoryTag name={categoryName} />
-                    </p>
-                  )}
                   <p className="mt-2 text-xs text-neutral-500">
                     入庫 · {book.admin_name}
                   </p>
@@ -127,6 +122,8 @@ export default function BookDetailPage() {
                   )}
                 </div>
               </div>
+
+              <BookMetadata book={book} />
             </section>
 
             <SwipeableTabs
@@ -193,6 +190,44 @@ function StatusPill({ status }: { status: string }) {
       <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
       已借出
     </span>
+  );
+}
+
+function BookMetadata({ book }: { book: BookRow }) {
+  const hasAny =
+    book.isbn || book.authors || book.publisher || book.published_date;
+  if (!hasAny) return null;
+  return (
+    <dl className="mt-5 pt-4 border-t border-neutral-200 grid grid-cols-[72px_1fr] gap-y-2 text-xs md:text-sm">
+      {book.isbn && (
+        <>
+          <dt className="text-neutral-400">ISBN</dt>
+          <dd className="text-neutral-900 font-mono tabular-nums break-all">
+            {book.isbn}
+          </dd>
+        </>
+      )}
+      {book.authors && (
+        <>
+          <dt className="text-neutral-400">作者</dt>
+          <dd className="text-neutral-900">{book.authors}</dd>
+        </>
+      )}
+      {book.publisher && (
+        <>
+          <dt className="text-neutral-400">出版社</dt>
+          <dd className="text-neutral-900">{book.publisher}</dd>
+        </>
+      )}
+      {book.published_date && (
+        <>
+          <dt className="text-neutral-400">出版日期</dt>
+          <dd className="text-neutral-900 tabular-nums">
+            {book.published_date}
+          </dd>
+        </>
+      )}
+    </dl>
   );
 }
 
