@@ -276,12 +276,6 @@ export default function CheckinScanPage() {
     }
   }, [stopStream, categories, fetchCandidatesOnce]);
 
-  const handlePickCandidate = useCallback((c: LookupCandidate) => {
-    setPickedCandidate(c);
-    setEditedTitle(c.title);
-    setEditedIsbn(c.isbn13 ?? c.isbn10 ?? "");
-  }, []);
-
   const handleUnpickCandidate = useCallback(() => {
     setPickedCandidate(null);
     setEditedIsbn("");
@@ -290,6 +284,22 @@ export default function CheckinScanPage() {
       setEditedTitle(currentCapture.detectedTitle);
     }
   }, [currentCapture]);
+
+  const handlePickCandidate = useCallback(
+    (c: LookupCandidate) => {
+      // 點同一張卡片視為取消選取（toggle）。
+      const isSame =
+        pickedCandidate && candidateKey(pickedCandidate) === candidateKey(c);
+      if (isSame) {
+        handleUnpickCandidate();
+        return;
+      }
+      setPickedCandidate(c);
+      setEditedTitle(c.title);
+      setEditedIsbn(c.isbn13 ?? c.isbn10 ?? "");
+    },
+    [pickedCandidate, handleUnpickCandidate],
+  );
 
   // 確認彈窗最終要送出的 ISBN：直接信任使用者在 input 內看到的值。
   const effectiveIsbn = useMemo(
@@ -641,10 +651,10 @@ export default function CheckinScanPage() {
                           <button
                             type="button"
                             onClick={() => handlePickCandidate(c)}
-                            className={`w-full flex gap-3 items-start text-left rounded-lg px-3 py-2.5 transition border-2 ${
+                            className={`w-full flex gap-3 items-start text-left rounded-lg px-3 py-2.5 transition border ${
                               selected
                                 ? "border-neutral-900 bg-neutral-50"
-                                : "border-neutral-200 hover:border-neutral-400"
+                                : "border-neutral-100 hover:border-neutral-300"
                             }`}
                           >
                             {c.thumbnail ? (
