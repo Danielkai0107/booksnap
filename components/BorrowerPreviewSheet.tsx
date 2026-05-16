@@ -32,13 +32,13 @@ type Props = {
   onClose: () => void;
   /** Borrower id to preview; null skips fetching. */
   borrowerId: string | null;
-  /** Optional deep link; usually `/admin/borrowers/{id}`. */
+  /** Optional deep link; usually `/borrowers/{id}`. */
   detailHref?: string;
 };
 
 /**
  * Bottom-sheet preview for a single borrower. Shares the same shape as the
- * full `/admin/borrowers/[id]` page so admins can peek without navigating
+ * full `/borrowers/[id]` page so admins can peek without navigating
  * away from a book detail or borrow record.
  */
 export default function BorrowerPreviewSheet({

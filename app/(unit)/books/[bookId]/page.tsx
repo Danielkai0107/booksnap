@@ -17,7 +17,7 @@ type Tab = "borrow" | "return";
 /**
  * Record row joined with borrower display name (and phone for masking) on
  * the API side. We keep `borrower_id` as the canonical key so the preview
- * sheet can deep-link into `/admin/borrowers/{id}`.
+ * sheet can deep-link into `/borrowers/{id}`.
  */
 type RecordWithBorrower = {
   id: string;
@@ -85,7 +85,7 @@ export default function BookDetailPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
-      router.push("/admin");
+      router.push("/");
     } catch (err) {
       console.error("[admin/books/:id] delete failed", err);
       toast.error("刪除失敗，請稍後再試");
@@ -104,7 +104,7 @@ export default function BookDetailPage() {
 
   return (
     <AdminShell
-      backHref="/admin"
+      backHref="/"
       topbarTitle={book?.title ?? "書籍詳情"}
       scrollLifted
       topbarRight={
@@ -269,7 +269,7 @@ export default function BookDetailPage() {
             borrowerId={previewBorrowerId}
             detailHref={
               previewBorrowerId
-                ? `/admin/borrowers/${encodeURIComponent(previewBorrowerId)}`
+                ? `/borrowers/${encodeURIComponent(previewBorrowerId)}`
                 : undefined
             }
           />

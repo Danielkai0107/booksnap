@@ -25,7 +25,7 @@ type Props = {
   open: boolean;
   onClose: () => void;
   book: BookPreview | null;
-  /** 「查看完整詳情」連結（後台用 /admin/books/[id]、前台用 /books/[id]）。 */
+  /** 「查看完整詳情」連結（後台用 /books/[id]、前台用 /o/[slug]/b/[id]）。 */
   detailHref?: string;
 };
 

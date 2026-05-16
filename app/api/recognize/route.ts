@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  PLAN_QUOTAS,
   effectivePlan,
   getOrgPeriod,
+  loadPlanConfigs,
 } from "@/lib/plans";
 import { isQuotaEnforced } from "@/lib/billing/flags";
 import { loadOrgBillingState } from "@/lib/billing/state";
@@ -57,7 +57,8 @@ export async function POST(req: NextRequest) {
     );
     if (org && isQuotaEnforced(org)) {
       const plan = effectivePlan(org, subscription);
-      const limit = PLAN_QUOTAS[plan].ai;
+      const { quotas } = await loadPlanConfigs(admin);
+      const limit = quotas[plan].ai;
       const { start } = getOrgPeriod(org, subscription);
       const { count } = await admin
         .from("ai_usage_logs")

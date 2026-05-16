@@ -10,8 +10,8 @@ import { NextResponse, type NextRequest } from "next/server";
  *      - unauthenticated visitors of admin pages → /login
  *      - unauthenticated visitors of /super-admin → /super-admin/login
  *      - super-admin visiting unit pages → /super-admin
- *      - unit user visiting /super-admin → /admin
- *      - already-logged-in users visiting /login or /register → /admin
+ *      - unit user visiting /super-admin → /
+ *      - already-logged-in users visiting /login or /register → /
  *      - `/o/{slug}/*` and `/api/public/*` are always public (no session checks)
  *
  * Real authorization is still enforced by Postgres RLS for admin routes,
@@ -111,7 +111,7 @@ export async function proxy(request: NextRequest) {
   if (isPublicUnitPath(pathname)) {
     if (user) {
       const url = request.nextUrl.clone();
-      url.pathname = role === "super_admin" ? "/super-admin" : "/admin";
+      url.pathname = role === "super_admin" ? "/super-admin" : "/";
       url.search = "";
       return NextResponse.redirect(url);
     }

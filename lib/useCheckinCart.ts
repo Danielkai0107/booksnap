@@ -63,7 +63,7 @@ export function useCheckinCart(options?: { redirectIfNoAdmin?: boolean }) {
     if (!stored) {
       // `/checkin` re-seeds the operator name from the session, so a missing
       // value usually means a hard refresh on the scan page. Bouncing through
-      // it picks the operator up again (or sends the user to /admin if the
+      // it picks the operator up again (or sends the user to the admin home if the
       // session expired).
       if (redirect) router.replace("/checkin");
       setHydrated(true);
@@ -176,7 +176,7 @@ export function useCheckinCart(options?: { redirectIfNoAdmin?: boolean }) {
           kind: "success",
         })
       );
-      router.push("/admin");
+      router.push("/");
     } catch (err) {
       setSubmitting(false);
       throw err;

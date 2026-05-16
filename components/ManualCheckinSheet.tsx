@@ -181,7 +181,7 @@ export default function ManualCheckinSheet({
           toast.error(data.message);
           setSubmitting(false);
           onClose();
-          router.push("/admin/billing?reason=book_quota");
+          router.push("/billing?reason=book_quota");
           return;
         }
       }

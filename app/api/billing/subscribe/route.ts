@@ -9,18 +9,24 @@ export const runtime = "nodejs";
 type SubscribeBody = { plan?: OrgPlan };
 
 const BILLING_RETURN_URL =
-  process.env.NEXT_PUBLIC_BILLING_RETURN_URL ?? "/admin/billing";
+  process.env.NEXT_PUBLIC_BILLING_RETURN_URL ?? "/billing";
 
 /**
- * Starts (or restarts) a paid subscription for the authenticated unit.
+ * Starts a paid subscription **or** pre-arranges a plan switch on an
+ * existing one. Behaviour by state:
  *
- * Flow:
- *  1. Reject if the org already has a live subscription on a *different* plan.
- *     V1 doesn't handle proration; user must cancel first.
- *  2. Hand off to the active payment gateway. InstantGateway returns
- *     immediately with `redirectUrl=/admin/billing?welcome=1` and the
- *     subscription is already `active`. Real gateways will return their
- *     hosted checkout URL; the `webhook` route then activates the row.
+ *  - No live subscription (Free org): hand off to the gateway to activate
+ *    immediately. InstantGateway flips the row to `active` inline and
+ *    returns `successUrl`. Real gateways return their hosted checkout URL.
+ *
+ *  - Live subscription (`active` / `past_due`):
+ *      target === current plan → clear any pending change ("keep current").
+ *      target !== current plan → schedule the switch at `current_period_end`
+ *                                 (no immediate billing, just a pre-arrange).
+ *
+ * "Downgrade to Free" goes through `/api/billing/cancel` instead, which is
+ * just `schedulePlanChange('free')` semantically but kept separate so we
+ * have a clear audit trail.
  */
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -60,20 +66,29 @@ export async function POST(req: NextRequest) {
     .eq("organization_id", org.id)
     .maybeSingle();
   const current = (existing as SubscriptionRow | null) ?? null;
-  if (
-    current &&
-    (current.status === "active" || current.status === "past_due") &&
-    current.plan !== plan
-  ) {
-    return NextResponse.json(
-      {
-        error: "active_subscription_other_plan",
-        message:
-          "目前已有訂閱中的方案。請先取消當前訂閱（期末停用）後再切換方案。",
-        currentPlan: current.plan,
-      },
-      { status: 409 },
-    );
+  const hasLivePaid =
+    current !== null &&
+    (current.status === "active" || current.status === "past_due");
+
+  // Paid → paid: pre-arrange a switch (or clear it if target = current).
+  if (hasLivePaid && current) {
+    try {
+      await getGateway().schedulePlanChange(
+        current.gateway_sub_id,
+        plan === current.plan ? null : plan,
+      );
+      return NextResponse.json({
+        ok: true,
+        scheduledPlan: plan === current.plan ? null : plan,
+        periodEnd: current.current_period_end,
+      });
+    } catch (err) {
+      console.error("[billing/subscribe] schedule error", err);
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "schedule_error" },
+        { status: 500 },
+      );
+    }
   }
 
   const successUrl = `${BILLING_RETURN_URL}?welcome=1`;

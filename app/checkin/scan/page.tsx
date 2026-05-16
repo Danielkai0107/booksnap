@@ -268,7 +268,7 @@ export default function CheckinScanPage() {
         toast.error(err.payload.message);
         setCurrentCapture(null);
         setMode("camera");
-        router.push("/admin/billing?reason=ai_quota");
+        router.push("/billing?reason=ai_quota");
         return;
       }
       setCurrentCapture({
@@ -450,7 +450,7 @@ export default function CheckinScanPage() {
       setNavigating(false);
       if (err instanceof QuotaExceededError) {
         toast.error(err.payload.message);
-        router.push("/admin/billing?reason=book_quota");
+        router.push("/billing?reason=book_quota");
         return;
       }
       toast.error("入庫失敗，請稍後再試");
@@ -460,7 +460,7 @@ export default function CheckinScanPage() {
   const handleClose = useCallback(() => {
     setNavigating(true);
     stopStream();
-    router.push("/admin");
+    router.push("/");
   }, [router, stopStream]);
 
   const pickedKey = pickedCandidate ? candidateKey(pickedCandidate) : null;

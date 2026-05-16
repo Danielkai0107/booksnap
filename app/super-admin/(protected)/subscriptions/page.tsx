@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PLAN_META, PLAN_PRICE } from "@/lib/plans";
+import { PLAN_META, loadPlanConfigs } from "@/lib/plans";
 import type {
   OrganizationRow,
   PaymentRow,
@@ -114,6 +114,8 @@ export default async function SubscriptionsPage({
     }
   });
 
+  const { prices } = await loadPlanConfigs(admin);
+
   return (
     <div>
       <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
@@ -152,7 +154,7 @@ export default async function SubscriptionsPage({
             const org = orgsById.get(sub.organization_id);
             const lastPayment = lastPaymentBySub.get(sub.id);
             const meta = PLAN_META[sub.plan];
-            const price = PLAN_PRICE[sub.plan];
+            const price = prices[sub.plan];
             return (
               <li
                 key={sub.id}

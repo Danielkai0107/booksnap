@@ -13,7 +13,11 @@ import {
   updateOrganizationPlan,
 } from "../../actions";
 import type { OrgPlan, OrgStatus } from "@/lib/supabase/types";
-import { PLAN_META, PLAN_ORDER, PLAN_QUOTAS } from "@/lib/plans";
+import {
+  PLAN_META,
+  PLAN_ORDER,
+  type PlanQuotaConfig,
+} from "@/lib/plans";
 
 type Props = {
   orgId: string;
@@ -24,6 +28,8 @@ type Props = {
   contactEmail: string;
   contactPhone: string;
   bypassQuota: boolean;
+  /** Live quotas from `plan_configs`, surfaced inside the plan dialog. */
+  allQuotas: Record<OrgPlan, PlanQuotaConfig>;
 };
 
 type DialogKind =
@@ -69,6 +75,7 @@ export default function OrgRowActions({
   contactEmail,
   contactPhone,
   bypassQuota,
+  allQuotas,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [dialog, setDialog] = useState<DialogKind>(null);
@@ -170,6 +177,7 @@ export default function OrgRowActions({
           <PlanDialog
             orgId={orgId}
             current={plan}
+            allQuotas={allQuotas}
             onDone={close}
             onError={reportError}
           />
@@ -244,11 +252,13 @@ function BypassDialog({
 function PlanDialog({
   orgId,
   current,
+  allQuotas,
   onDone,
   onError,
 }: {
   orgId: string;
   current: OrgPlan;
+  allQuotas: Record<OrgPlan, PlanQuotaConfig>;
   onDone: () => void;
   onError: (m: string) => void;
 }) {
@@ -267,7 +277,7 @@ function PlanDialog({
       <div className="mt-4 space-y-2">
         {PLAN_ORDER.map((p) => {
           const meta = PLAN_META[p];
-          const quotas = PLAN_QUOTAS[p];
+          const quotas = allQuotas[p];
           const active = selected === p;
           return (
             <button

@@ -141,7 +141,7 @@ export default function BorrowerDetailPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
-      router.push("/admin/borrowers");
+      router.push("/borrowers");
     } catch (err) {
       console.error("[admin/borrowers/:id] delete failed", err);
       toast.error(err instanceof Error ? err.message : "刪除失敗");
@@ -155,7 +155,7 @@ export default function BorrowerDetailPage() {
 
   return (
     <AdminShell
-      backHref="/admin/borrowers"
+      backHref="/borrowers"
       topbarTitle={borrower?.display_name ?? "出借人詳情"}
       scrollLifted
       topbarRight={
@@ -303,7 +303,7 @@ export default function BorrowerDetailPage() {
             book={previewBookId ? (books[previewBookId] ?? null) : null}
             detailHref={
               previewBookId
-                ? `/admin/books/${encodeURIComponent(previewBookId)}`
+                ? `/books/${encodeURIComponent(previewBookId)}`
                 : undefined
             }
           />

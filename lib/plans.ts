@@ -6,8 +6,15 @@
  * `lib/billing/flags.ts`. Both the sidebar and the super-admin pages call into
  * this module so the displayed quota / pill label stay consistent whenever we
  * tweak the limits or add a new tier.
+ *
+ * Numbers (quotas + prices) live in the `plan_configs` table and are loaded
+ * via `loadPlanConfigs()` below; PLAN_QUOTAS / PLAN_PRICE remain as fallback
+ * defaults when the DB is unreachable. PLAN_META is hard-coded UI metadata
+ * (label / pill colour) — not user-tunable.
  */
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "./supabase/admin";
 import type {
   OrgPlan,
   OrganizationRow,
@@ -23,7 +30,14 @@ export type { OrgPlan } from "./supabase/types";
  */
 export const PLAN_ORDER: readonly OrgPlan[] = ["free", "plus", "pro"] as const;
 
-export const PLAN_QUOTAS: Record<OrgPlan, { ai: number; books: number }> = {
+export type PlanQuotaConfig = { ai: number; books: number };
+export type PlanPriceConfig = { monthly: number; label: string };
+
+/**
+ * Hard-coded fallback values, also used to seed the `plan_configs` table.
+ * Keep in sync with the migration `add_plan_configs_table`.
+ */
+export const PLAN_QUOTAS: Record<OrgPlan, PlanQuotaConfig> = {
   free: { ai: 20, books: 100 },
   plus: { ai: 200, books: 500 },
   pro: { ai: 1000, books: 3000 },
@@ -51,11 +65,78 @@ export const PLAN_META: Record<
  * Monthly subscription prices in TWD. Plus is the entry paid tier; Pro is the
  * top tier. The label is rendered as-is on the upgrade modal & billing page.
  */
-export const PLAN_PRICE: Record<OrgPlan, { monthly: number; label: string }> = {
+export const PLAN_PRICE: Record<OrgPlan, PlanPriceConfig> = {
   free: { monthly: 0, label: "免費" },
   plus: { monthly: 299, label: "NT$ 299／月" },
   pro: { monthly: 999, label: "NT$ 999／月" },
 };
+
+export type PlanConfigs = {
+  quotas: Record<OrgPlan, PlanQuotaConfig>;
+  prices: Record<OrgPlan, PlanPriceConfig>;
+};
+
+export function formatPriceLabel(plan: OrgPlan, monthly: number): string {
+  if (plan === "free" || monthly === 0) return "免費";
+  return `NT$ ${monthly.toLocaleString()}／月`;
+}
+
+const FALLBACK_PLAN_CONFIGS: PlanConfigs = {
+  quotas: PLAN_QUOTAS,
+  prices: PLAN_PRICE,
+};
+
+type CacheEntry = { value: PlanConfigs; loadedAt: number };
+let cached: CacheEntry | null = null;
+const CACHE_TTL_MS = 60 * 1000;
+
+/**
+ * Reads `plan_configs` once per process and caches for 60s. Super-admin edits
+ * call `invalidatePlanConfigsCache()` so the same instance picks up changes
+ * immediately. Other instances (in a multi-pod deployment) see them after the
+ * TTL — acceptable for plan-tuning operations which are rare and reversible.
+ *
+ * If the DB is unreachable or the table is empty, falls back to the
+ * hardcoded `PLAN_QUOTAS` / `PLAN_PRICE` constants so the app keeps serving.
+ */
+export async function loadPlanConfigs(
+  client?: SupabaseClient,
+  options?: { bypassCache?: boolean },
+): Promise<PlanConfigs> {
+  if (!options?.bypassCache && cached) {
+    if (Date.now() - cached.loadedAt < CACHE_TTL_MS) return cached.value;
+  }
+
+  const admin = client ?? createAdminClient();
+  const { data, error } = await admin.from("plan_configs").select("*");
+  if (error || !data || data.length === 0) {
+    if (error) console.warn("[plans] loadPlanConfigs error, falling back", error);
+    return FALLBACK_PLAN_CONFIGS;
+  }
+
+  const quotas: Record<OrgPlan, PlanQuotaConfig> = { ...PLAN_QUOTAS };
+  const prices: Record<OrgPlan, PlanPriceConfig> = { ...PLAN_PRICE };
+  for (const row of data as Array<{
+    plan: OrgPlan;
+    ai_quota: number;
+    book_quota: number;
+    monthly_price: number;
+  }>) {
+    if (!PLAN_ORDER.includes(row.plan)) continue;
+    quotas[row.plan] = { ai: row.ai_quota, books: row.book_quota };
+    prices[row.plan] = {
+      monthly: row.monthly_price,
+      label: formatPriceLabel(row.plan, row.monthly_price),
+    };
+  }
+  const value: PlanConfigs = { quotas, prices };
+  cached = { value, loadedAt: Date.now() };
+  return value;
+}
+
+export function invalidatePlanConfigsCache(): void {
+  cached = null;
+}
 
 /**
  * Returns the current billing period for an organization, anchored to its activation/creation

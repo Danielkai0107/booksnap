@@ -76,6 +76,17 @@ export interface PaymentGateway {
   resume(gatewaySubId: string): Promise<void>;
 
   /**
+   * Pre-arranges a plan switch that takes effect at the next period end.
+   * Pass `null` to clear any pending change (= "keep current plan").
+   * For "schedule a downgrade to free", callers should use `cancelAtPeriodEnd`
+   * so both `cancel_at_period_end` and `scheduled_plan='free'` stay in sync.
+   */
+  schedulePlanChange(
+    gatewaySubId: string,
+    targetPlan: Exclude<OrgPlan, "free"> | null,
+  ): Promise<void>;
+
+  /**
    * Validate and parse an incoming webhook. Returns `null` if the request
    * isn't a recognised event (e.g. signature mismatch, or InstantGateway
    * which never receives webhooks).

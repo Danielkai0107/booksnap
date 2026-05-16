@@ -7,9 +7,12 @@ import type { SubscriptionRow } from "@/lib/supabase/types";
 export const runtime = "nodejs";
 
 /**
- * Undoes a `cancel_at_period_end` flag while the subscription is still inside
- * its paid window. After `current_period_end` has passed, the row should already
- * be `expired` and the user needs to subscribe afresh.
+ * Clears any pending plan change ("保留目前方案"):
+ *  - `scheduled_plan='free'` (= `cancel_at_period_end=true`) → un-cancel
+ *  - `scheduled_plan='plus' | 'pro'`                          → drop scheduled switch
+ *
+ * After `current_period_end` has passed the row should already be `expired`
+ * and the user needs to subscribe afresh; we 409 in that case.
  */
 export async function POST() {
   const session = await getSession();
@@ -35,7 +38,8 @@ export async function POST() {
     );
   }
 
-  if (!row.cancel_at_period_end) {
+  // Already in the "no pending change" state — nothing to do.
+  if (!row.cancel_at_period_end && row.scheduled_plan === null) {
     return NextResponse.json({ ok: true, alreadyActive: true });
   }
   if (new Date(row.current_period_end).getTime() < Date.now()) {

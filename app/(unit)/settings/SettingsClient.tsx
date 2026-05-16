@@ -17,8 +17,8 @@ type Props = {
 
 /**
  * Editable card for the four fields the unit filled in at registration. Lives
- * on `/admin/settings` (the unit's basic info page) — the public link and its
- * toggles live on a separate `/admin/public-link` page so the two concerns
+ * on `/settings` (the unit's basic info page) — the public link and its
+ * toggles live on a separate `/public-link` page so the two concerns
  * don't pile up on a single screen.
  *
  * The save button stays disabled until something actually changes so admins

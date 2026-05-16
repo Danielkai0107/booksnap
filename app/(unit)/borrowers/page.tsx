@@ -87,7 +87,7 @@ export default function BorrowersPage() {
           {filtered.map((b) => (
             <li key={b.id} className="py-4">
               <Link
-                href={`/admin/borrowers/${encodeURIComponent(b.id)}`}
+                href={`/borrowers/${encodeURIComponent(b.id)}`}
                 className="press-feedback flex items-center gap-3"
               >
                 <div className="flex-1 min-w-0">

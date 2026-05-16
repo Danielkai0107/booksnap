@@ -50,6 +50,7 @@ export async function applyGatewayEvent(
       current_period_end: event.periodEnd,
       cancel_at_period_end: false,
       cancelled_at: null,
+      scheduled_plan: null,
     };
 
     const { data: updated, error } = await admin

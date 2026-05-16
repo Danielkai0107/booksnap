@@ -115,6 +115,16 @@ export type SubscriptionRow = {
   current_period_end: string;
   cancel_at_period_end: boolean;
   cancelled_at: string | null;
+  /**
+   * Plan the subscription will switch to at `current_period_end`.
+   *  - `null` → no scheduled change; the same plan renews.
+   *  - `'free'` → will end (kept in sync with `cancel_at_period_end=true`).
+   *  - `'plus' | 'pro'` → will switch to that paid tier next period.
+   *
+   * Lets a user "pre-arrange" upgrades/downgrades without having to cancel
+   * first; the UI flips between 升級／降級／變更方案 based on this column.
+   */
+  scheduled_plan: OrgPlan | null;
   created_at: string;
   updated_at: string;
 };

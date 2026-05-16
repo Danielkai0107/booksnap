@@ -10,12 +10,12 @@ export const runtime = "nodejs";
  *
  * 範圍：限定當前登入使用者所屬組織。
  *
- * 可選 query params（與 /admin 頁面的篩選對齊，what-you-see-is-what-you-export）：
+ * 可選 query params（與後台首頁 `/` 的篩選對齊，what-you-see-is-what-you-export）：
  *   - q        書名或書籍編號（不分大小寫子字串比對）
  *   - category 分類 UUID
  *   - status   `available` | `borrowed`
  *
- * 欄位與 /admin 詳情頁顯示一致，並補上後來新增的 ISBN / 作者 / 出版社 /
+ * 欄位與 `/books/[id]` 詳情頁顯示一致，並補上後來新增的 ISBN / 作者 / 出版社 /
  * 出版日期 / 借出位置 / 歸還時間 等欄位（舊版只有 7 欄）。
  */
 export async function GET(req: NextRequest) {

@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PLAN_PRICE } from "@/lib/plans";
-import type { SubscriptionRow } from "@/lib/supabase/types";
+import { loadPlanConfigs } from "@/lib/plans";
+import type { OrgPlan, SubscriptionRow } from "@/lib/supabase/types";
 import { applyGatewayEvent, writeAuditLog } from "./apply";
 import type {
   CreateSubscriptionInput,
@@ -14,7 +14,7 @@ import type {
  * First-party "click-to-upgrade" provider. There is no external API call and
  * no checkout redirect — pressing "Subscribe" treats payment as instantly
  * successful, writes the subscription/payment/audit rows, and bounces the
- * user back to `/admin/billing?welcome=1`.
+ * user back to `/billing?welcome=1`.
  *
  * We deliberately model it after a real gateway:
  *  - `createSubscription` builds an `activated` GatewayEvent and routes it
@@ -35,6 +35,8 @@ class InstantGateway implements PaymentGateway {
     const now = new Date();
     const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
+    const { prices } = await loadPlanConfigs();
+
     const event: GatewayEvent = {
       kind: "activated",
       gatewaySubId,
@@ -44,7 +46,7 @@ class InstantGateway implements PaymentGateway {
       periodEnd: periodEnd.toISOString(),
       payment: {
         gatewayPaymentId: `instant_${gatewaySubId}`,
-        amount: PLAN_PRICE[input.plan].monthly,
+        amount: prices[input.plan].monthly,
       },
       rawPayload: {
         gateway: "instant",
@@ -79,6 +81,7 @@ class InstantGateway implements PaymentGateway {
       .update({
         cancel_at_period_end: true,
         cancelled_at: new Date().toISOString(),
+        scheduled_plan: "free",
       })
       .eq("id", row.id);
     if (error) throw error;
@@ -86,10 +89,11 @@ class InstantGateway implements PaymentGateway {
     await writeAuditLog(admin, {
       actor_id: null,
       actor_role: "unit",
-      action: "sub.cancelled",
+      action: "sub.scheduled.free",
       target_org_id: row.organization_id,
       meta: {
         gateway: this.name,
+        from_plan: row.plan,
         period_end: row.current_period_end,
       },
     });
@@ -111,6 +115,7 @@ class InstantGateway implements PaymentGateway {
       .update({
         cancel_at_period_end: false,
         cancelled_at: null,
+        scheduled_plan: null,
       })
       .eq("id", row.id);
     if (error) throw error;
@@ -118,10 +123,56 @@ class InstantGateway implements PaymentGateway {
     await writeAuditLog(admin, {
       actor_id: null,
       actor_role: "unit",
-      action: "sub.resumed",
+      action: "sub.scheduled.cleared",
       target_org_id: row.organization_id,
       meta: {
         gateway: this.name,
+        from_scheduled_plan: row.scheduled_plan,
+      },
+    });
+  }
+
+  async schedulePlanChange(
+    gatewaySubId: string,
+    targetPlan: Exclude<OrgPlan, "free"> | null,
+  ): Promise<void> {
+    const admin = createAdminClient();
+    const { data: sub } = await admin
+      .from("subscriptions")
+      .select("*")
+      .eq("gateway_sub_id", gatewaySubId)
+      .maybeSingle();
+    const row = sub as SubscriptionRow | null;
+    if (!row) {
+      throw new Error("subscription not found");
+    }
+
+    // If user re-selects their current plan, treat it as "keep current"
+    // (clear any pending change). Otherwise pre-arrange the switch.
+    const nextScheduled =
+      targetPlan === null || targetPlan === row.plan ? null : targetPlan;
+
+    const { error } = await admin
+      .from("subscriptions")
+      .update({
+        scheduled_plan: nextScheduled,
+        cancel_at_period_end: false,
+        cancelled_at: null,
+      })
+      .eq("id", row.id);
+    if (error) throw error;
+
+    await writeAuditLog(admin, {
+      actor_id: null,
+      actor_role: "unit",
+      action:
+        nextScheduled === null ? "sub.scheduled.cleared" : "sub.scheduled.switch",
+      target_org_id: row.organization_id,
+      meta: {
+        gateway: this.name,
+        from_plan: row.plan,
+        target_plan: nextScheduled,
+        period_end: row.current_period_end,
       },
     });
   }

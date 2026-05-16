@@ -102,7 +102,7 @@ export async function registerAction(
     return { error: profileError.message, values };
   }
 
-  // 4. Sign the new user in so they land in /admin immediately. If sign-in
+  // 4. Sign the new user in so they land on the admin home immediately. If sign-in
   //    fails for any reason (shouldn't, we just created them), fall back to
   //    the login page so they can manually log in.
   const supabase = await createClient();
@@ -114,5 +114,5 @@ export async function registerAction(
     redirect("/login?registered=1");
   }
 
-  redirect("/admin");
+  redirect("/");
 }

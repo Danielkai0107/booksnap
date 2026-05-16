@@ -1,16 +1,8 @@
 import { requireUnitSession } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  PLAN_META,
-  PLAN_PRICE,
-  PLAN_QUOTAS,
-  effectivePlan,
-} from "@/lib/plans";
+import { PLAN_META, effectivePlan, loadPlanConfigs } from "@/lib/plans";
 import { maybeExpireSubscription } from "@/lib/billing/expire";
-import type {
-  PaymentRow,
-  SubscriptionRow,
-} from "@/lib/supabase/types";
+import type { PaymentRow, SubscriptionRow } from "@/lib/supabase/types";
 import BillingClient from "./BillingClient";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +22,9 @@ export default async function AdminBillingPage({
   const admin = createAdminClient();
   const subscription = await maybeExpireSubscription(org.id, admin);
   const plan = effectivePlan(org, subscription);
+
+  // Plan numbers are tunable from /super-admin/plans; load each request.
+  const { quotas, prices } = await loadPlanConfigs(admin);
 
   const { data: paymentsData } = await admin
     .from("payments")
@@ -56,8 +51,10 @@ export default async function AdminBillingPage({
       orgName={org.name}
       plan={plan}
       planMeta={PLAN_META[plan]}
-      planPrice={PLAN_PRICE[plan]}
-      planQuotas={PLAN_QUOTAS[plan]}
+      planPrice={prices[plan]}
+      planQuotas={quotas[plan]}
+      allQuotas={quotas}
+      allPrices={prices}
       subscription={serializeSubscription(subscription)}
       payments={payments.map(serializePayment)}
       initialBanner={initialBanner}
@@ -77,6 +74,7 @@ function serializeSubscription(sub: SubscriptionRow | null) {
     currentPeriodEnd: sub.current_period_end,
     cancelAtPeriodEnd: sub.cancel_at_period_end,
     cancelledAt: sub.cancelled_at,
+    scheduledPlan: sub.scheduled_plan,
     gateway: sub.gateway,
   };
 }

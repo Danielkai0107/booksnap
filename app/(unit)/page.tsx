@@ -239,7 +239,7 @@ export default function AdminPage() {
             {filtered.map((b) => (
               <li key={b.id} className="py-4 flex gap-3 items-start">
                 <Link
-                  href={`/admin/books/${encodeURIComponent(b.book_id)}`}
+                  href={`/books/${encodeURIComponent(b.book_id)}`}
                   className="press-feedback flex-1 flex gap-3 items-start min-w-0"
                 >
                   {b.image_url ? (
@@ -317,7 +317,7 @@ export default function AdminPage() {
                     key={b.id}
                     onClick={() =>
                       router.push(
-                        `/admin/books/${encodeURIComponent(b.book_id)}`,
+                        `/books/${encodeURIComponent(b.book_id)}`,
                       )
                     }
                     className="hover:bg-neutral-50/60 transition cursor-pointer"

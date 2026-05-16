@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PLAN_QUOTAS, effectivePlan } from "@/lib/plans";
+import { effectivePlan, loadPlanConfigs } from "@/lib/plans";
 import { isQuotaEnforced } from "@/lib/billing/flags";
 import { loadOrgBillingState } from "@/lib/billing/state";
 
@@ -75,7 +75,8 @@ export async function POST(req: NextRequest) {
   const { org, subscription } = await loadOrgBillingState(orgId, admin);
   if (org && isQuotaEnforced(org)) {
     const plan = effectivePlan(org, subscription);
-    const limit = PLAN_QUOTAS[plan].books;
+    const { quotas } = await loadPlanConfigs(admin);
+    const limit = quotas[plan].books;
     const { count } = await admin
       .from("books")
       .select("*", { count: "exact", head: true })

@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 /**
  * 回傳目前單位的「單位資料」與「公開設定」。
- * 由 `/admin/settings` 與 `/admin/public-link` 兩個 client page 共用，
+ * 由 `/settings` 與 `/public-link` 兩個 client page 共用，
  * 把原本 server-component 的 await `requireUnitSession()` 移到背景 fetch，
  * 讓側欄切換時能立即顯示 AdminShell skeleton（與其他 admin 頁一致）。
  *

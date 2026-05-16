@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  PLAN_QUOTAS,
   effectivePlan,
   getOrgPeriod,
+  loadPlanConfigs,
   type OrgPlan,
 } from "@/lib/plans";
 import { isQuotaEnforced } from "@/lib/billing/flags";
@@ -26,6 +26,7 @@ type SubscriptionPayload = {
   currentPeriodEnd: string;
   cancelAtPeriodEnd: boolean;
   cancelledAt: string | null;
+  scheduledPlan: OrgPlan | null;
   gateway: string;
 };
 
@@ -51,7 +52,8 @@ export async function GET() {
     plan = effectivePlan(org, subscription);
 
     const { start, end } = getOrgPeriod(org, subscription);
-    const quotas = PLAN_QUOTAS[plan];
+    const { quotas: allQuotas } = await loadPlanConfigs(admin);
+    const quotas = allQuotas[plan];
 
     const [aiRes, booksRes] = await Promise.all([
       admin
@@ -87,6 +89,7 @@ export async function GET() {
         currentPeriodEnd: subscription.current_period_end,
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
         cancelledAt: subscription.cancelled_at,
+        scheduledPlan: subscription.scheduled_plan,
         gateway: subscription.gateway,
       }
     : null;

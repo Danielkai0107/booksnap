@@ -39,6 +39,12 @@ export default async function SuperAdminProtectedLayout({
               訂閱
             </Link>
             <Link
+              href="/super-admin/plans"
+              className="px-3 py-1.5 rounded-md text-neutral-700 hover:bg-neutral-100 transition"
+            >
+              方案設定
+            </Link>
+            <Link
               href="/super-admin/settings"
               className="px-3 py-1.5 rounded-md text-neutral-700 hover:bg-neutral-100 transition"
             >

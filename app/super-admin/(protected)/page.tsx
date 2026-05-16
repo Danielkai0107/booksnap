@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   PLAN_META,
   PLAN_ORDER,
-  PLAN_PRICE,
+  loadPlanConfigs,
   type OrgPlan,
 } from "@/lib/plans";
 import type { SubscriptionRow } from "@/lib/supabase/types";
@@ -30,6 +30,7 @@ export default async function SuperAdminDashboard() {
     admin.from("subscriptions").select("*"),
   ]);
   const subs = (subsRaw ?? []) as SubscriptionRow[];
+  const { prices } = await loadPlanConfigs(admin);
 
   const counts = {
     total: orgs?.length ?? 0,
@@ -72,7 +73,7 @@ export default async function SuperAdminDashboard() {
   for (const s of subs) {
     subStatusCounts[s.status] += 1;
     if (s.status === "active" || s.status === "past_due") {
-      mrr += PLAN_PRICE[s.plan].monthly;
+      mrr += prices[s.plan].monthly;
       activePerPlan[s.plan] += 1;
     }
     if (new Date(s.started_at).getTime() >= monthStart) {

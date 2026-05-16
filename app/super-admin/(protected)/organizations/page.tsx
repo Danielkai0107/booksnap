@@ -8,9 +8,9 @@ import type {
 } from "@/lib/supabase/types";
 import {
   PLAN_META,
-  PLAN_QUOTAS,
   effectivePlan,
   getOrgPeriod,
+  loadPlanConfigs,
 } from "@/lib/plans";
 import OrgRowActions from "./OrgRowActions";
 
@@ -134,6 +134,8 @@ export default async function OrganizationsPage({
     bookCountByOrg.set(id, (bookCountByOrg.get(id) ?? 0) + 1);
   });
 
+  const { quotas } = await loadPlanConfigs(admin);
+
   return (
     <div>
       <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
@@ -243,11 +245,11 @@ export default async function OrganizationsPage({
                     )}
                     <Pair
                       k="本期 AI 用量"
-                      v={`${(aiUsedByOrg.get(o.id) ?? 0).toLocaleString()} / ${PLAN_QUOTAS[ePlan].ai.toLocaleString()} 次`}
+                      v={`${(aiUsedByOrg.get(o.id) ?? 0).toLocaleString()} / ${quotas[ePlan].ai.toLocaleString()} 次`}
                     />
                     <Pair
                       k="館藏冊數"
-                      v={`${(bookCountByOrg.get(o.id) ?? 0).toLocaleString()} / ${PLAN_QUOTAS[ePlan].books.toLocaleString()} 冊`}
+                      v={`${(bookCountByOrg.get(o.id) ?? 0).toLocaleString()} / ${quotas[ePlan].books.toLocaleString()} 冊`}
                     />
                   </dl>
                 </div>
@@ -260,6 +262,7 @@ export default async function OrganizationsPage({
                   contactEmail={o.contact_email}
                   contactPhone={o.contact_phone}
                   bypassQuota={o.bypass_quota}
+                  allQuotas={quotas}
                 />
               </div>
             </li>

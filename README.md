@@ -38,7 +38,7 @@ npm run dev
 第一版用 `InstantGateway`：使用者按下訂閱就升級、不收錢，後續再接街口／綠界。
 - 設計重點在 [`lib/billing/gateway.ts`](lib/billing/gateway.ts) interface；換 provider 只動 `lib/billing/index.ts` factory 與新增實作檔。
 - 所有 DB 變更走 [`lib/billing/apply.ts`](lib/billing/apply.ts) → `applyGatewayEvent`，InstantGateway 與真實 webhook 共用。
-- 用戶端訂閱設定頁：`/admin/billing`（仿 Cursor 樣式：當前訂閱、取消／恢復、帳單記錄）。
+- 用戶端訂閱設定頁：`/billing`（仿 Cursor 樣式：當前訂閱、取消／恢復、帳單記錄）。
 - 配額硬擋：`BILLING_QUOTA_ENFORCED=true` + 單位 `bypass_quota=false` 時，`/api/recognize`、`/api/books` POST 會回 402。可在 Super Admin → 設定查看，並逐筆在「單位管理」勾「免配額」豁免。
 - Super Admin → 訂閱：所有訂閱列表 + 最近一筆扣款。
 - Super Admin → 總覽：MRR、本月新訂閱／取消、Pro／Plus 進行中數量。
@@ -53,12 +53,16 @@ npm run dev
 
 | 路徑              | 功能                                                      |
 | ----------------- | --------------------------------------------------------- |
-| `/`               | 首頁（入庫 / 歸還 / 後台入口）                            |
+| `/`               | 書籍列表 + 搜尋 + 下載 Excel（後台首頁）                  |
 | `/checkin`        | 輸入管理員名稱                                            |
 | `/checkin/scan`   | 相機拍照 + OCR 批次辨識書封                               |
 | `/checkin/result` | 結算頁：產生 `LIB-YYYYMMDD-NNN`、QR、條碼、列印標籤、送出 |
-| `/return`         | 兩階段 QR 掃描歸還（先書架、後書本）                      |
-| `/admin`          | 書籍列表 + 搜尋 + 下載 Excel                              |
+| `/billing`        | 訂閱設定（升級／降級／帳單記錄）                          |
+| `/borrowers`      | 出借人總覽                                                |
+| `/categories`     | 分類管理                                                  |
+| `/labels`         | 標籤列印                                                  |
+| `/settings`       | 單位資料                                                  |
+| `/public-link`    | 借還公開連結／QR                                          |
 
 ## API
 
