@@ -17,7 +17,7 @@ type Props = {
 
 /**
  * Editable card for the four fields the unit filled in at registration. Lives
- * on `/settings` (the unit's basic info page) — the public link and its
+ * on `/settings/profile` (the unit's basic info page) — the public link and its
  * toggles live on a separate `/public-link` page so the two concerns
  * don't pile up on a single screen.
  *

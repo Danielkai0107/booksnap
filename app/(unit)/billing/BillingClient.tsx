@@ -183,7 +183,7 @@ export default function BillingClient({
   };
 
   return (
-    <AdminShell topbarTitle="訂閱設定" backHref="/">
+    <AdminShell topbarTitle="訂閱管理" backHref="/settings">
       <div className="space-y-8">
         <CurrentSubscriptionCard
           plan={plan}

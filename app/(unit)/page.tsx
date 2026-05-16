@@ -150,22 +150,6 @@ export default function AdminPage() {
             href={exportHref}
             className="press-feedback inline-flex items-center gap-1 text-sm font-medium text-neutral-800 hover:text-neutral-900 px-3 h-9 rounded-full bg-white border border-neutral-200 hover:border-neutral-400"
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="shrink-0"
-              aria-hidden
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
             <span className="leading-none">匯出</span>
           </a>
         </div>
@@ -316,9 +300,7 @@ export default function AdminPage() {
                   <tr
                     key={b.id}
                     onClick={() =>
-                      router.push(
-                        `/books/${encodeURIComponent(b.book_id)}`,
-                      )
+                      router.push(`/books/${encodeURIComponent(b.book_id)}`)
                     }
                     className="hover:bg-neutral-50/60 transition cursor-pointer"
                   >
