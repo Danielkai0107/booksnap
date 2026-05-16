@@ -9,19 +9,22 @@ import {
   reactivateOrganization,
   resetOrganizationPassword,
   updateOrganization,
+  updateOrganizationPlan,
 } from "../../actions";
-import type { OrgStatus } from "@/lib/supabase/types";
+import type { OrgPlan, OrgStatus } from "@/lib/supabase/types";
+import { PLAN_META, PLAN_ORDER, PLAN_QUOTAS } from "@/lib/plans";
 
 type Props = {
   orgId: string;
   orgName: string;
   status: OrgStatus;
+  plan: OrgPlan;
   city: string;
   contactEmail: string;
   contactPhone: string;
 };
 
-type DialogKind = "reject" | "suspend" | "reset" | "edit" | null;
+type DialogKind = "reject" | "suspend" | "reset" | "edit" | "plan" | null;
 
 const CITIES = [
   "台北市",
@@ -52,6 +55,7 @@ export default function OrgRowActions({
   orgId,
   orgName,
   status,
+  plan,
   city,
   contactEmail,
   contactPhone,
@@ -106,6 +110,9 @@ export default function OrgRowActions({
           <SecondaryBtn onClick={() => setDialog("edit")} disabled={pending}>
             編輯
           </SecondaryBtn>
+          <SecondaryBtn onClick={() => setDialog("plan")} disabled={pending}>
+            變更方案
+          </SecondaryBtn>
           <SecondaryBtn onClick={() => setDialog("reset")} disabled={pending}>
             重設密碼
           </SecondaryBtn>
@@ -145,7 +152,94 @@ export default function OrgRowActions({
           />
         </Modal>
       )}
+      {dialog === "plan" && (
+        <Modal title={`變更「${orgName}」的方案`} onClose={close}>
+          <PlanDialog
+            orgId={orgId}
+            current={plan}
+            onDone={close}
+            onError={reportError}
+          />
+        </Modal>
+      )}
     </div>
+  );
+}
+
+function PlanDialog({
+  orgId,
+  current,
+  onDone,
+  onError,
+}: {
+  orgId: string;
+  current: OrgPlan;
+  onDone: () => void;
+  onError: (m: string) => void;
+}) {
+  const [selected, setSelected] = useState<OrgPlan>(current);
+  const [pending, startTransition] = useTransition();
+  const dirty = selected !== current;
+  return (
+    <>
+      <p className="text-sm text-neutral-600">
+        立即變更此單位的方案。變更後配額會即時套用到單位後台與本頁顯示。
+      </p>
+      <div className="mt-4 space-y-2">
+        {PLAN_ORDER.map((p) => {
+          const meta = PLAN_META[p];
+          const quotas = PLAN_QUOTAS[p];
+          const active = selected === p;
+          return (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setSelected(p)}
+              disabled={pending}
+              className={`w-full text-left px-4 py-3 rounded-xl border transition flex items-center justify-between gap-3 ${
+                active
+                  ? "border-neutral-900 bg-neutral-50"
+                  : "border-neutral-200 hover:border-neutral-400"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <span
+                  className={`inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium ${meta.pillClass}`}
+                >
+                  {meta.label}
+                </span>
+                {p === current && (
+                  <span className="text-[11px] text-neutral-500">目前</span>
+                )}
+              </span>
+              <span className="text-xs text-neutral-600 tabular-nums">
+                AI {quotas.ai} 次／月 · 館藏 {quotas.books} 冊
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-5 flex gap-2 justify-end">
+        <SecondaryBtn onClick={onDone} disabled={pending}>
+          取消
+        </SecondaryBtn>
+        <PrimaryBtn
+          onClick={() => {
+            startTransition(async () => {
+              const res = await updateOrganizationPlan(orgId, selected);
+              if (res.ok) {
+                onDone();
+              } else {
+                onError(res.error);
+              }
+            });
+          }}
+          disabled={pending || !dirty}
+        >
+          {pending ? "儲存中…" : "確認變更"}
+        </PrimaryBtn>
+      </div>
+    </>
   );
 }
 

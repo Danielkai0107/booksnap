@@ -63,6 +63,8 @@ export type BorrowRecordRow = {
 
 export type OrgStatus = "pending" | "approved" | "rejected" | "suspended";
 
+export type OrgPlan = "free" | "pro" | "plus";
+
 export type OrganizationRow = {
   id: string;
   name: string;
@@ -78,6 +80,8 @@ export type OrganizationRow = {
   public_slug: string;
   public_borrow_enabled: boolean;
   public_catalog_enabled: boolean;
+  /** Subscription plan tier. Quotas live in `lib/plans.ts` (v1: display only, no enforcement). */
+  plan: OrgPlan;
 };
 
 export type ProfileRole = "unit" | "super_admin";

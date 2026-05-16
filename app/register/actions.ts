@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateUniqueOrgSlug } from "@/lib/slug";
 import { isTwCity } from "@/lib/cities";
@@ -54,8 +55,9 @@ export async function registerAction(
 
   const userId = userData.user.id;
 
-  // 2. Create organization (pending) with a public_slug we can hand out as
-  //    `/o/{slug}` once super-admin approves it.
+  // 2. Create organization (auto-approved) with a public_slug we can hand out as
+  //    `/o/{slug}`. v1 PLG flow: no human approval — units can use the system
+  //    immediately. Super admin can still later suspend or downgrade plans.
   let publicSlug: string;
   try {
     publicSlug = await generateUniqueOrgSlug(name);
@@ -67,6 +69,7 @@ export async function registerAction(
     };
   }
 
+  const nowIso = new Date().toISOString();
   const { data: org, error: orgError } = await admin
     .from("organizations")
     .insert({
@@ -74,7 +77,8 @@ export async function registerAction(
       city,
       contact_email: email,
       contact_phone: phone,
-      status: "pending",
+      status: "approved",
+      approved_at: nowIso,
       owner_user_id: userId,
       public_slug: publicSlug,
     })
@@ -98,5 +102,17 @@ export async function registerAction(
     return { error: profileError.message, values };
   }
 
-  redirect("/register/pending");
+  // 4. Sign the new user in so they land in /admin immediately. If sign-in
+  //    fails for any reason (shouldn't, we just created them), fall back to
+  //    the login page so they can manually log in.
+  const supabase = await createClient();
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+  if (signInError) {
+    redirect("/login?registered=1");
+  }
+
+  redirect("/admin");
 }

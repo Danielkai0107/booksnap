@@ -18,7 +18,7 @@ export const LABEL_PRINT_MODES: Record<
 > = {
   thermal: {
     label: "熱感單張",
-    hint: "一張標籤一頁，紙張尺寸請選與貼紙相同（40×30 或 30×20 mm）",
+    hint: "請選與貼紙相同規格（40×30 或 30×20 mm）",
   },
   a4: {
     label: "A4 拼版",

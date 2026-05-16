@@ -120,7 +120,7 @@ export default function RegisterForm() {
       </Field>
 
       <p className="text-xs text-neutral-500 leading-relaxed">
-        送出後，會由營運方人工審核。審核通過後即可使用此 Email 與密碼登入。
+        送出後即建立帳號並立即登入，可以馬上開始使用。
       </p>
 
       <div
@@ -133,7 +133,7 @@ export default function RegisterForm() {
             disabled={pending}
             className="w-full h-[46px] bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium rounded-lg transition"
           >
-            {pending ? "送出中…" : "送出註冊申請"}
+            {pending ? "建立中…" : "註冊並開始使用"}
           </button>
         </div>
       </div>

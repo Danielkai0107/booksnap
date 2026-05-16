@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { PLAN_ORDER, type OrgPlan } from "@/lib/plans";
 
 async function assertSuperAdmin(): Promise<void> {
   const supabase = await createClient();
@@ -190,6 +191,27 @@ export async function resetOrganizationPassword(
   if (error) {
     return { ok: false, error: error.message };
   }
+  return { ok: true };
+}
+
+export async function updateOrganizationPlan(
+  orgId: string,
+  plan: OrgPlan
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await assertSuperAdmin();
+  if (!PLAN_ORDER.includes(plan)) {
+    return { ok: false, error: "不支援的方案" };
+  }
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("organizations")
+    .update({ plan })
+    .eq("id", orgId);
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/organizations");
   return { ok: true };
 }
 

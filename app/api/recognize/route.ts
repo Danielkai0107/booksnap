@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,17 @@ export async function POST(req: NextRequest) {
   if (!userData.user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+
+  // Resolve organization_id eagerly so the usage log is always attributed to the
+  // caller's org (the table has a default_org_id() default, but being explicit
+  // keeps counts correct even if that helper ever changes).
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("organization_id")
+    .eq("id", userData.user.id)
+    .maybeSingle();
+  const organizationId = profile?.organization_id ?? null;
 
   let body: RecognizeBody;
   try {
@@ -167,10 +179,11 @@ export async function POST(req: NextRequest) {
       title = raw.slice(0, 80);
     }
 
-    void supabase
+    void admin
       .from("ai_usage_logs")
       .insert({
         user_id: userData.user.id,
+        organization_id: organizationId,
         kind: "recognize_book_cover",
         input_tokens: json.usage?.input_tokens ?? null,
         output_tokens: json.usage?.output_tokens ?? null,

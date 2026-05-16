@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { PLAN_META, PLAN_ORDER, type OrgPlan } from "@/lib/plans";
 
 export default async function SuperAdminDashboard() {
   const admin = createAdminClient();
@@ -7,7 +8,7 @@ export default async function SuperAdminDashboard() {
     await Promise.all([
       admin
         .from("organizations")
-        .select("status")
+        .select("status, plan")
         .order("created_at", { ascending: false }),
       admin
         .from("profiles")
@@ -25,6 +26,14 @@ export default async function SuperAdminDashboard() {
     rejected: orgs?.filter((o) => o.status === "rejected").length ?? 0,
     suspended: orgs?.filter((o) => o.status === "suspended").length ?? 0,
   };
+
+  // 方案分布只計入「已通過」的單位 — pending / rejected / suspended 的 plan 沒有實質意義。
+  const approvedOrgs = (orgs ?? []).filter((o) => o.status === "approved");
+  const planCounts: Record<OrgPlan, number> = { free: 0, pro: 0, plus: 0 };
+  for (const o of approvedOrgs) {
+    const p = o.plan as OrgPlan | undefined;
+    if (p && p in planCounts) planCounts[p] += 1;
+  }
 
   return (
     <div>
@@ -56,6 +65,33 @@ export default async function SuperAdminDashboard() {
         >
           前往審核
         </Link>
+      </div>
+
+      <div className="mt-10 p-5 border border-neutral-200 rounded-2xl bg-white">
+        <p className="text-sm font-medium text-neutral-900">方案分布</p>
+        <p className="mt-1 text-xs text-neutral-500">
+          已通過的單位中，目前各方案的單位數。
+        </p>
+        <div className="mt-4 grid grid-cols-3 gap-3">
+          {PLAN_ORDER.map((p) => {
+            const meta = PLAN_META[p];
+            return (
+              <div
+                key={p}
+                className="border border-neutral-200 rounded-xl px-4 py-3"
+              >
+                <span
+                  className={`inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium ${meta.pillClass}`}
+                >
+                  {meta.label}
+                </span>
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-neutral-900">
+                  {planCounts[p]}
+                </p>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <div className="mt-10 p-5 border border-neutral-200 rounded-2xl bg-white">
