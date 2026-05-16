@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import BottomSheet from "./BottomSheet";
+import SearchInput from "./SearchInput";
 
 type Member = {
   name: string;
@@ -81,10 +82,9 @@ export default function MemberPicker({
       }
     >
       <div className="sticky top-0 z-10 -mx-6 px-6 pt-1 pb-3 bg-white">
-        <input
-          type="text"
+        <SearchInput
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onValueChange={setQuery}
           placeholder="搜尋成員"
           className="w-full h-[46px] px-3.5 rounded-lg border border-neutral-200 bg-white text-sm focus:outline-none focus:border-neutral-900 transition"
         />

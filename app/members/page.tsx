@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import CloseButton from "@/components/CloseButton";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
+import SearchInput from "@/components/SearchInput";
 
 type Member = {
   name: string;
@@ -67,12 +68,12 @@ export default function MembersListPage() {
       <div className="sticky top-0 z-30 bg-white/85 backdrop-blur-md">
         <div className="max-w-3xl mx-auto px-3 sm:px-6 py-3 flex items-center">
           <CloseButton href="/" inline />
-          <input
-            type="text"
+          <SearchInput
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onValueChange={setQuery}
             placeholder="搜尋成員姓名"
-            className="flex-1 min-w-0 h-[42px] px-4 ml-4 rounded-full border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
+            wrapperClassName="flex-1 min-w-0 ml-4"
+            className="w-full h-[42px] px-4 rounded-full border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
           />
         </div>
       </div>

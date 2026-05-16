@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AdminShell from "@/components/AdminShell";
 import BottomSheet from "@/components/BottomSheet";
+import SearchInput from "@/components/SearchInput";
 import Toast, { type ToastKind } from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 
@@ -106,12 +107,12 @@ export default function MembersPage() {
         </p>
       </header>
 
-      <input
-        type="text"
+      <SearchInput
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onValueChange={setQuery}
         placeholder="搜尋成員姓名"
-        className="w-full mb-6 px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
+        wrapperClassName="mb-6"
+        className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
       />
 
       {errorMsg && (
