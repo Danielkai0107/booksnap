@@ -13,6 +13,12 @@ type Props = {
    * tenants with the same `book_id`.
    */
   slug: string;
+  /**
+   * Organization display name shown as a header above the book title. Gives
+   * the printed label a clear "owned by" anchor — handy when several units
+   * end up on the same shelf at a venue.
+   */
+  orgName?: string | null;
   className?: string;
 };
 
@@ -29,6 +35,7 @@ export default function LabelCard({
   bookId,
   title,
   slug,
+  orgName,
   className = "",
 }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -80,6 +87,11 @@ export default function LabelCard({
     <div
       className={`print-label bg-white border border-neutral-200 rounded-xl p-5 flex flex-col items-center text-center break-inside-avoid ${className}`}
     >
+      {orgName && (
+        <p className="text-[11px] text-neutral-500 mb-1 line-clamp-1 w-full">
+          {orgName}
+        </p>
+      )}
       <p className="font-medium text-sm text-neutral-900 mb-3 line-clamp-2 min-h-[2.5em]">
         {title}
       </p>

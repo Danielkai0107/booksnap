@@ -15,11 +15,12 @@ export default function LabelsPage() {
   const [showLabels, setShowLabels] = useState(false);
   const [loading, setLoading] = useState(true);
   /**
-   * Public slug used to build the QR target URL on each printed label. We
-   * fetch it once via `/api/me` instead of plumbing it down from a server
-   * component because this page is "use client" end-to-end.
+   * Public slug + org display name used on each printed label. We fetch them
+   * once via `/api/me` instead of plumbing down from a server component
+   * because this page is "use client" end-to-end.
    */
   const [slug, setSlug] = useState<string | null>(null);
+  const [orgName, setOrgName] = useState<string | null>(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -43,6 +44,9 @@ export default function LabelsPage() {
       }
       if (meRes && typeof meRes.publicSlug === "string") {
         setSlug(meRes.publicSlug as string);
+      }
+      if (meRes && typeof meRes.orgName === "string") {
+        setOrgName(meRes.orgName as string);
       }
       setLoading(false);
     })();
@@ -120,6 +124,7 @@ export default function LabelsPage() {
                 bookId={b.book_id}
                 title={b.title}
                 slug={slug ?? ""}
+                orgName={orgName}
               />
             ))}
           </div>
