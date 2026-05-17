@@ -150,7 +150,7 @@ function PublicLinkButton({ onClick }: { onClick?: () => void }) {
       className={bottomItemClass}
     >
       <EyeIcon className="shrink-0" width={18} height={18} aria-hidden />
-      <span className="truncate">看看讀者畫面</span>
+      <span className="truncate">借閱入口</span>
     </Link>
   );
 }
