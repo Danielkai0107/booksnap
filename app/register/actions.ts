@@ -1,6 +1,6 @@
 "use server";
 
-import { headers } from "next/headers";
+import { getSiteOrigin } from "@/lib/site-url";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -67,7 +67,7 @@ export async function requestRegisterOtp(
     };
   }
 
-  const origin = (await headers()).get("origin") ?? "";
+  const origin = await getSiteOrigin();
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email,

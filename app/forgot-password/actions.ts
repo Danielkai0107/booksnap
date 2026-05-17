@@ -1,8 +1,8 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getSiteOrigin } from "@/lib/site-url";
 
 export type ForgotPasswordState = {
   error?: string;
@@ -25,7 +25,7 @@ export type ResendRecoveryResult = {
  * it into the reset form on a different device.
  */
 async function sendRecoveryEmail(email: string, nextPath: string) {
-  const origin = (await headers()).get("origin") ?? "";
+  const origin = await getSiteOrigin();
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,

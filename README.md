@@ -31,7 +31,8 @@ npm run dev
 | `GOOGLE_BOOKS_API_KEY`           |    ❌    | Google Books ISBN 查詢的 quota（沒給走匿名 1000/day）    |
 | `BILLING_PROVIDER`               |    ✅    | `instant`（預設）：點擊即升級。改 `ecpay`/`jkopay` 接金流 |
 | `BILLING_QUOTA_ENFORCED`         |    ✅    | `true` 才會在 `/api/recognize`、`/api/books` 回 402     |
-| `NEXT_PUBLIC_BILLING_RETURN_URL` |    ✅    | 訂閱完成後 redirect 用，上線改成 prod URL                |
+| `NEXT_PUBLIC_SITE_URL`           |  上線建議 | 例如 `https://booksnaplib.com`；註冊／重設密碼信內連結用   |
+| `NEXT_PUBLIC_BILLING_RETURN_URL` |  上線建議 | 例如 `https://booksnaplib.com/billing`（訂閱完成回跳）     |
 
 ## 計費（Billing）
 

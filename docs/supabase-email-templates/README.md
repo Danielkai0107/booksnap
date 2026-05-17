@@ -33,7 +33,15 @@
 
 ## Redirect URLs
 
-**Authentication → URL Configuration → Redirect URLs** 須包含：
+**Authentication → URL Configuration**
 
-- `https://你的網域/auth/callback`（重設密碼連結）
-- 本機開發：`http://localhost:3000/auth/callback`
+| 欄位 | 建議值 |
+|------|--------|
+| Site URL | `https://booksnaplib.com` |
+| Redirect URLs | `https://booksnaplib.com/auth/callback` |
+| | `http://localhost:3000/auth/callback`（本機） |
+
+**Vercel 環境變數**（讓信內連結固定走自訂網域）：
+
+- `NEXT_PUBLIC_SITE_URL=https://booksnaplib.com`
+- `NEXT_PUBLIC_BILLING_RETURN_URL=https://booksnaplib.com/billing`
