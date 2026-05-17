@@ -173,7 +173,7 @@ export default function PublicLinkClient({
             className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition"
           >
             <ShareIcon />
-            <span>分享連結</span>
+            <span>分享</span>
           </button>
           <button
             type="button"
@@ -190,7 +190,7 @@ export default function PublicLinkClient({
               className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2.5 rounded-lg transition"
             >
               <DownloadIcon />
-              <span>下載 QR 圖</span>
+              <span>下載</span>
             </button>
           ) : (
             <a
@@ -205,7 +205,7 @@ export default function PublicLinkClient({
               }`}
             >
               <DownloadIcon />
-              <span>下載 QR 圖</span>
+              <span>下載</span>
             </a>
           )}
         </div>
