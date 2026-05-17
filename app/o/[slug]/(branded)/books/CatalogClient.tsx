@@ -288,14 +288,14 @@ function FilterChip({
 function StatusPill({ status }: { status: string }) {
   if (status === "available") {
     return (
-      <span className="inline-flex items-center gap-1.5 h-[22px] text-[11px] px-2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium whitespace-nowrap">
+      <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium whitespace-nowrap">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
         可借
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 h-[22px] text-[11px] px-2 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200 font-medium whitespace-nowrap">
+    <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200 font-medium whitespace-nowrap">
       <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
       借出
     </span>

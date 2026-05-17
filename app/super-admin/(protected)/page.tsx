@@ -164,7 +164,7 @@ export default async function SuperAdminDashboard() {
                 className="border border-neutral-200 rounded-xl px-4 py-3"
               >
                 <span
-                  className={`inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium ${meta.pillClass}`}
+                  className={`inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium ${meta.pillClass}`}
                 >
                   {meta.label}
                 </span>

@@ -92,7 +92,7 @@ function BrandHeader({
         <div className="mt-2.5 flex items-center gap-2">
           {pillLabel && (
             <span
-              className={`inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium ${pillClass}`}
+              className={`inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium ${pillClass}`}
             >
               {pillLabel}
             </span>
@@ -101,7 +101,7 @@ function BrandHeader({
             <Link
               href="/billing"
               onClick={onClick}
-              className="ml-auto inline-flex items-center h-[22px] px-2.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white text-[11px] font-medium transition"
+              className="ml-auto inline-flex items-center h-[26px] px-2.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium transition"
             >
               升級
             </Link>

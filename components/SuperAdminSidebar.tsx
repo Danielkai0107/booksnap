@@ -77,7 +77,7 @@ function BrandHeader({
           營運後台
         </span>
       </Link>
-      <span className="mt-2.5 inline-flex items-center h-[22px] px-2 rounded-full border border-neutral-200 bg-neutral-50 text-[11px] font-medium text-neutral-600">
+      <span className="mt-2.5 inline-flex items-center h-[26px] px-2.5 rounded-full border border-neutral-200 bg-neutral-50 text-xs font-medium text-neutral-600">
         Super Admin
       </span>
     </div>

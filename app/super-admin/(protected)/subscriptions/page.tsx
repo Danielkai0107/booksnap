@@ -175,22 +175,22 @@ export default async function SubscriptionsPage({
                         {org?.name ?? "（已刪除單位）"}
                       </Link>
                       <span
-                        className={`inline-flex items-center h-[22px] text-[11px] px-2 rounded-full border font-medium ${meta.pillClass}`}
+                        className={`inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium ${meta.pillClass}`}
                       >
                         {meta.label}
                       </span>
                       <span
-                        className={`inline-flex items-center h-[22px] text-[11px] px-2 rounded-full border font-medium ${statusPillClass(sub.status)}`}
+                        className={`inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium ${statusPillClass(sub.status)}`}
                       >
                         {statusLabel(sub.status)}
                       </span>
                       {sub.cancel_at_period_end && sub.status === "active" && (
-                        <span className="inline-flex items-center h-[22px] text-[11px] px-2 rounded-full border font-medium bg-amber-50 text-amber-700 border-amber-100">
+                        <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium bg-amber-50 text-amber-700 border-amber-100">
                           到期取消
                         </span>
                       )}
                       {org?.bypass_quota && (
-                        <span className="inline-flex items-center h-[22px] text-[11px] px-2 rounded-full border font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
+                        <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
                           免鎖
                         </span>
                       )}

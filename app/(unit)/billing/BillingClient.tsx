@@ -210,7 +210,7 @@ function StatusCard({
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
             試用還剩 {days} 天
           </h1>
-          <span className="inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium bg-blue-50 text-blue-700 border-blue-100">
+          <span className="inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium bg-blue-50 text-blue-700 border-blue-100">
             試用中
           </span>
         </div>
@@ -249,7 +249,7 @@ function StatusCard({
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
             試用已結束
           </h1>
-          <span className="inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium bg-red-50 text-red-700 border-red-100">
+          <span className="inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium bg-red-50 text-red-700 border-red-100">
             未訂閱
           </span>
         </div>
@@ -282,7 +282,7 @@ function StatusCard({
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
             付費中（已排程取消）
           </h1>
-          <span className="inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium bg-amber-50 text-amber-700 border-amber-100">
+          <span className="inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium bg-amber-50 text-amber-700 border-amber-100">
             到期取消
           </span>
         </div>
@@ -318,7 +318,7 @@ function StatusCard({
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
             Pro
           </h1>
-          <span className="inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
+          <span className="inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
             付費中
           </span>
         </div>
@@ -476,20 +476,20 @@ function PaymentHistorySection({ payments }: { payments: PaymentView[] }) {
 function PaymentStatusPill({ status }: { status: PaymentView["status"] }) {
   if (status === "succeeded") {
     return (
-      <span className="inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium bg-emerald-50 text-emerald-700 border-emerald-100">
+      <span className="inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium bg-emerald-50 text-emerald-700 border-emerald-100">
         已付
       </span>
     );
   }
   if (status === "failed") {
     return (
-      <span className="inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium bg-red-50 text-red-700 border-red-100">
+      <span className="inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium bg-red-50 text-red-700 border-red-100">
         失敗
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium bg-neutral-100 text-neutral-600 border-neutral-200">
+    <span className="inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium bg-neutral-100 text-neutral-600 border-neutral-200">
       已退款
     </span>
   );

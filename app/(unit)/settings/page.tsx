@@ -232,7 +232,7 @@ function SubscriptionPill({
   if (!label) return null;
   return (
     <span
-      className={`inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium ${pillClass}`}
+      className={`inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium ${pillClass}`}
     >
       {label}
     </span>
