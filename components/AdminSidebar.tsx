@@ -201,7 +201,7 @@ function NavLinks({ onItemClick }: { onItemClick?: () => void }) {
             key={href}
             href={href}
             onClick={onItemClick}
-            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition ${
+            className={`flex items-center gap-2.5 px-2 py-2.5 rounded-lg text-sm transition mb-5 ${
               active
                 ? "bg-neutral-900 text-white"
                 : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"

@@ -357,8 +357,8 @@ export default function ManualCheckinSheet({
             className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition disabled:bg-neutral-50 disabled:text-neutral-400"
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
+        <div className="grid grid-cols-1 gap-3">
+          <div className="min-w-0">
             <label className="block text-xs font-medium text-neutral-500 mb-1.5">
               出版社
             </label>
@@ -370,7 +370,7 @@ export default function ManualCheckinSheet({
               className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition disabled:bg-neutral-50 disabled:text-neutral-400"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="block text-xs font-medium text-neutral-500 mb-1.5">
               出版日期
             </label>
@@ -379,7 +379,7 @@ export default function ManualCheckinSheet({
               value={publishedDate}
               onChange={(e) => setPublishedDate(e.target.value)}
               disabled={quotaFull}
-              className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition disabled:bg-neutral-50 disabled:text-neutral-400"
+              className="w-full min-w-0 box-border h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition disabled:bg-neutral-50 disabled:text-neutral-400 date-field"
             />
           </div>
         </div>

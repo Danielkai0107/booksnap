@@ -91,7 +91,7 @@ export default function CategoriesPage() {
           {filtered.map((c) => (
             <li
               key={c.id}
-              className="flex items-center justify-between gap-3 px-4 py-3.5 border border-neutral-200 rounded-xl bg-white"
+              className="flex items-center justify-between gap-3 px-4 py-3.5 border border-neutral-200 rounded-xl bg-white mb-0"
             >
               <div className="flex-1 min-w-0 flex items-center gap-3">
                 <span className="inline-flex w-9 h-9 rounded-lg bg-neutral-100 items-center justify-center text-neutral-500 shrink-0">
@@ -191,6 +191,7 @@ export default function CategoriesPage() {
       {deleteTarget && (
         <BottomSheet
           open
+          fitContent
           onClose={() => setDeleteTarget(null)}
           title="刪除分類？"
           subtitle={`「${deleteTarget.name}」會從分類中移除`}
@@ -278,6 +279,7 @@ function CategoryEditSheet({
   return (
     <BottomSheet
       open
+      fitContent
       onClose={onClose}
       title={isEdit ? "編輯分類" : "新增分類"}
       subtitle={

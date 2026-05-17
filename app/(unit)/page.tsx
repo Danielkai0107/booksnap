@@ -122,365 +122,375 @@ export default function AdminPage() {
     <>
       <AuthStatusToast homePath="/" />
       <AdminShell
-      topbarTitle="書籍管理"
-      topbarRight={
-        <button
-          type="button"
-          onClick={() => setManualCheckinOpen(true)}
-          className="press-feedback hidden md:inline-flex items-center gap-1 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 px-3 h-9 rounded-full"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="shrink-0"
-            aria-hidden
+        topbarTitle="書籍管理"
+        topbarRight={
+          <button
+            type="button"
+            onClick={() => setManualCheckinOpen(true)}
+            className="press-feedback hidden md:inline-flex items-center gap-1 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 px-3 h-9 rounded-full"
           >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          <span className="leading-none">新書入庫</span>
-        </button>
-      }
-    >
-      <dl className="mb-6 grid grid-cols-4 divide-x divide-neutral-200 border border-neutral-200 rounded-xl p-3 bg-neutral-100">
-        <Stat label="總書籍" value={books.length} />
-        <Stat label="可借" value={availableCount} />
-        <Stat label="已借出" value={borrowedCount} />
-        <Stat label="出借人" value={memberCount} />
-      </dl>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0"
+              aria-hidden
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            <span className="leading-none">新書入庫</span>
+          </button>
+        }
+      >
+        <dl className="mb-6 grid grid-cols-4 divide-x divide-neutral-200 border border-neutral-200 rounded-xl p-3 bg-neutral-100">
+          <Stat label="總書籍" value={books.length} />
+          <Stat label="可借" value={availableCount} />
+          <Stat label="已借出" value={borrowedCount} />
+          <Stat label="出借人" value={memberCount} />
+        </dl>
 
-      <div className="mb-5 flex gap-2">
-        <SearchInput
-          value={query}
-          onValueChange={setQuery}
-          placeholder="搜尋書名或編號"
-          wrapperClassName="flex-1 min-w-0"
-          className="w-full h-[42px] px-4 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
-        />
-        <div className="flex shrink-0 items-stretch gap-2">
-          <div className="w-[7.5rem] sm:w-32">
-            <CategorySelect
-              sizeVariant="sm"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              options={categoryOptions}
-              placeholder="全部"
-            />
+        <div className="mb-5 flex gap-2">
+          <SearchInput
+            value={query}
+            onValueChange={setQuery}
+            placeholder="搜尋書名或編號"
+            wrapperClassName="flex-1 min-w-0"
+            className="w-full h-[42px] px-4 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
+          />
+          <div className="flex shrink-0 items-stretch gap-2">
+            <div className="w-[7.5rem] sm:w-32">
+              <CategorySelect
+                sizeVariant="sm"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                options={categoryOptions}
+                placeholder="全部"
+              />
+            </div>
+            <a
+              href={exportHref}
+              className="press-feedback inline-flex items-center justify-center shrink-0 text-sm font-medium text-neutral-800 hover:text-neutral-900 px-3 h-[42px] rounded-lg bg-white border border-neutral-200 hover:border-neutral-400"
+            >
+              匯出
+            </a>
           </div>
-          <a
-            href={exportHref}
-            className="press-feedback inline-flex items-center justify-center shrink-0 text-sm font-medium text-neutral-800 hover:text-neutral-900 px-3 h-[42px] rounded-lg bg-white border border-neutral-200 hover:border-neutral-400"
+        </div>
+        <div className="mb-6 flex items-center gap-2">
+          <StatusFilterChip
+            active={statusFilter === ""}
+            onClick={() => setStatusFilter("")}
           >
-            匯出
-          </a>
+            全部
+          </StatusFilterChip>
+          <StatusFilterChip
+            active={statusFilter === "available"}
+            onClick={() => setStatusFilter("available")}
+            dotColor="bg-emerald-500"
+          >
+            可借
+          </StatusFilterChip>
+          <StatusFilterChip
+            active={statusFilter === "borrowed"}
+            onClick={() => setStatusFilter("borrowed")}
+            dotColor="bg-neutral-400"
+          >
+            已借出
+          </StatusFilterChip>
+          <span className="ml-auto text-sm text-neutral-500">
+            共 {filtered.length} 本
+          </span>
         </div>
-      </div>
-      <div className="mb-6 flex items-center gap-2">
-        <StatusFilterChip
-          active={statusFilter === ""}
-          onClick={() => setStatusFilter("")}
-        >
-          全部
-        </StatusFilterChip>
-        <StatusFilterChip
-          active={statusFilter === "available"}
-          onClick={() => setStatusFilter("available")}
-          dotColor="bg-emerald-500"
-        >
-          可借
-        </StatusFilterChip>
-        <StatusFilterChip
-          active={statusFilter === "borrowed"}
-          onClick={() => setStatusFilter("borrowed")}
-          dotColor="bg-neutral-400"
-        >
-          已借出
-        </StatusFilterChip>
-        <span className="ml-auto text-sm text-neutral-500">
-          共 {filtered.length} 本
-        </span>
-      </div>
 
-      {loading ? (
-        <div className="py-20 flex justify-center">
-          <div className="w-7 h-7 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="py-24 text-center">
-          <p className="text-sm text-neutral-500">
-            {books.length === 0 ? "尚無書籍資料" : "沒有符合的書"}
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* 手機卡片 */}
-          <ul className="md:hidden divide-y divide-neutral-100 border-y border-neutral-100">
-            {filtered.map((b) => (
-              <li key={b.id} className="py-4 flex gap-3 items-start">
-                <Link
-                  href={`/books/${encodeURIComponent(b.book_id)}`}
-                  className="press-feedback flex-1 flex gap-3 items-start min-w-0"
-                >
-                  {b.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={b.image_url}
-                      alt={b.title}
-                      className="w-12 h-16 object-cover rounded border border-neutral-200 shrink-0"
-                    />
-                  ) : (
-                    <div className="w-12 h-16 bg-neutral-100 rounded shrink-0" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-neutral-900 truncate">
-                      {b.title}
-                    </p>
-                    <p className="text-xs text-neutral-400 mt-1 font-mono truncate">
-                      {b.book_id}
-                    </p>
-                    <div className="flex items-center justify-between gap-2 mt-2">
-                      <span className="text-xs text-neutral-500 truncate min-w-0">
-                        {b.current_holder ?? ""}
-                      </span>
-                    </div>
-                    <div className="flex w-full justify-between items-center gap-2 mt-2">
-                      {b.category_id && (
-                        <div className="">
-                          <CategoryTag
-                            name={categoryNameById.get(b.category_id)}
-                          />
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="shrink-0">
-                          <StatusPill status={b.status} />
+        {loading ? (
+          <div className="py-20 flex justify-center">
+            <div className="w-7 h-7 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="py-24 text-center">
+            <p className="text-sm text-neutral-500">
+              {books.length === 0 ? "尚無書籍資料" : "沒有符合的書"}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* 手機卡片 */}
+            <ul className="md:hidden divide-y divide-neutral-100 border-y border-neutral-100">
+              {filtered.map((b) => (
+                <li key={b.id} className="py-4 flex gap-3 items-start">
+                  <Link
+                    href={`/books/${encodeURIComponent(b.book_id)}`}
+                    className="press-feedback flex-1 flex gap-3 items-start min-w-0"
+                  >
+                    {b.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={b.image_url}
+                        alt={b.title}
+                        className="w-12 h-16 object-cover rounded border border-neutral-200 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-16 bg-neutral-100 rounded shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-neutral-900 truncate">
+                        {b.title}
+                      </p>
+                      <p className="text-xs text-neutral-400 mt-1 font-mono truncate">
+                        {b.book_id}
+                      </p>
+                      <div className="flex items-center justify-between gap-2 mt-2">
+                        <span className="text-xs text-neutral-500 truncate min-w-0">
+                          {b.current_holder ?? ""}
                         </span>
                       </div>
+                      <div className="flex w-full justify-between items-center gap-2 mt-2">
+                        {b.category_id && (
+                          <div className="">
+                            <CategoryTag
+                              name={categoryNameById.get(b.category_id)}
+                            />
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="shrink-0">
+                            <StatusPill status={b.status} />
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </Link>
-                <BookActionsMenu
-                  onEdit={() => setEditTarget(b)}
-                  onDelete={() => setDeleteTarget(b)}
-                />
-              </li>
-            ))}
-          </ul>
+                  </Link>
+                  <BookActionsMenu
+                    onEdit={() => setEditTarget(b)}
+                    onDelete={() => setDeleteTarget(b)}
+                  />
+                </li>
+              ))}
+            </ul>
 
-          {/* 桌機表格 */}
-          <div className="hidden md:block overflow-x-auto border border-neutral-100 rounded-xl">
-            {/* `table-fixed` + 明確欄寬：書名、持有人才會真的 truncate；
+            {/* 桌機表格 */}
+            <div className="hidden md:block overflow-x-auto border border-neutral-100 rounded-xl">
+              {/* `table-fixed` + 明確欄寬：書名、持有人才會真的 truncate；
                 沒這層 auto-layout 會讓長內容把整個 table 撐爛。
                 `min-w-[820px]` 在 md 起點（1200px）扣掉側欄 240 + padding 後
                 約剩 920px 仍夠塞，且更窄視窗會優雅地觸發水平捲動。 */}
-            <table className="w-full min-w-[820px] table-fixed text-sm">
-              <colgroup>
-                <col style={{ width: "112px" }} />
-                <col />
-                <col style={{ width: "100px" }} />
-                <col style={{ width: "140px" }} />
-                <col style={{ width: "110px" }} />
-                <col style={{ width: "140px" }} />
-                <col style={{ width: "52px" }} />
-              </colgroup>
-              <thead className="bg-neutral-50/60 text-neutral-500 text-xs uppercase tracking-wider">
-                <tr>
-                  <th className="text-left px-5 py-3 font-medium">編號</th>
-                  <th className="text-left px-5 py-3 font-medium">書名</th>
-                  <th className="text-left px-5 py-3 font-medium">入庫人員</th>
-                  <th className="text-left px-5 py-3 font-medium">入庫時間</th>
-                  <th className="text-left px-5 py-3 font-medium">狀態</th>
-                  <th className="text-left px-5 py-3 font-medium">持有人</th>
-                  <th className="px-3 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {filtered.map((b) => (
-                  <tr
-                    key={b.id}
-                    onClick={() =>
-                      router.push(`/books/${encodeURIComponent(b.book_id)}`)
-                    }
-                    className="hover:bg-neutral-50/60 transition cursor-pointer"
-                  >
-                    <td className="px-5 py-3.5 font-mono text-xs text-neutral-500 truncate">
-                      {b.book_id}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3 min-w-0">
-                        {b.image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={b.image_url}
-                            alt={b.title}
-                            className="w-9 h-12 object-cover rounded border border-neutral-200 shrink-0"
-                          />
-                        ) : (
-                          <div className="w-9 h-12 bg-neutral-100 rounded shrink-0" />
-                        )}
-                        <div className="flex flex-col min-w-0 flex-1">
-                          <span className="block text-neutral-900 truncate">
-                            {b.title}
-                          </span>
-                          {b.category_id && (
-                            <span className="mt-1.5 max-w-full">
-                              <CategoryTag
-                                name={categoryNameById.get(b.category_id)}
-                              />
-                            </span>
+              <table className="w-full min-w-[820px] table-fixed text-sm">
+                <colgroup>
+                  <col style={{ width: "112px" }} />
+                  <col />
+                  <col style={{ width: "100px" }} />
+                  <col style={{ width: "140px" }} />
+                  <col style={{ width: "110px" }} />
+                  <col style={{ width: "140px" }} />
+                  <col style={{ width: "52px" }} />
+                </colgroup>
+                <thead className="bg-neutral-50/60 text-neutral-500 text-xs uppercase tracking-wider">
+                  <tr>
+                    <th className="text-left px-5 py-3 font-medium">編號</th>
+                    <th className="text-left px-5 py-3 font-medium">書名</th>
+                    <th className="text-left px-5 py-3 font-medium">
+                      入庫人員
+                    </th>
+                    <th className="text-left px-5 py-3 font-medium">
+                      入庫時間
+                    </th>
+                    <th className="text-left px-5 py-3 font-medium">狀態</th>
+                    <th className="text-left px-5 py-3 font-medium">持有人</th>
+                    <th className="px-3 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {filtered.map((b) => (
+                    <tr
+                      key={b.id}
+                      onClick={() =>
+                        router.push(`/books/${encodeURIComponent(b.book_id)}`)
+                      }
+                      className="hover:bg-neutral-50/60 transition cursor-pointer"
+                    >
+                      <td className="px-5 py-3.5 font-mono text-xs text-neutral-500 truncate">
+                        {b.book_id}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {b.image_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={b.image_url}
+                              alt={b.title}
+                              className="w-9 h-12 object-cover rounded border border-neutral-200 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-9 h-12 bg-neutral-100 rounded shrink-0" />
                           )}
+                          <div className="flex flex-col min-w-0 flex-1">
+                            <span className="block text-neutral-900 truncate">
+                              {b.title}
+                            </span>
+                            {b.category_id && (
+                              <span className="mt-1.5 max-w-full">
+                                <CategoryTag
+                                  name={categoryNameById.get(b.category_id)}
+                                />
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-neutral-700 truncate">
-                      {b.admin_name}
-                    </td>
-                    <td className="px-5 py-3.5 text-neutral-500 tabular-nums whitespace-nowrap">
-                      {/* 兩行：日期上、時間下。原本連著一行 `2026/05/17 上午12:05`
+                      </td>
+                      <td className="px-5 py-3.5 text-neutral-700 truncate">
+                        {b.admin_name}
+                      </td>
+                      <td className="px-5 py-3.5 text-neutral-500 tabular-nums whitespace-nowrap">
+                        {/* 兩行：日期上、時間下。原本連著一行 `2026/05/17 上午12:05`
                           會超出 140px 欄寬擠到狀態欄；切兩行後最寬只到日期
                           (`2026/05/17`)，乾淨地落在欄寬內。 */}
-                      <div>
-                        {new Date(b.checkin_time).toLocaleDateString("zh-TW", {
-                          year: "numeric",
-                          month: "2-digit",
-                          day: "2-digit",
-                        })}
-                      </div>
-                      <div className="text-xs text-neutral-400">
-                        {new Date(b.checkin_time).toLocaleTimeString("zh-TW", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: false,
-                        })}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <StatusPill status={b.status} />
-                    </td>
-                    <td className="px-5 py-3.5 text-neutral-700 truncate">
-                      {b.current_holder ?? "—"}
-                    </td>
-                    <td className="px-3 py-3.5 text-right">
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex"
-                      >
-                        <BookActionsMenu
-                          onEdit={() => setEditTarget(b)}
-                          onDelete={() => setDeleteTarget(b)}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+                        <div>
+                          {new Date(b.checkin_time).toLocaleDateString(
+                            "zh-TW",
+                            {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                            },
+                          )}
+                        </div>
+                        <div className="text-xs text-neutral-400">
+                          {new Date(b.checkin_time).toLocaleTimeString(
+                            "zh-TW",
+                            {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: false,
+                            },
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <StatusPill status={b.status} />
+                      </td>
+                      <td className="px-5 py-3.5 text-neutral-700 truncate">
+                        {b.current_holder ?? "—"}
+                      </td>
+                      <td className="px-3 py-3.5 text-right">
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex"
+                        >
+                          <BookActionsMenu
+                            onEdit={() => setEditTarget(b)}
+                            onDelete={() => setDeleteTarget(b)}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
 
-      {/* 手機版底部留白，避免列表被浮動按鈕遮擋 */}
-      <div className="md:hidden h-24" aria-hidden />
+        {/* 手機版底部留白，避免列表被浮動按鈕遮擋 */}
+        <div className="md:hidden h-24" aria-hidden />
 
-      {/* 手機版底部固定「新書入庫」按鈕 */}
-      <div
-        className="md:hidden fixed inset-x-0 bottom-0 z-40 px-5 pt-6 flex justify-center pointer-events-none bg-gradient-to-t from-white via-white/95 to-white/0"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 20px)" }}
-      >
-        <Link
-          href="/checkin"
-          className="press-feedback pointer-events-auto inline-flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 text-white text-base font-medium px-7 py-4 rounded-full shadow-lg shadow-neutral-900/20"
+        {/* 手機版底部固定「新書入庫」按鈕 */}
+        <div
+          className="md:hidden fixed inset-x-0 bottom-0 z-40 px-5 pt-6 flex justify-center pointer-events-none bg-gradient-to-t from-white via-white/95 to-white/0"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 20px)" }}
         >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="shrink-0"
-            aria-hidden
+          <Link
+            href="/checkin"
+            className="press-feedback pointer-events-auto inline-flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 text-white text-base font-medium px-7 py-4 rounded-full shadow-lg shadow-neutral-900/20"
           >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          <span className="leading-none">新書入庫</span>
-        </Link>
-      </div>
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0"
+              aria-hidden
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            <span className="leading-none">新書入庫</span>
+          </Link>
+        </div>
 
-      <ManualCheckinSheet
-        open={manualCheckinOpen}
-        onClose={() => setManualCheckinOpen(false)}
-        categories={categories}
-        onCreated={() => {
-          void fetchAll();
-        }}
-      />
-
-      {editTarget && (
-        <EditBookSheet
-          book={editTarget}
+        <ManualCheckinSheet
+          open={manualCheckinOpen}
+          onClose={() => setManualCheckinOpen(false)}
           categories={categories}
-          onClose={() => setEditTarget(null)}
-          onSaved={() => {
-            setEditTarget(null);
+          onCreated={() => {
             void fetchAll();
           }}
         />
-      )}
 
-      {deleteTarget && (
-        <BottomSheet
-          open
-          onClose={() => setDeleteTarget(null)}
-          title="刪除書本？"
-          subtitle={`此操作無法復原（${deleteTarget.book_id}）`}
-          footer={
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteTarget(null)}
-                className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
-              >
-                取消
-              </button>
-              <button
-                onClick={async () => {
-                  const target = deleteTarget;
-                  setDeleteTarget(null);
-                  try {
-                    const res = await fetch(
-                      `/api/books/${encodeURIComponent(target.book_id)}`,
-                      { method: "DELETE" },
-                    );
-                    if (!res.ok) {
-                      const data = await res.json().catch(() => ({}));
-                      throw new Error(data.error ?? `HTTP ${res.status}`);
+        {editTarget && (
+          <EditBookSheet
+            book={editTarget}
+            categories={categories}
+            onClose={() => setEditTarget(null)}
+            onSaved={() => {
+              setEditTarget(null);
+              void fetchAll();
+            }}
+          />
+        )}
+
+        {deleteTarget && (
+          <BottomSheet
+            open
+            onClose={() => setDeleteTarget(null)}
+            title="刪除書本？"
+            subtitle={`此操作無法復原（${deleteTarget.book_id}）`}
+            footer={
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteTarget(null)}
+                  className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={async () => {
+                    const target = deleteTarget;
+                    setDeleteTarget(null);
+                    try {
+                      const res = await fetch(
+                        `/api/books/${encodeURIComponent(target.book_id)}`,
+                        { method: "DELETE" },
+                      );
+                      if (!res.ok) {
+                        const data = await res.json().catch(() => ({}));
+                        throw new Error(data.error ?? `HTTP ${res.status}`);
+                      }
+                      void fetchAll();
+                    } catch (err) {
+                      console.error("[admin] delete book failed", err);
+                      toast.error("刪除失敗，請稍後再試");
                     }
-                    void fetchAll();
-                  } catch (err) {
-                    console.error("[admin] delete book failed", err);
-                    toast.error("刪除失敗，請稍後再試");
-                  }
-                }}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-3 rounded-lg transition"
-              >
-                確認刪除
-              </button>
-            </div>
-          }
-        >
-          <p className="text-sm text-neutral-600 pb-4">
-            《{deleteTarget.title}》將從館藏中移除，同時會刪掉相關借還紀錄。
-          </p>
-        </BottomSheet>
-      )}
-    </AdminShell>
+                  }}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-3 rounded-lg transition"
+                >
+                  確認刪除
+                </button>
+              </div>
+            }
+          >
+            <p className="text-sm text-neutral-600 pb-4">
+              《{deleteTarget.title}》將從館藏中移除，同時會刪掉相關借還紀錄。
+            </p>
+          </BottomSheet>
+        )}
+      </AdminShell>
     </>
   );
 }

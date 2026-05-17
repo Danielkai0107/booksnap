@@ -45,6 +45,24 @@ textarea {
   }
 }
 
+/* 彈窗內 date 欄：避免 iOS / WebKit 撐破窄欄 grid */
+input[type="date"].date-field,
+input[type="date"] {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-width: 0;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  margin: 0;
+  padding: 0;
+}
+
 /* Tabular numerals helper */
 .tabular-nums {
   font-variant-numeric: tabular-nums;

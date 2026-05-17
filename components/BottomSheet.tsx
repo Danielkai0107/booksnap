@@ -19,6 +19,8 @@ type Props = {
   footer?: ReactNode;
   /** 簡短確認類：不撐滿高度、可省略內容區 */
   compact?: boolean;
+  /** 表單／單一輸入：高度隨內容，不套 min-height、鍵盤升起時不上推整塊 */
+  fitContent?: boolean;
   /** Maximum height of the panel (defaults to "90vh") */
   maxHeight?: string;
   /** Minimum height for the content area (defaults to "260px") */
@@ -38,6 +40,7 @@ export default function BottomSheet({
   children,
   footer,
   compact = false,
+  fitContent = false,
   maxHeight = "90vh",
   minContentHeight = "260px",
 }: Props) {
@@ -49,8 +52,8 @@ export default function BottomSheet({
   const contentScrollAtStart = useRef(0);
   const [dragY, setDragY] = useState(0);
   const [closing, setClosing] = useState(false);
-  // 鍵盤打開時把 sheet 往上推同等距離，避免 input/footer 被遮住。
-  const keyboardInset = useKeyboardInset(open);
+  // 鍵盤打開時把 sheet 往上推同等距離（fitContent 表單改由瀏覽器處理，避免整塊被頂太高）。
+  const keyboardInset = useKeyboardInset(open && !fitContent);
 
   useEffect(() => {
     if (!open) return;
@@ -151,11 +154,12 @@ export default function BottomSheet({
 
   const isDragging = dragY > 0 && !closing;
   const showContent = !compact && children != null;
+  const shrinkPanel = compact || fitContent;
 
   const panelTransform = (() => {
     if (dragY > 0) return `translateY(${dragY}px)`;
-    if (closing) return compact ? undefined : "translateY(100%)";
-    return compact ? undefined : "translateY(0)";
+    if (closing) return shrinkPanel ? undefined : "translateY(100%)";
+    return shrinkPanel ? undefined : "translateY(0)";
   })();
 
   const sheet = (
@@ -181,10 +185,10 @@ export default function BottomSheet({
       />
       <div
         className={`relative w-full sm:max-w-md mx-auto bg-white text-neutral-900 rounded-t-3xl md:rounded-3xl md:my-8 shadow-2xl max-md:animate-slide-up md:animate-fade-in flex flex-col touch-pan-y ${
-          compact ? "shrink-0" : ""
-        } ${closing && compact ? "opacity-0 md:scale-[0.98]" : ""}`}
+          shrinkPanel ? "shrink-0" : ""
+        } ${closing && shrinkPanel ? "opacity-0 md:scale-[0.98]" : ""}`}
         style={{
-          maxHeight: compact ? undefined : maxHeight,
+          maxHeight: shrinkPanel ? undefined : maxHeight,
           transform: panelTransform,
           transition: isDragging
             ? "none"
@@ -217,8 +221,12 @@ export default function BottomSheet({
         {showContent && (
           <div
             ref={contentRef}
-            className="flex-1 overflow-y-auto scrollbar-thin px-6 pb-2 overscroll-contain"
-            style={{ minHeight: minContentHeight }}
+            className={
+              shrinkPanel
+                ? "shrink-0 px-6 pb-2"
+                : "flex-1 overflow-y-auto scrollbar-thin px-6 pb-2 overscroll-contain"
+            }
+            style={shrinkPanel ? undefined : { minHeight: minContentHeight }}
           >
             {children}
           </div>

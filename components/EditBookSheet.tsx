@@ -8,6 +8,11 @@ import ZoomableImage from "./ZoomableImage";
 import type { BookRow, CategoryRow } from "@/lib/supabase";
 import type { LookupCandidate } from "@/app/api/books/lookup/route";
 
+const fieldInputClass =
+  "w-full min-w-0 box-border h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition";
+
+const dateInputClass = `${fieldInputClass} date-field`;
+
 type Props = {
   book: BookRow;
   categories: CategoryRow[];
@@ -231,8 +236,8 @@ export default function EditBookSheet({
             className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
+        <div className="grid grid-cols-1 gap-3">
+          <div className="min-w-0">
             <label className="block text-xs font-medium text-neutral-500 mb-1.5">
               出版社
             </label>
@@ -240,10 +245,10 @@ export default function EditBookSheet({
               type="text"
               value={publisher}
               onChange={(e) => setPublisher(e.target.value)}
-              className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
+              className={fieldInputClass}
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="block text-xs font-medium text-neutral-500 mb-1.5">
               出版日期
             </label>
@@ -251,7 +256,7 @@ export default function EditBookSheet({
               type="date"
               value={publishedDate}
               onChange={(e) => setPublishedDate(e.target.value)}
-              className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition"
+              className={dateInputClass}
             />
           </div>
         </div>
