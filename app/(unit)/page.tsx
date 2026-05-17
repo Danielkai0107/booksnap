@@ -40,7 +40,7 @@ export default function AdminPage() {
 
   const handleDesktopCheckin = () => {
     if (locked) {
-      router.push("/billing?from=new_book");
+      router.push("/billing");
       return;
     }
     setManualCheckinOpen(true);
@@ -49,7 +49,7 @@ export default function AdminPage() {
   const handleMobileCheckin = (e: React.MouseEvent) => {
     if (locked) {
       e.preventDefault();
-      router.push("/billing?from=new_book");
+      router.push("/billing");
     }
   };
 

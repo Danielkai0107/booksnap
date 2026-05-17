@@ -7,6 +7,7 @@ import BottomSheet from "@/components/BottomSheet";
 import { deleteAccountAction } from "@/app/(unit)/settings/actions";
 import { useToast } from "@/components/ToastProvider";
 import { PLAN_META, type OrgPlan } from "@/lib/plans";
+import type { TrialState } from "@/lib/billing/lock";
 
 type UsageInfo = {
   ai: { used: number; periodEnd: string };
@@ -15,6 +16,8 @@ type UsageInfo = {
 
 type MeInfo = {
   plan: OrgPlan | null;
+  trialState: TrialState | null;
+  trialDaysRemaining: number | null;
   usage: UsageInfo;
   orgName: string | null;
 };
@@ -40,12 +43,16 @@ export default function SettingsHubPage() {
         if (!res.ok) return;
         const data = (await res.json()) as {
           plan?: OrgPlan | null;
+          trialState?: TrialState | null;
+          trialDaysRemaining?: number | null;
           usage?: UsageInfo;
           orgName?: string | null;
         };
         if (!alive) return;
         setInfo({
           plan: data.plan ?? null,
+          trialState: data.trialState ?? null,
+          trialDaysRemaining: data.trialDaysRemaining ?? null,
           usage: data.usage ?? null,
           orgName: data.orgName ?? null,
         });
@@ -76,7 +83,11 @@ export default function SettingsHubPage() {
       ) : (
         <div className="space-y-6 max-w-2xl mx-auto">
           <UsageCard usage={info.usage} />
-          <MenuList plan={info.plan} />
+          <MenuList
+            plan={info.plan}
+            trialState={info.trialState}
+            trialDaysRemaining={info.trialDaysRemaining}
+          />
           <DeleteAccountSection orgName={info.orgName} />
         </div>
       )}
@@ -148,8 +159,15 @@ function UsageRow({
   );
 }
 
-function MenuList({ plan }: { plan: OrgPlan | null }) {
-  const meta = plan ? PLAN_META[plan] : null;
+function MenuList({
+  plan,
+  trialState,
+  trialDaysRemaining,
+}: {
+  plan: OrgPlan | null;
+  trialState: TrialState | null;
+  trialDaysRemaining: number | null;
+}) {
   return (
     <section className="border border-neutral-200 rounded-2xl overflow-hidden divide-y divide-neutral-100">
       <MenuRow
@@ -162,16 +180,62 @@ function MenuList({ plan }: { plan: OrgPlan | null }) {
         label="訂閱管理"
         hint="查看試用倒數、升級 Pro、帳單記錄"
         right={
-          meta ? (
-            <span
-              className={`inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium ${meta.pillClass}`}
-            >
-              {meta.label}
-            </span>
-          ) : null
+          <SubscriptionPill
+            plan={plan}
+            trialState={trialState}
+            trialDaysRemaining={trialDaysRemaining}
+          />
         }
       />
     </section>
+  );
+}
+
+/**
+ * 訂閱管理列右側狀態膠囊。優先讀 `trialState` 來決定文案／顏色，因為
+ * 直接讀 `plan` 沒辦法區分「試用中」與「試用過期但 plan 還是 trial」。
+ */
+function SubscriptionPill({
+  plan,
+  trialState,
+  trialDaysRemaining,
+}: {
+  plan: OrgPlan | null;
+  trialState: TrialState | null;
+  trialDaysRemaining: number | null;
+}) {
+  let label: string | null = null;
+  let pillClass = "bg-neutral-100 text-neutral-700 border-neutral-200";
+
+  if (trialState === "active_trial") {
+    label =
+      typeof trialDaysRemaining === "number"
+        ? `試用剩 ${trialDaysRemaining} 天`
+        : "試用中";
+    pillClass = PLAN_META.trial.pillClass;
+  } else if (trialState === "expired_trial") {
+    label = "試用已結束";
+    pillClass = "bg-red-50 text-red-700 border-red-100";
+  } else if (trialState === "cancelled_in_period") {
+    label = "到期取消";
+    pillClass = "bg-amber-50 text-amber-700 border-amber-100";
+  } else if (trialState === "paid") {
+    label = PLAN_META.pro.label;
+    pillClass = PLAN_META.pro.pillClass;
+  } else if (plan) {
+    // 沒拿到 trialState 時退回原本的 plan-only 顯示，避免完全空白
+    const meta = PLAN_META[plan];
+    label = meta.label;
+    pillClass = meta.pillClass;
+  }
+
+  if (!label) return null;
+  return (
+    <span
+      className={`inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium ${pillClass}`}
+    >
+      {label}
+    </span>
   );
 }
 

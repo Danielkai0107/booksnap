@@ -136,7 +136,7 @@ function PublicLinkIconButton({ onClick }: { onClick?: () => void }) {
   async function handleShare() {
     if (locked) {
       setSheetOpen(false);
-      router.push("/billing?from=public_link");
+      router.push("/billing");
       return;
     }
     const publicUrl = `${window.location.origin}/o/${publicSlug}`;
@@ -166,7 +166,7 @@ function PublicLinkIconButton({ onClick }: { onClick?: () => void }) {
   function handleGo() {
     if (locked) {
       setSheetOpen(false);
-      router.push("/billing?from=public_link");
+      router.push("/billing");
       return;
     }
     setSheetOpen(false);

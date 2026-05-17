@@ -38,12 +38,10 @@ type Props = {
   subscription: SubscriptionView | null;
   payments: PaymentView[];
   initialBanner: "welcome" | string | null;
-  /** Master monetization switch. When false, the 升級 Pro CTA is disabled and
-   * a BillingPausedBanner is shown above the StatusCard. */
+  /** Master monetization switch. When false, the 升級 Pro CTA is disabled
+   * (button label changes to「升級通道暫未開放」). 頁面不再多加說明 banner —
+   * 按鈕本身的 disabled 樣式就已經足夠清楚。 */
   billingEnabled: boolean;
-  /** Friendly one-liner when the user landed here from a locked entry point
-   * (e.g. 新書入庫). Rendered as a small neutral banner. */
-  reasonCopy: string | null;
 };
 
 function formatDateTW(iso: string): string {
@@ -67,7 +65,6 @@ export default function BillingClient({
   payments,
   initialBanner,
   billingEnabled,
-  reasonCopy,
 }: Props) {
   const router = useRouter();
   const toast = useToast();
@@ -151,9 +148,6 @@ export default function BillingClient({
   return (
     <AdminShell topbarTitle="訂閱管理" backHref="/settings">
       <div className="space-y-8">
-        {!billingEnabled && <BillingPausedBanner />}
-        {reasonCopy && <ReasonBanner copy={reasonCopy} />}
-
         <StatusCard
           trialState={trialState}
           trialDaysRemaining={trialDaysRemaining}
@@ -175,48 +169,6 @@ export default function BillingClient({
   );
 }
 
-function ReasonBanner({ copy }: { copy: string }) {
-  return (
-    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-5 py-4">
-      <p className="text-sm text-neutral-700 leading-relaxed">{copy}</p>
-    </div>
-  );
-}
-
-function BillingPausedBanner() {
-  return (
-    <div className="rounded-2xl border border-amber-100 bg-amber-50/70 px-5 py-4">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-amber-900">
-            booksnap 金流準備中，敬請期待！
-          </p>
-          <p className="mt-1 text-xs text-amber-800/90 leading-relaxed">
-            目前升級通道暫時關閉，所有功能可繼續以試用狀態使用。
-            上線後我們會第一時間通知您。
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function StatusCard({
   trialState,
@@ -258,7 +210,7 @@ function StatusCard({
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
             試用還剩 {days} 天
           </h1>
-          <span className="inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium bg-amber-50 text-amber-700 border-amber-100">
+          <span className="inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium bg-blue-50 text-blue-700 border-blue-100">
             試用中
           </span>
         </div>

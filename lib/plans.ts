@@ -35,7 +35,7 @@ export const PLAN_META: Record<
 > = {
   trial: {
     label: "試用中",
-    pillClass: "bg-amber-50 text-amber-700 border-amber-100",
+    pillClass: "bg-blue-50 text-blue-700 border-blue-100",
   },
   pro: {
     label: "Pro",

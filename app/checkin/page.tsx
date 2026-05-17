@@ -11,8 +11,8 @@ import CheckinEntryClient from "./CheckinEntryClient";
  * to `/checkin/scan`.
  *
  * Trial-expired / never-paid orgs are blocked here (server-side) instead of
- * each consumer (camera, manual sheet) checking quotas individually. They get
- * routed to `/billing?from=new_book` where the full upgrade context lives.
+ * each consumer (camera, manual sheet) checking quotas individually. They
+ * get routed to `/billing` where the full upgrade context lives.
  */
 export default async function CheckinEntryPage() {
   const session = await requireUnitSession();
@@ -20,7 +20,7 @@ export default async function CheckinEntryPage() {
   if (org) {
     const subscription = await maybeExpireSubscription(org.id);
     if (isOrgLocked(org, subscription)) {
-      redirect("/billing?from=new_book");
+      redirect("/billing");
     }
   }
   const operator =
