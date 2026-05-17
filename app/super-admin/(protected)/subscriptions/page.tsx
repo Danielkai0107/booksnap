@@ -15,12 +15,12 @@ type StatusFilter = SubscriptionStatus | "all";
 type Search = Promise<{ tab?: string }>;
 
 const STATUS_TABS: { key: StatusFilter; label: string }[] = [
+  { key: "all", label: "全部" },
   { key: "active", label: "進行中" },
   { key: "past_due", label: "扣款失敗" },
   { key: "cancelled", label: "已取消（期內）" },
   { key: "expired", label: "已過期" },
   { key: "pending", label: "處理中" },
-  { key: "all", label: "全部" },
 ];
 
 function statusPillClass(s: SubscriptionStatus): string {
@@ -63,7 +63,7 @@ export default async function SubscriptionsPage({
   searchParams: Search;
 }) {
   const sp = await searchParams;
-  const tab = (sp.tab as StatusFilter) ?? "active";
+  const tab = (sp.tab as StatusFilter) ?? "all";
 
   const admin = createAdminClient();
   let query = admin

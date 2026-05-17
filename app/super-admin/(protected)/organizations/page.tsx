@@ -15,11 +15,11 @@ type TabKey = "pending" | "approved" | "rejected" | "suspended" | "all";
 type Search = Promise<{ tab?: string }>;
 
 const TABS: { key: TabKey; label: string }[] = [
+  { key: "all", label: "全部" },
   { key: "pending", label: "待審核" },
   { key: "approved", label: "已通過" },
   { key: "rejected", label: "已退回" },
   { key: "suspended", label: "已停用" },
-  { key: "all", label: "全部" },
 ];
 
 function statusLabel(s: OrgStatus): string {
@@ -74,7 +74,7 @@ export default async function OrganizationsPage({
   searchParams: Search;
 }) {
   const sp = await searchParams;
-  const tab = (sp.tab as TabKey) ?? "pending";
+  const tab = (sp.tab as TabKey) ?? "all";
 
   const admin = createAdminClient();
   let query = admin
