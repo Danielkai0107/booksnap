@@ -121,8 +121,8 @@ export default function VerifyForm({
         length={6}
         maxLength={10}
       />
-      <p className="mt-5 w-full text-center text-xs text-neutral-500">
-        已發送給 {maskEmailForDisplay(email)}
+      <p className="mt-5 w-full text-center text-xs text-neutral-500 leading-relaxed">
+        已發送登入驗證碼至 {maskEmailForDisplay(email)}
       </p>
     </AuthStepForm>
   );
