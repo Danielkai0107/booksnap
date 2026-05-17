@@ -641,7 +641,6 @@ export default function CheckinScanPage() {
                             }`}
                           >
                             {c.thumbnail ? (
-                              /* eslint-disable-next-line @next/next/no-img-element */
                               <img
                                 src={c.thumbnail}
                                 alt={c.title}

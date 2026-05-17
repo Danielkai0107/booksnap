@@ -96,11 +96,13 @@ export default function BorrowerDetailPage() {
   }, [id, toast]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchAll();
   }, [fetchAll]);
 
   useEffect(() => {
     if (!borrower) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditName(borrower.display_name);
     setEditEmail(borrower.email ?? "");
   }, [borrower]);
@@ -414,7 +416,6 @@ function HoldingList({
             className="press-feedback w-full flex items-start gap-3 text-left"
           >
             {b.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={b.image_url}
                 alt={b.title}

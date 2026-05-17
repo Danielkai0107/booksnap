@@ -106,7 +106,6 @@ export default function LabelCard({
       <div className="label-main">
         <div className="label-qr-wrap">
           {qrDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={qrDataUrl} alt="" className="label-qr" />
           ) : (
             <div className="label-qr label-qr-placeholder" aria-hidden />

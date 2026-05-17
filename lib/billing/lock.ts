@@ -7,8 +7,9 @@
  *    `organizations.trial_ends_at`).
  *  - Paid orgs (`pro` + an active/grace subscription) are never locked.
  *  - Orgs flagged `bypass_quota = true` (super-admin VIP) are never locked.
- *  - Everything else (trial-in-progress, trial expired, subscription expired)
- *    is locked.
+ *  - **Active trial** orgs (trial_ends_at in the future) are NOT locked —
+ *    they get the full product to evaluate.
+ *  - Only **expired trial / never-paid / post-cancellation** orgs are locked.
  *
  * The lock affects only:
  *  - The "新書入庫" buttons in `app/(unit)/page.tsx` (desktop + mobile FAB).
@@ -41,6 +42,12 @@ export function isOrgLocked(
 
   const plan = effectivePlan(org, subscription, now);
   if (plan === "pro") return false;
+
+  // 試用期內完整解鎖 — "30 天試用" 的承諾必須兌現，否則使用者沒辦法真的
+  // 評估產品就被催升級。倒數天數仍會在側欄與 BillingClient 上顯示作為
+  // 友善提醒；到期當天起 isOrgLocked 才會回 true 並擋下兩個入口。
+  const ends = org.trial_ends_at ? new Date(org.trial_ends_at).getTime() : 0;
+  if (ends > now.getTime()) return false;
 
   return true;
 }

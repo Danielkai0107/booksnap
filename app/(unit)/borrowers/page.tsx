@@ -5,7 +5,6 @@ import Link from "next/link";
 import AdminShell from "@/components/AdminShell";
 import SearchInput from "@/components/SearchInput";
 import { useToast } from "@/components/ToastProvider";
-import { maskPhoneAdmin } from "@/lib/mask";
 
 type Borrower = {
   id: string;
@@ -45,6 +44,7 @@ export default function BorrowersPage() {
   }, [toast]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchAll();
   }, [fetchAll]);
 

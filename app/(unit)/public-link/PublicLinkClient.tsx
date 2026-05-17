@@ -154,7 +154,6 @@ export default function PublicLinkClient({
               </p>
             </button>
           ) : qrUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={qrUrl}
               alt="借還 QR"

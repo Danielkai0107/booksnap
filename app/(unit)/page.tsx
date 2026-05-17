@@ -269,7 +269,6 @@ export default function AdminPage() {
                     className="press-feedback flex-1 flex gap-3 items-start min-w-0"
                   >
                     {b.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={b.image_url}
                         alt={b.title}
@@ -360,7 +359,6 @@ export default function AdminPage() {
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3 min-w-0">
                           {b.image_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={b.image_url}
                               alt={b.title}

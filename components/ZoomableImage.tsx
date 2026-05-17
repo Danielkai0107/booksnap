@@ -49,7 +49,6 @@ export default function ZoomableImage({
 
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
         alt={alt}
@@ -71,7 +70,6 @@ export default function ZoomableImage({
             aria-modal="true"
             aria-label="圖片預覽"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={finalZoomSrc}
               alt={alt}
