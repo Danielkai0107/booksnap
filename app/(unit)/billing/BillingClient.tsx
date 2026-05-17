@@ -150,6 +150,8 @@ export default function BillingClient({
   return (
     <AdminShell topbarTitle="訂閱管理" backHref="/settings">
       <div className="space-y-8">
+        {!billingEnabled && <BillingPausedBanner />}
+
         <StatusCard
           trialState={trialState}
           trialDaysRemaining={trialDaysRemaining}
@@ -157,6 +159,7 @@ export default function BillingClient({
           subscription={subscription}
           proPrice={proPrice}
           busy={busy}
+          billingEnabled={billingEnabled}
           onSubscribe={handleSubscribe}
           onCancel={handleCancel}
           onResume={handleResume}
@@ -170,6 +173,41 @@ export default function BillingClient({
   );
 }
 
+function BillingPausedBanner() {
+  return (
+    <div className="rounded-2xl border border-amber-100 bg-amber-50/70 px-5 py-4">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-amber-900">
+            booksnap 金流準備中，敬請期待！
+          </p>
+          <p className="mt-1 text-xs text-amber-800/90 leading-relaxed">
+            目前升級通道暫時關閉，所有功能可繼續以試用狀態使用。
+            上線後我們會第一時間通知您。
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StatusCard({
   trialState,
   trialDaysRemaining,
@@ -177,6 +215,7 @@ function StatusCard({
   subscription,
   proPrice,
   busy,
+  billingEnabled,
   onSubscribe,
   onCancel,
   onResume,
@@ -187,10 +226,17 @@ function StatusCard({
   subscription: SubscriptionView | null;
   proPrice: PlanPriceConfig;
   busy: boolean;
+  billingEnabled: boolean;
   onSubscribe: () => void;
   onCancel: () => void;
   onResume: () => void;
 }) {
+  // 金流關閉時的 CTA 文案/樣式統一處理，方便 active_trial / expired_trial 共用
+  const subscribeLabel = billingEnabled
+    ? `立即升級 · ${proPrice.label}`
+    : "金流準備中，敬請期待";
+  const subscribeBusyLabel = busy ? "處理中…" : subscribeLabel;
+
   if (trialState === "active_trial") {
     const days = trialDaysRemaining ?? 0;
     return (
@@ -220,10 +266,12 @@ function StatusCard({
           className={`mt-5 w-full md:w-auto px-5 py-2.5 rounded-lg text-sm font-medium transition ${
             busy
               ? "bg-neutral-300 text-white cursor-not-allowed"
-              : "bg-neutral-900 hover:bg-neutral-800 text-white"
+              : billingEnabled
+                ? "bg-neutral-900 hover:bg-neutral-800 text-white"
+                : "bg-white border border-amber-200 text-amber-900 hover:border-amber-400"
           }`}
         >
-          {busy ? "處理中…" : `立即升級 · ${proPrice.label}`}
+          {subscribeBusyLabel}
         </button>
       </section>
     );
@@ -251,10 +299,12 @@ function StatusCard({
           className={`mt-5 w-full md:w-auto px-5 py-2.5 rounded-lg text-sm font-medium transition ${
             busy
               ? "bg-neutral-300 text-white cursor-not-allowed"
-              : "bg-neutral-900 hover:bg-neutral-800 text-white"
+              : billingEnabled
+                ? "bg-neutral-900 hover:bg-neutral-800 text-white"
+                : "bg-white border border-amber-200 text-amber-900 hover:border-amber-400"
           }`}
         >
-          {busy ? "處理中…" : `立即升級 · ${proPrice.label}`}
+          {subscribeBusyLabel}
         </button>
       </section>
     );
