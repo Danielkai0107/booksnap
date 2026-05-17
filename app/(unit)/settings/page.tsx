@@ -19,8 +19,8 @@ type MeInfo = {
 /**
  * Settings hub — single entry point for everything that isn't day-to-day book
  * management. Shows current usage at the top, then a Cursor-style menu list
- * linking out to individual settings pages (單位資料 / 訂閱管理), and a logout
- * action at the bottom.
+ * linking out to individual settings pages (單位資料 / 訂閱管理). The 登出
+ * button sits in the topbar's right-hand slot.
  */
 export default function SettingsHubPage() {
   const [info, setInfo] = useState<MeInfo | null>(null);
@@ -54,16 +54,15 @@ export default function SettingsHubPage() {
   }, []);
 
   return (
-    <AdminShell topbarTitle="設定">
+    <AdminShell topbarTitle="設定" topbarRight={<LogoutButton />}>
       {info === null ? (
         <div className="py-20 flex justify-center">
           <div className="w-7 h-7 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="space-y-6 max-w-2xl">
+        <div className="space-y-6 max-w-2xl mx-auto">
           <UsageCard usage={info.usage} />
           <MenuList plan={info.plan} />
-          <LogoutSection />
         </div>
       )}
     </AdminShell>
@@ -73,8 +72,8 @@ export default function SettingsHubPage() {
 function UsageCard({ usage }: { usage: UsageInfo }) {
   if (!usage) return null;
   return (
-    <section className="border border-neutral-200 rounded-2xl p-5 md:p-7">
-      <h2 className="text-base font-semibold text-neutral-900">用量</h2>
+    <section className="rounded-2xl p-3 mb-12">
+      <h2 className="text-base font-semibold text-neutral-900">方案用量</h2>
       <p className="mt-1 text-xs text-neutral-500">
         當期方案的智能辨識次數與館藏使用狀況。
       </p>
@@ -206,12 +205,12 @@ function MenuRow({
   );
 }
 
-function LogoutSection() {
+function LogoutButton() {
   return (
     <form action={signOutAction}>
       <button
         type="submit"
-        className="w-full px-5 py-3 rounded-2xl border border-neutral-200 bg-white text-sm font-medium text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 transition"
+        className="inline-flex items-center h-9 px-3 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/10"
       >
         登出
       </button>
