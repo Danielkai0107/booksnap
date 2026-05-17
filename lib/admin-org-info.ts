@@ -14,6 +14,12 @@ export type AdminOrgInfo = {
   trialDaysRemaining: number | null;
   trialEndsAt: string | null;
   trialState: TrialState | null;
+  /**
+   * Global monetization switch from `app_settings.billing_enabled`. When
+   * false the UpgradeModal and BillingClient swap CTAs for a
+   * "金流準備中，敬請期待" notice instead of opening the gateway.
+   */
+  billingEnabled: boolean;
 };
 
 const EMPTY: AdminOrgInfo = {
@@ -24,6 +30,7 @@ const EMPTY: AdminOrgInfo = {
   trialDaysRemaining: null,
   trialEndsAt: null,
   trialState: null,
+  billingEnabled: false,
 };
 
 let cached: AdminOrgInfo | undefined;
@@ -43,6 +50,7 @@ function parseMe(data: Record<string, unknown>): AdminOrgInfo {
       (data.trialDaysRemaining as number | null | undefined) ?? null,
     trialEndsAt: (data.trialEndsAt as string | null | undefined) ?? null,
     trialState: (data.trialState as TrialState | null | undefined) ?? null,
+    billingEnabled: (data.billingEnabled as boolean | undefined) ?? false,
   };
 }
 

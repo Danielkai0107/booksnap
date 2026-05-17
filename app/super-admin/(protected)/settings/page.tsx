@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadAppSettings } from "@/lib/plans";
 import type { OrganizationRow } from "@/lib/supabase/types";
 import TrialDaysForm from "./TrialDaysForm";
+import BillingEnabledForm from "./BillingEnabledForm";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,9 @@ export default async function SuperAdminSettingsPage() {
   const provider = process.env.BILLING_PROVIDER ?? "instant";
 
   const admin = createAdminClient();
-  const { trialDays } = await loadAppSettings(admin, { bypassCache: true });
+  const { trialDays, billingEnabled } = await loadAppSettings(admin, {
+    bypassCache: true,
+  });
 
   const { data: bypassRows } = await admin
     .from("organizations")
@@ -59,6 +62,9 @@ export default async function SuperAdminSettingsPage() {
           代表內部測試金流，按下訂閱即刻啟用、不會實際扣款。上線真實金流時請改成 <code>ecpay</code>{" "}
           / <code>jkopay</code> 並重新部署。
         </p>
+        <div className="mt-4">
+          <BillingEnabledForm initialEnabled={billingEnabled} />
+        </div>
       </section>
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-5">

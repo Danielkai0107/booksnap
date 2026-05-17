@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   effectivePlan,
   getOrgPeriod,
+  loadAppSettings,
   type OrgPlan,
 } from "@/lib/plans";
 import {
@@ -54,10 +55,16 @@ export async function GET() {
   let daysRemaining: number | null = null;
   let trialEndsAt: string | null = null;
   let state: TrialState | null = null;
+  let billingEnabled = false;
 
   if (org) {
     const admin = createAdminClient();
-    subscription = await maybeExpireSubscription(org.id, admin);
+    const [settings, sub] = await Promise.all([
+      loadAppSettings(admin),
+      maybeExpireSubscription(org.id, admin),
+    ]);
+    billingEnabled = settings.billingEnabled;
+    subscription = sub;
     plan = effectivePlan(org, subscription);
     locked = isOrgLocked(org, subscription);
     daysRemaining = trialDaysRemaining(org);
@@ -117,5 +124,6 @@ export async function GET() {
     trialDaysRemaining: daysRemaining,
     trialEndsAt,
     trialState: state,
+    billingEnabled,
   });
 }

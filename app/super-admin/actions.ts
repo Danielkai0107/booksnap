@@ -588,6 +588,44 @@ export async function setTrialDays(
   return { ok: true };
 }
 
+/**
+ * Master billing switch. While `false`, the in-app UpgradeModal and the
+ * BillingClient swap their "升級 Pro" CTAs for a "金流準備中，敬請期待"
+ * notice and never hit `/api/billing/subscribe`. Lets us ship features before
+ * a real gateway is connected without confusing early users.
+ */
+export async function setBillingEnabled(
+  enabled: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { userId } = await assertSuperAdmin();
+  const admin = createAdminClient();
+  const { error } = await admin.from("app_settings").upsert(
+    {
+      key: "billing_enabled",
+      value: enabled,
+      updated_at: new Date().toISOString(),
+      updated_by: userId,
+    },
+    { onConflict: "key" },
+  );
+  if (error) {
+    return { ok: false, error: toUserMessage(error, "儲存失敗") };
+  }
+  invalidateAppSettingsCache();
+  await writeAuditLog(admin, {
+    actor_id: userId,
+    actor_role: "super_admin",
+    action: enabled
+      ? "settings.billing_enabled"
+      : "settings.billing_disabled",
+    target_org_id: null,
+    meta: { enabled },
+  });
+  revalidatePath("/super-admin/settings");
+  revalidatePath("/billing");
+  return { ok: true };
+}
+
 export async function setOrganizationBypassQuota(
   orgId: string,
   bypass: boolean,

@@ -60,9 +60,17 @@ export type PlanConfigs = {
 export type AppSettings = {
   /** Default trial length applied at org approval. Editable in super-admin settings. */
   trialDays: number;
+  /**
+   * Master switch for monetization. When `false`, both the in-app
+   * `UpgradeModal` and the `/billing` page swap their "升級 Pro" CTA for a
+   * "金流準備中，敬請期待" notice and never hit `/api/billing/subscribe`.
+   * Lets us ship to early users before any real gateway is connected.
+   */
+  billingEnabled: boolean;
 };
 
 const DEFAULT_TRIAL_DAYS = 30;
+const DEFAULT_BILLING_ENABLED = false;
 
 export function formatPriceLabel(plan: OrgPlan, monthly: number): string {
   if (plan === "trial" || monthly === 0) return "免費試用";
@@ -70,7 +78,10 @@ export function formatPriceLabel(plan: OrgPlan, monthly: number): string {
 }
 
 const FALLBACK_PLAN_CONFIGS: PlanConfigs = { prices: PLAN_PRICE };
-const FALLBACK_APP_SETTINGS: AppSettings = { trialDays: DEFAULT_TRIAL_DAYS };
+const FALLBACK_APP_SETTINGS: AppSettings = {
+  trialDays: DEFAULT_TRIAL_DAYS,
+  billingEnabled: DEFAULT_BILLING_ENABLED,
+};
 
 type CacheEntry<T> = { value: T; loadedAt: number };
 const CACHE_TTL_MS = 60 * 1000;
@@ -119,9 +130,11 @@ export function invalidatePlanConfigsCache(): void {
 }
 
 /**
- * Reads tunable runtime settings (currently just `trial_days`). Falls back to
- * `DEFAULT_TRIAL_DAYS` when the table or row is missing. The super-admin
- * settings page should call `invalidateAppSettingsCache()` after writes.
+ * Reads tunable runtime settings. Each row is `{key, value: jsonb}` so we
+ * fetch the whole tiny table and unpack the keys we know about; unknown rows
+ * are ignored. Falls back to defaults on errors so the app keeps serving.
+ * The super-admin settings page should call `invalidateAppSettingsCache()`
+ * after writes.
  */
 export async function loadAppSettings(
   client?: SupabaseClient,
@@ -137,15 +150,19 @@ export async function loadAppSettings(
   const { data, error } = await admin
     .from("app_settings")
     .select("key, value")
-    .eq("key", "trial_days")
-    .maybeSingle();
-  if (error || !data) {
-    if (error) console.warn("[plans] loadAppSettings error, falling back", error);
+    .in("key", ["trial_days", "billing_enabled"]);
+  if (error) {
+    console.warn("[plans] loadAppSettings error, falling back", error);
     return FALLBACK_APP_SETTINGS;
   }
-  const row = data as { key: string; value: unknown };
-  const trialDays = coerceTrialDays(row.value) ?? DEFAULT_TRIAL_DAYS;
-  const value: AppSettings = { trialDays };
+
+  const rows = (data ?? []) as { key: string; value: unknown }[];
+  const byKey = new Map(rows.map((r) => [r.key, r.value]));
+  const trialDays =
+    coerceTrialDays(byKey.get("trial_days")) ?? DEFAULT_TRIAL_DAYS;
+  const billingEnabled =
+    coerceBool(byKey.get("billing_enabled")) ?? DEFAULT_BILLING_ENABLED;
+  const value: AppSettings = { trialDays, billingEnabled };
   settingsCache = { value, loadedAt: Date.now() };
   return value;
 }
@@ -161,6 +178,15 @@ function coerceTrialDays(raw: unknown): number | null {
   if (typeof raw === "string") {
     const n = parseInt(raw, 10);
     if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
+function coerceBool(raw: unknown): boolean | null {
+  if (typeof raw === "boolean") return raw;
+  if (typeof raw === "string") {
+    if (raw === "true") return true;
+    if (raw === "false") return false;
   }
   return null;
 }

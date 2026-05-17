@@ -86,6 +86,19 @@ function UpgradeModalSheet({
     if (!open) setBusy(false);
   }, [open]);
 
+  // 金流主開關尚未開啟 → 改顯示「準備中」通知，CTA 不打 /api/billing。
+  // 由 Super Admin 控制 app_settings.billing_enabled。
+  if (!info.billingEnabled) {
+    return (
+      <BillingComingSoonSheet
+        open={open}
+        onClose={onClose}
+        daysLeft={info.trialDaysRemaining ?? 0}
+        trialEndsAt={info.trialEndsAt}
+      />
+    );
+  }
+
   // Display copy varies by trial state. The reason key is just a debug hint;
   // we don't render it directly.
   const isExpired = info.trialState === "expired_trial";
@@ -180,6 +193,62 @@ function UpgradeModalSheet({
           <FeatureRow text="完整智能辨識，書封自動帶入書名與作者" />
           <FeatureRow text="館藏匯出 Excel、標籤列印、分類管理" />
         </ul>
+      </div>
+    </BottomSheet>
+  );
+}
+
+/**
+ * Shown in place of the upgrade pitch when `app_settings.billing_enabled` is
+ * still off. Communicates the trial position to ease anxiety ("你還有 X 天")
+ * without offering a payment path the gateway can't yet honour.
+ */
+export function BillingComingSoonSheet({
+  open,
+  onClose,
+  daysLeft,
+  trialEndsAt,
+}: {
+  open: boolean;
+  onClose: () => void;
+  daysLeft: number;
+  trialEndsAt: string | null;
+}) {
+  return (
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      compact
+      title="金流準備中"
+      subtitle="booksnap 正在串接金流，敬請期待！"
+      footer={
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+        >
+          知道了
+        </button>
+      }
+    >
+      <div className="space-y-3 text-sm text-neutral-700">
+        <div className="rounded-xl border border-amber-100 bg-amber-50/70 px-4 py-3">
+          <p className="text-xs text-amber-700">目前試用狀態</p>
+          <p className="mt-1 text-base font-semibold text-amber-900">
+            {daysLeft > 0
+              ? `試用還剩 ${daysLeft} 天`
+              : "試用已結束，金流開放後將另行通知"}
+          </p>
+          {trialEndsAt && daysLeft > 0 && (
+            <p className="mt-1 text-xs text-amber-700">
+              試用至 {formatDateTW(trialEndsAt)}
+            </p>
+          )}
+        </div>
+        <p className="text-sm text-neutral-600 leading-relaxed">
+          升級付費功能即將開放，期間若有任何使用問題或想表達意願，
+          歡迎直接與我們聯絡。我們會在金流上線後第一時間通知您。
+        </p>
       </div>
     </BottomSheet>
   );

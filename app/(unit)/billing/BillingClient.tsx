@@ -4,6 +4,7 @@ import { useEffect, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import AdminShell from "@/components/AdminShell";
 import { useToast } from "@/components/ToastProvider";
+import { useUpgradeModal } from "@/components/UpgradeModal";
 import type { PlanPriceConfig } from "@/lib/plans";
 import type { TrialState } from "@/lib/billing/lock";
 
@@ -38,6 +39,9 @@ type Props = {
   subscription: SubscriptionView | null;
   payments: PaymentView[];
   initialBanner: "welcome" | string | null;
+  /** Master monetization switch. When false, 升級/恢復 CTAs open the shared
+   * UpgradeModal in its "金流準備中" mode instead of hitting the gateway. */
+  billingEnabled: boolean;
 };
 
 function formatDateTW(iso: string): string {
@@ -60,9 +64,11 @@ export default function BillingClient({
   subscription,
   payments,
   initialBanner,
+  billingEnabled,
 }: Props) {
   const router = useRouter();
   const toast = useToast();
+  const { openUpgradeModal } = useUpgradeModal();
   const [busy, startTransition] = useTransition();
 
   useEffect(() => {
@@ -72,6 +78,10 @@ export default function BillingClient({
   }, [initialBanner, toast]);
 
   const handleSubscribe = () => {
+    if (!billingEnabled) {
+      openUpgradeModal("billing_page_subscribe");
+      return;
+    }
     startTransition(async () => {
       try {
         const res = await fetch("/api/billing/subscribe", { method: "POST" });

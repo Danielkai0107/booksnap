@@ -1,6 +1,6 @@
 import { requireUnitSession } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { loadPlanConfigs } from "@/lib/plans";
+import { loadAppSettings, loadPlanConfigs } from "@/lib/plans";
 import { trialState, trialDaysRemaining } from "@/lib/billing/lock";
 import { maybeExpireSubscription } from "@/lib/billing/expire";
 import type { PaymentRow, SubscriptionRow } from "@/lib/supabase/types";
@@ -21,7 +21,10 @@ export default async function AdminBillingPage({
 
   const admin = createAdminClient();
   const subscription = await maybeExpireSubscription(org.id, admin);
-  const { prices } = await loadPlanConfigs(admin);
+  const [{ prices }, { billingEnabled }] = await Promise.all([
+    loadPlanConfigs(admin),
+    loadAppSettings(admin),
+  ]);
   const state = trialState(org, subscription);
   const daysRemaining = trialDaysRemaining(org);
 
@@ -45,6 +48,7 @@ export default async function AdminBillingPage({
       subscription={serializeSubscription(subscription)}
       payments={payments.map(serializePayment)}
       initialBanner={initialBanner}
+      billingEnabled={billingEnabled}
     />
   );
 }
