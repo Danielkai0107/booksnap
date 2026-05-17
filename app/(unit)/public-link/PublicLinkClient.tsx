@@ -181,8 +181,17 @@ export default function PublicLinkClient({
       )}
 
       {locked && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-sm text-amber-900">
-          借閱連結為付費功能，升級後即可啟用兩個開關並對外分享。
+        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 flex items-center gap-3">
+          <p className="flex-1 text-sm text-neutral-700 leading-relaxed">
+            借閱連結為付費功能，升級後即可啟用兩個開關並對外分享。
+          </p>
+          <button
+            type="button"
+            onClick={goToBilling}
+            className="shrink-0 inline-flex items-center h-[26px] px-2.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium transition"
+          >
+            升級
+          </button>
         </div>
       )}
 
