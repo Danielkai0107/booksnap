@@ -1,9 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { sendLoginEmailOtp } from "@/lib/auth/login-otp";
 import { validateUnitLoginUser } from "@/lib/auth/unit-login";
+import { verifyPasswordWithoutSession } from "@/lib/auth/verify-password";
 
 export type LoginState = {
   error?: string;
@@ -11,7 +12,7 @@ export type LoginState = {
 
 export async function loginAction(
   _prev: LoginState,
-  formData: FormData
+  formData: FormData,
 ): Promise<LoginState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
@@ -20,32 +21,29 @@ export async function loginAction(
     return { error: "請輸入 Email 與密碼" };
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-  if (error || !data.user) {
+  const auth = await verifyPasswordWithoutSession(email, password);
+  if (!auth.ok) {
+    return { error: "帳號或密碼不正確" };
+  }
+
+  const admin = createAdminClient();
+  const { data: userData } = await admin.auth.admin.getUserById(auth.userId);
+  const user = userData.user;
+  if (!user) {
     return { error: "帳號或密碼不正確" };
   }
 
   const role =
-    (data.user.app_metadata?.role as "unit" | "super_admin" | undefined) ??
-    null;
+    (user.app_metadata?.role as "unit" | "super_admin" | undefined) ?? null;
 
-  // Super admin must log in via /super-admin/login
   if (role === "super_admin") {
-    await supabase.auth.signOut();
     return { error: "此帳號為超級管理員，請改用 /super-admin 登入" };
   }
 
-  const unitErr = await validateUnitLoginUser(data.user.id);
+  const unitErr = await validateUnitLoginUser(user.id);
   if (unitErr) {
-    await supabase.auth.signOut();
     return { error: unitErr };
   }
-
-  await supabase.auth.signOut();
 
   const otpErr = await sendLoginEmailOtp(email);
   if (otpErr) {

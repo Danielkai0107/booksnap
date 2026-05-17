@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { signOutGlobal } from "@/lib/auth/sign-out";
 import { purgeOrganization } from "@/lib/org/purge";
 
 export type DeleteAccountResult = {
@@ -52,7 +53,7 @@ export async function deleteAccountAction(
     return { error: "註銷失敗，請稍後再試或聯絡客服" };
   }
 
-  await supabase.auth.signOut();
+  await signOutGlobal(supabase);
 
   const { error: deleteErr } = await admin.auth.admin.deleteUser(user.id);
   if (deleteErr) {

@@ -10,6 +10,7 @@ import {
   type OrgPlan,
 } from "@/lib/plans";
 import { writeAuditLog } from "@/lib/billing/apply";
+import { signOutLocal } from "@/lib/auth/sign-out";
 import { toUserMessage } from "@/lib/errors/user-message";
 
 async function assertSuperAdmin(): Promise<{ userId: string }> {
@@ -449,6 +450,6 @@ function planLabel(plan: OrgPlan): string {
 
 export async function superAdminSignOut(): Promise<void> {
   const supabase = await createClient();
-  await supabase.auth.signOut();
+  await signOutLocal(supabase);
   redirect("/super-admin/login");
 }

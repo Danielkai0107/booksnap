@@ -26,6 +26,11 @@
 - `{{ .ConfirmationURL }}` — 點擊連結（註冊／重設密碼用；登入信以驗證碼為主即可）
 - `{{ .Email }}` — 收件人 Email
 
+## 多裝置登入與寄信頻率
+
+- **多裝置**：應用程式登入流程不會再對「全部裝置」執行 `signOut`；密碼僅在無 cookie 的客戶端驗證，不影響已登入的平板／手機。
+- **登入驗證信間隔**：前端已移除 60 秒重寄倒數。若仍出現「操作太頻繁」，請到 **Authentication → Rate Limits** 調高 Email OTP／Magic Link 寄送上限（或縮短 `email_sent` 間隔）。
+
 ## Redirect URLs
 
 **Authentication → URL Configuration → Redirect URLs** 須包含：

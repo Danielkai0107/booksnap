@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { validateUnitLoginUser } from "@/lib/auth/unit-login";
 import { sendLoginEmailOtp } from "@/lib/auth/login-otp";
+import { signOutLocal } from "@/lib/auth/sign-out";
 
 export type LoginVerifyState = {
   error?: string;
@@ -45,13 +46,13 @@ async function verifyLoginEmailOtp(
       (data.user.app_metadata?.role as "unit" | "super_admin" | undefined) ??
       null;
     if (role !== "super_admin") {
-      await supabase.auth.signOut();
+      await signOutLocal(supabase);
       return { error: "此帳號沒有超級管理員權限" };
     }
   } else {
     const unitErr = await validateUnitLoginUser(data.user.id);
     if (unitErr) {
-      await supabase.auth.signOut();
+      await signOutLocal(supabase);
       return { error: unitErr };
     }
   }

@@ -47,11 +47,12 @@ function BrandHeader({
   // pro 已是頂層方案，不再顯示升級按鈕。
   const showUpgrade = plan !== null && plan !== "pro";
   return (
-    <div className={`mb-6 border-b border-neutral-100 pb-4 ${className}`}>
+    <div className={`relative mb-6 border-b border-neutral-100 pb-4 ${className}`}>
+      <PublicLinkIconButton onClick={onClick} />
       <Link
         href="/"
         onClick={onClick}
-        className="block min-w-0 leading-tight hover:opacity-90 transition"
+        className="block min-w-0 pr-11 leading-tight hover:opacity-90 transition"
       >
         <span className="block text-xl font-semibold tracking-tight text-neutral-900">
           booksnap
@@ -84,13 +85,19 @@ function BrandHeader({
   );
 }
 
-function PublicLinkButton({ onClick }: { onClick?: () => void }) {
+const publicLinkIconClass =
+  "absolute right-0 top-0 flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition shadow-sm";
+
+function PublicLinkIconButton({ onClick }: { onClick?: () => void }) {
   const { publicSlug } = useAdminOrgInfo();
   if (!publicSlug) {
     return (
-      <span className={`${bottomItemClass} opacity-60 cursor-not-allowed`}>
-        <EyeIcon className="shrink-0" width={18} height={18} aria-hidden />
-        <span className="truncate">借還頁尚未設定</span>
+      <span
+        className={`${publicLinkIconClass} opacity-40 cursor-not-allowed`}
+        aria-disabled
+        title="借還頁尚未設定"
+      >
+        <EyeIcon width={17} height={17} aria-hidden />
       </span>
     );
   }
@@ -100,10 +107,11 @@ function PublicLinkButton({ onClick }: { onClick?: () => void }) {
       onClick={onClick}
       target="_blank"
       rel="noopener"
-      className={bottomItemClass}
+      className={publicLinkIconClass}
+      aria-label="我的借閱入口"
+      title="我的借閱入口"
     >
-      <EyeIcon className="shrink-0" width={18} height={18} aria-hidden />
-      <span className="truncate">我的借閱入口</span>
+      <EyeIcon width={17} height={17} aria-hidden />
     </Link>
   );
 }
@@ -152,8 +160,7 @@ export default function AdminSidebar() {
       <nav className="flex-1 space-y-1">
         <NavLinks />
       </nav>
-      <div className="mt-6 space-y-2">
-        <PublicLinkButton />
+      <div className="mt-6">
         <SettingsLink />
       </div>
     </aside>
@@ -195,8 +202,7 @@ export function AdminMobileMenu({
         <nav className="flex-1 space-y-1">
           <NavLinks onItemClick={onClose} />
         </nav>
-        <div className="mt-6 space-y-2">
-          <PublicLinkButton onClick={onClose} />
+        <div className="mt-6">
           <SettingsLink onClick={onClose} />
         </div>
       </aside>
