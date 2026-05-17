@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans, Noto_Sans_TC } from "next/font/google";
+import AuthSessionSync from "@/components/AuthSessionSync";
 import { ToastProvider } from "@/components/ToastProvider";
 import "./globals.css";
 
@@ -33,7 +34,10 @@ export default function RootLayout({
       className={`${dmSans.variable} ${notoSansTC.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-white text-neutral-900 font-sans flex flex-col">
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <AuthSessionSync />
+          {children}
+        </ToastProvider>
       </body>
     </html>
   );

@@ -70,6 +70,14 @@ export default function AdminPage() {
 
   useEffect(() => {
     void fetchAll();
+
+    const onSessionChange = () => {
+      void fetchAll();
+    };
+    window.addEventListener("booksnap:session-changed", onSessionChange);
+    return () => {
+      window.removeEventListener("booksnap:session-changed", onSessionChange);
+    };
   }, []);
 
   useEffect(() => {

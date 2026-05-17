@@ -37,6 +37,12 @@ async function loadFromApi(): Promise<AdminOrgInfo> {
   return parseMe(data);
 }
 
+/** 登出或切換帳號時清掉，避免側邊欄顯示上一個單位的名稱／方案 */
+export function clearAdminOrgInfoCache(): void {
+  cached = undefined;
+  notify();
+}
+
 /** 首次載入（多個側邊欄元件共用同一份快取） */
 export async function fetchAdminOrgInfo(): Promise<AdminOrgInfo> {
   if (cached) return cached;

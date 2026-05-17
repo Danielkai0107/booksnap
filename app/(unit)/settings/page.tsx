@@ -5,6 +5,7 @@ import Link from "next/link";
 import AdminShell from "@/components/AdminShell";
 import BottomSheet from "@/components/BottomSheet";
 import { signOutAction } from "@/app/auth/actions";
+import SignOutButton from "@/components/SignOutButton";
 import { deleteAccountAction } from "@/app/(unit)/settings/actions";
 import { useToast } from "@/components/ToastProvider";
 import { PLAN_META, type OrgPlan } from "@/lib/plans";
@@ -31,7 +32,8 @@ export default function SettingsHubPage() {
 
   useEffect(() => {
     let alive = true;
-    (async () => {
+
+    async function loadMe() {
       try {
         const res = await fetch("/api/me", { cache: "no-store" });
         if (res.status === 401) {
@@ -53,9 +55,18 @@ export default function SettingsHubPage() {
       } catch (err) {
         console.error("[settings] fetch /api/me failed", err);
       }
-    })();
+    }
+
+    void loadMe();
+
+    const onSessionChange = () => {
+      setInfo(null);
+      void loadMe();
+    };
+    window.addEventListener("booksnap:session-changed", onSessionChange);
     return () => {
       alive = false;
+      window.removeEventListener("booksnap:session-changed", onSessionChange);
     };
   }, []);
 
@@ -302,13 +313,9 @@ function DeleteAccountSection({ orgName }: { orgName: string | null }) {
 
 function LogoutButton() {
   return (
-    <form action={signOutAction}>
-      <button
-        type="submit"
-        className="inline-flex items-center h-9 px-3 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/10"
-      >
-        登出
-      </button>
-    </form>
+    <SignOutButton
+      action={signOutAction}
+      className="inline-flex items-center h-9 px-3 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/10 disabled:opacity-60"
+    />
   );
 }

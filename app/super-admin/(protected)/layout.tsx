@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AuthStatusToast from "@/components/AuthStatusToast";
 import { requireSuperAdmin } from "@/lib/auth";
+import SignOutButton from "@/components/SignOutButton";
 import { superAdminSignOut } from "../actions";
 
 export default async function SuperAdminProtectedLayout({
@@ -52,14 +53,10 @@ export default async function SuperAdminProtectedLayout({
             >
               設定
             </Link>
-            <form action={superAdminSignOut}>
-              <button
-                type="submit"
-                className="ml-1 px-3 py-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 transition"
-              >
-                登出
-              </button>
-            </form>
+            <SignOutButton
+              action={superAdminSignOut}
+              className="ml-1 px-3 py-1.5 rounded-md text-neutral-500 hover:bg-neutral-100 transition disabled:opacity-60"
+            />
           </nav>
         </div>
       </header>
