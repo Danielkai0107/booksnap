@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import BottomSheet from "@/components/BottomSheet";
 import { useToast } from "@/components/ToastProvider";
 import { useUpgradeModal } from "@/components/UpgradeModal";
+import { signOutAction } from "@/app/auth/actions";
+import SignOutButton, { signOutOutlineClass } from "@/components/SignOutButton";
 import { useAdminOrgInfo } from "@/lib/admin-org-info";
 import { PLAN_META } from "@/lib/plans";
 
@@ -17,7 +19,7 @@ type NavItem = {
   Icon: ComponentType<IconProps>;
 };
 
-const items: readonly NavItem[] = [
+const mainItems: readonly NavItem[] = [
   { href: "/", label: "書籍管理", matchExact: true, Icon: BookIcon },
   { href: "/borrowers", label: "出借人", matchExact: false, Icon: UsersIcon },
   {
@@ -27,16 +29,29 @@ const items: readonly NavItem[] = [
     Icon: TagIcon,
   },
   { href: "/labels", label: "標籤列印", matchExact: false, Icon: PrinterIcon },
-  {
-    href: "/public-link",
-    label: "我的借閱連結",
-    matchExact: false,
-    Icon: LinkIcon,
-  },
 ];
 
-const bottomItemClass =
-  "flex items-center gap-2.5 w-full text-left px-3 py-2.5 rounded-lg text-sm bg-neutral-100 text-neutral-700 hover:bg-neutral-200 hover:text-neutral-900 transition";
+const publicLinkItem: NavItem = {
+  href: "/public-link",
+  label: "我的借閱連結",
+  matchExact: false,
+  Icon: LinkIcon,
+};
+
+const settingsItem: NavItem = {
+  href: "/settings",
+  label: "設定",
+  matchExact: false,
+  Icon: SettingsIcon,
+};
+
+function navLinkClass(active: boolean) {
+  return `flex items-center gap-2.5 px-2 py-2.5 rounded-lg text-sm transition mb-5 ${
+    active
+      ? "bg-neutral-900 text-white"
+      : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+  }`;
+}
 
 function BrandHeader({
   onClick,
@@ -201,40 +216,50 @@ function PublicLinkIconButton({ onClick }: { onClick?: () => void }) {
   );
 }
 
-function SettingsLink({ onClick }: { onClick?: () => void }) {
+function NavLinkItem({
+  item,
+  onItemClick,
+}: {
+  item: NavItem;
+  onItemClick?: () => void;
+}) {
+  const pathname = usePathname();
+  const { href, label, matchExact, Icon } = item;
+  const active = matchExact ? pathname === href : pathname.startsWith(href);
   return (
-    <Link href="/settings" onClick={onClick} className={bottomItemClass}>
-      <SettingsIcon className="shrink-0" width={18} height={18} aria-hidden />
-      <span className="truncate">設定</span>
+    <Link
+      href={href}
+      onClick={onItemClick}
+      className={navLinkClass(active)}
+    >
+      <Icon className="shrink-0" width={18} height={18} aria-hidden />
+      <span className="truncate">{label}</span>
     </Link>
   );
 }
 
 function NavLinks({ onItemClick }: { onItemClick?: () => void }) {
-  const pathname = usePathname();
   return (
     <>
-      {items.map(({ href, label, matchExact, Icon }) => {
-        const active = matchExact
-          ? pathname === href
-          : pathname.startsWith(href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            onClick={onItemClick}
-            className={`flex items-center gap-2.5 px-2 py-2.5 rounded-lg text-sm transition mb-5 ${
-              active
-                ? "bg-neutral-900 text-white"
-                : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
-            }`}
-          >
-            <Icon className="shrink-0" width={18} height={18} aria-hidden />
-            <span className="truncate">{label}</span>
-          </Link>
-        );
-      })}
+      {mainItems.map((item) => (
+        <NavLinkItem key={item.href} item={item} onItemClick={onItemClick} />
+      ))}
+      <NavLinkItem item={publicLinkItem} onItemClick={onItemClick} />
+      <NavLinkItem item={settingsItem} onItemClick={onItemClick} />
     </>
+  );
+}
+
+function SignOutNavItem({ onItemClick }: { onItemClick?: () => void }) {
+  return (
+    <SignOutButton
+      action={signOutAction}
+      onClick={onItemClick}
+      className={signOutOutlineClass}
+    >
+      <LogOutIcon className="shrink-0" width={18} height={18} aria-hidden />
+      <span className="truncate">登出</span>
+    </SignOutButton>
   );
 }
 
@@ -242,12 +267,14 @@ export default function AdminSidebar() {
   return (
     <aside className="hidden md:flex w-60 shrink-0 fixed inset-y-0 left-0 flex-col border-r border-neutral-100 bg-white px-5 py-5">
       <BrandHeader />
-      <nav className="flex-1 space-y-1">
-        <NavLinks />
+      <nav className="flex-1 flex flex-col min-h-0">
+        <div className="space-y-1">
+          <NavLinks />
+        </div>
+        <div className="mt-auto pt-2">
+          <SignOutNavItem />
+        </div>
       </nav>
-      <div className="mt-6">
-        <SettingsLink />
-      </div>
     </aside>
   );
 }
@@ -284,12 +311,14 @@ export function AdminMobileMenu({
       />
       <aside className="absolute inset-y-0 left-0 w-64 bg-white shadow-2xl flex flex-col px-5 py-7 animate-slide-right">
         <BrandHeader onClick={onClose} />
-        <nav className="flex-1 space-y-1">
-          <NavLinks onItemClick={onClose} />
+        <nav className="flex-1 flex flex-col min-h-0">
+          <div className="space-y-1">
+            <NavLinks onItemClick={onClose} />
+          </div>
+          <div className="mt-auto pt-2">
+            <SignOutNavItem onItemClick={onClose} />
+          </div>
         </nav>
-        <div className="mt-6">
-          <SettingsLink onClick={onClose} />
-        </div>
       </aside>
     </div>
   );
@@ -377,6 +406,16 @@ function SettingsIcon(props: IconProps) {
     <svg {...svgProps(props)}>
       <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
       <circle cx="12" cy="12" r="4" />
+    </svg>
+  );
+}
+
+function LogOutIcon(props: IconProps) {
+  return (
+    <svg {...svgProps(props)}>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
   );
 }

@@ -4,8 +4,6 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import AdminShell from "@/components/AdminShell";
 import BottomSheet from "@/components/BottomSheet";
-import { signOutAction } from "@/app/auth/actions";
-import SignOutButton from "@/components/SignOutButton";
 import { deleteAccountAction } from "@/app/(unit)/settings/actions";
 import { useToast } from "@/components/ToastProvider";
 import { PLAN_META, type OrgPlan } from "@/lib/plans";
@@ -24,8 +22,7 @@ type MeInfo = {
 /**
  * Settings hub — single entry point for everything that isn't day-to-day book
  * management. Shows current usage at the top, then a Cursor-style menu list
- * linking out to individual settings pages (單位資料 / 訂閱管理). The 登出
- * button sits in the topbar's right-hand slot.
+ * linking out to individual settings pages (單位資料 / 訂閱管理). 登出在側邊欄最下方。
  */
 export default function SettingsHubPage() {
   const [info, setInfo] = useState<MeInfo | null>(null);
@@ -71,7 +68,7 @@ export default function SettingsHubPage() {
   }, []);
 
   return (
-    <AdminShell topbarTitle="設定" topbarRight={<LogoutButton />}>
+    <AdminShell topbarTitle="設定">
       {info === null ? (
         <div className="py-20 flex justify-center">
           <div className="w-7 h-7 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />
@@ -307,11 +304,3 @@ function DeleteAccountSection({ orgName }: { orgName: string | null }) {
   );
 }
 
-function LogoutButton() {
-  return (
-    <SignOutButton
-      action={signOutAction}
-      className="inline-flex items-center h-9 px-3 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/10 disabled:opacity-60"
-    />
-  );
-}

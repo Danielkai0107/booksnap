@@ -25,11 +25,9 @@ export default async function OrgLandingPage({ params }: Props) {
     <div className="flex-1 flex flex-col items-center justify-center py-10">
       <div className="w-full max-w-sm">
         <h1 className="text-center text-2xl font-semibold tracking-tight text-neutral-900">
-          {org.name}
-        </h1>
-        <p className="mt-4 text-center text-md text-neutral-500">
           借閱查詢入口
-        </p>
+        </h1>
+        <p className="mt-4 text-center text-md text-neutral-500">{org.name}</p>
 
         {borrowDisabled && (
           <p className="mt-6 text-center text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
@@ -115,7 +113,6 @@ export default async function OrgLandingPage({ params }: Props) {
             />
           )}
         </div>
-
       </div>
 
       <p className="fixed inset-x-0 bottom-6 z-10 pointer-events-none text-center text-sm text-neutral-400 leading-relaxed px-5">
