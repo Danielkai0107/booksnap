@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import BottomSheet from "./BottomSheet";
 import CategorySelect from "./CategorySelect";
+import NativeDateInput from "./NativeDateInput";
 import { useToast } from "./ToastProvider";
 import ZoomableImage from "./ZoomableImage";
 import type { BookRow, CategoryRow } from "@/lib/supabase";
@@ -11,7 +12,7 @@ import type { LookupCandidate } from "@/app/api/books/lookup/route";
 const fieldInputClass =
   "w-full min-w-0 box-border h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition";
 
-const dateInputClass = `${fieldInputClass} date-field`;
+const dateInputClass = `${fieldInputClass} disabled:bg-neutral-50 disabled:text-neutral-400`;
 
 type Props = {
   book: BookRow;
@@ -252,10 +253,9 @@ export default function EditBookSheet({
             <label className="block text-xs font-medium text-neutral-500 mb-1.5">
               出版日期
             </label>
-            <input
-              type="date"
+            <NativeDateInput
               value={publishedDate}
-              onChange={(e) => setPublishedDate(e.target.value)}
+              onChange={setPublishedDate}
               className={dateInputClass}
             />
           </div>

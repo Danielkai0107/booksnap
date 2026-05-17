@@ -45,22 +45,41 @@ textarea {
   }
 }
 
-/* 彈窗內 date 欄：避免 iOS / WebKit 撐破窄欄 grid */
-input[type="date"].date-field,
+/* 原生 date：外層 grid + 欄位 class 限制寬度，避免 iOS 長日期字串撐破彈窗 grid */
+.date-input-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+input[type="date"].date-input,
 input[type="date"] {
+  display: block;
+  width: 100%;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
 }
 
+input[type="date"].date-input::-webkit-date-and-time-value,
 input[type="date"]::-webkit-date-and-time-value {
+  display: block;
   text-align: left;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+input[type="date"].date-input::-webkit-calendar-picker-indicator,
 input[type="date"]::-webkit-calendar-picker-indicator {
+  flex-shrink: 0;
   margin: 0;
   padding: 0;
+  opacity: 0.55;
 }
 
 /* Tabular numerals helper */

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import BottomSheet from "./BottomSheet";
 import CategorySelect from "./CategorySelect";
+import NativeDateInput from "./NativeDateInput";
 import { useToast } from "./ToastProvider";
 import { supabase, type CategoryRow } from "@/lib/supabase";
 import { formatDateYMD, generateBookId } from "@/lib/bookId";
@@ -374,12 +375,11 @@ export default function ManualCheckinSheet({
             <label className="block text-xs font-medium text-neutral-500 mb-1.5">
               出版日期
             </label>
-            <input
-              type="date"
+            <NativeDateInput
               value={publishedDate}
-              onChange={(e) => setPublishedDate(e.target.value)}
+              onChange={setPublishedDate}
               disabled={quotaFull}
-              className="w-full min-w-0 box-border h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition disabled:bg-neutral-50 disabled:text-neutral-400 date-field"
+              className="w-full min-w-0 box-border h-[46px] border border-neutral-200 rounded-md px-3 text-sm focus:outline-none focus:border-neutral-900 transition disabled:bg-neutral-50 disabled:text-neutral-400"
             />
           </div>
         </div>
