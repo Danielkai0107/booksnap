@@ -141,7 +141,7 @@ function FormStage({
           name="name"
           required
           defaultValue={v.name ?? ""}
-          placeholder="例：示範幼兒園"
+          placeholder="例：示範單位"
           className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
         />
       </Field>
