@@ -72,9 +72,12 @@ function BrandHeader({
   const pillClass =
     trialState === "expired_trial"
       ? "bg-red-50 text-red-700 border-red-100"
-      : (meta?.pillClass ?? "bg-neutral-100 text-neutral-700 border-neutral-200");
+      : (meta?.pillClass ??
+        "bg-neutral-100 text-neutral-700 border-neutral-200");
   return (
-    <div className={`relative mb-6 border-b border-neutral-100 pb-4 ${className}`}>
+    <div
+      className={`relative mb-6 border-b border-neutral-100 pb-4 ${className}`}
+    >
       <PublicLinkIconButton onClick={onClick} />
       <Link
         href="/"
@@ -84,12 +87,12 @@ function BrandHeader({
         <span className="block text-xl font-semibold tracking-tight text-neutral-900">
           booksnap
         </span>
-        <span className="mt-1.5 block text-sm text-neutral-600 truncate">
+        <span className="mt-4 block text-sm text-neutral-600 truncate">
           {orgName ?? "—"}
         </span>
       </Link>
       {(pillLabel || showUpgrade) && (
-        <div className="mt-2.5 flex items-center gap-2">
+        <div className="mt-4 flex items-center gap-2">
           {pillLabel && (
             <span
               className={`inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium ${pillClass}`}
@@ -226,11 +229,7 @@ function NavLinkItem({
   const { href, label, matchExact, Icon } = item;
   const active = matchExact ? pathname === href : pathname.startsWith(href);
   return (
-    <Link
-      href={href}
-      onClick={onItemClick}
-      className={navLinkClass(active)}
-    >
+    <Link href={href} onClick={onItemClick} className={navLinkClass(active)}>
       <Icon className="shrink-0" width={18} height={18} aria-hidden />
       <span className="truncate">{label}</span>
     </Link>
