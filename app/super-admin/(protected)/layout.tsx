@@ -50,12 +50,6 @@ export default async function SuperAdminProtectedLayout({
             >
               設定
             </Link>
-            <Link
-              href="/super-admin/security"
-              className="px-3 py-1.5 rounded-md text-neutral-700 hover:bg-neutral-100 transition"
-            >
-              資安
-            </Link>
             <form action={superAdminSignOut}>
               <button
                 type="submit"

@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import AdminShell from "@/components/AdminShell";
+import BottomSheet from "@/components/BottomSheet";
 import { signOutAction } from "@/app/auth/actions";
+import { deleteAccountAction } from "@/app/(unit)/settings/actions";
+import { useToast } from "@/components/ToastProvider";
 import { PLAN_META, type OrgPlan } from "@/lib/plans";
 
 type UsageInfo = {
@@ -14,6 +17,7 @@ type UsageInfo = {
 type MeInfo = {
   plan: OrgPlan | null;
   usage: UsageInfo;
+  orgName: string | null;
 };
 
 /**
@@ -38,11 +42,13 @@ export default function SettingsHubPage() {
         const data = (await res.json()) as {
           plan?: OrgPlan | null;
           usage?: UsageInfo;
+          orgName?: string | null;
         };
         if (!alive) return;
         setInfo({
           plan: data.plan ?? null,
           usage: data.usage ?? null,
+          orgName: data.orgName ?? null,
         });
       } catch (err) {
         console.error("[settings] fetch /api/me failed", err);
@@ -63,6 +69,7 @@ export default function SettingsHubPage() {
         <div className="space-y-6 max-w-2xl mx-auto">
           <UsageCard usage={info.usage} />
           <MenuList plan={info.plan} />
+          <DeleteAccountSection orgName={info.orgName} />
         </div>
       )}
     </AdminShell>
@@ -147,11 +154,6 @@ function MenuList({ plan }: { plan: OrgPlan | null }) {
         hint="編輯單位名稱、所在縣市、聯絡資訊"
       />
       <MenuRow
-        href="/settings/security"
-        label="資安設定"
-        hint="雙重驗證（TOTP）、登入安全"
-      />
-      <MenuRow
         href="/billing"
         label="訂閱管理"
         hint="升級／降級方案、查看帳單記錄"
@@ -207,6 +209,94 @@ function MenuRow({
         <path d="M9 18l6-6-6-6" />
       </svg>
     </Link>
+  );
+}
+
+function DeleteAccountSection({ orgName }: { orgName: string | null }) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [confirmName, setConfirmName] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  const trimmed = confirmName.trim();
+  const canSubmit = Boolean(orgName) && trimmed === orgName;
+
+  function closeSheet() {
+    setOpen(false);
+    setConfirmName("");
+  }
+
+  function handleSubmit() {
+    if (!orgName || !canSubmit) return;
+    startTransition(async () => {
+      const res = await deleteAccountAction(trimmed);
+      if (res?.error) {
+        toast.error(res.error);
+        return;
+      }
+      closeSheet();
+    });
+  }
+
+  return (
+    <>
+      <section className="border border-neutral-200 rounded-2xl overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          disabled={!orgName}
+          className="w-full px-5 py-4 text-left text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 transition"
+        >
+          註銷帳號
+        </button>
+      </section>
+
+      <BottomSheet
+        open={open}
+        onClose={closeSheet}
+        title="註銷帳號？"
+        subtitle="此操作無法復原"
+        footer={
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={closeSheet}
+              disabled={pending}
+              className="flex-1 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition disabled:opacity-50"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={pending || !canSubmit}
+              className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white text-sm font-medium py-3 rounded-lg transition"
+            >
+              {pending ? "處理中…" : "確認註銷"}
+            </button>
+          </div>
+        }
+      >
+        <p className="text-sm text-neutral-600">將永久刪除：</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-neutral-600">
+          <li>館藏與借還紀錄</li>
+          <li>分類與出借人資料</li>
+          <li>單位設定與訂閱</li>
+          <li>您的登入帳號</li>
+        </ul>
+        <label className="mt-5 block text-xs font-medium text-neutral-500">
+          請輸入單位名稱以確認
+        </label>
+        <input
+          type="text"
+          value={confirmName}
+          onChange={(e) => setConfirmName(e.target.value)}
+          placeholder={orgName ?? ""}
+          autoComplete="off"
+          className="mt-1.5 w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
+        />
+      </BottomSheet>
+    </>
   );
 }
 

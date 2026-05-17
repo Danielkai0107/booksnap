@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { sendLoginEmailOtp } from "@/lib/auth/login-otp";
+import { validateUnitLoginUser } from "@/lib/auth/unit-login";
 
 export type LoginState = {
   error?: string;
@@ -38,50 +39,18 @@ export async function loginAction(
     return { error: "此帳號為超級管理員，請改用 /super-admin 登入" };
   }
 
-  // For unit users, check organization status
-  const admin = createAdminClient();
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("organization_id")
-    .eq("id", data.user.id)
-    .maybeSingle();
-
-  if (!profile?.organization_id) {
+  const unitErr = await validateUnitLoginUser(data.user.id);
+  if (unitErr) {
     await supabase.auth.signOut();
-    return { error: "此帳號尚未綁定單位，請聯絡管理員" };
+    return { error: unitErr };
   }
 
-  const { data: org } = await admin
-    .from("organizations")
-    .select("status")
-    .eq("id", profile.organization_id)
-    .maybeSingle();
+  await supabase.auth.signOut();
 
-  if (!org) {
-    await supabase.auth.signOut();
-    return { error: "找不到對應單位，請聯絡管理員" };
+  const otpErr = await sendLoginEmailOtp(email);
+  if (otpErr) {
+    return { error: otpErr };
   }
 
-  if (org.status === "pending") {
-    await supabase.auth.signOut();
-    return { error: "你的單位仍在審核中，請耐心等候通知" };
-  }
-  if (org.status === "rejected") {
-    await supabase.auth.signOut();
-    return { error: "你的單位註冊申請未通過，請聯絡管理員" };
-  }
-  if (org.status === "suspended") {
-    await supabase.auth.signOut();
-    return { error: "你的單位已停用，請聯絡管理員" };
-  }
-
-  // MFA gate: if the user has any verified TOTP factor, the session is at
-  // AAL1 right after password login and must be lifted to AAL2 by entering
-  // their authenticator code on `/login/verify`.
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.nextLevel === "aal2" && aal.currentLevel === "aal1") {
-    redirect("/login/verify");
-  }
-
-  redirect("/");
+  redirect(`/login/verify?email=${encodeURIComponent(email)}`);
 }

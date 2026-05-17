@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { sendLoginEmailOtp } from "@/lib/auth/login-otp";
 
 export type SaLoginState = {
   error?: string;
@@ -36,11 +37,14 @@ export async function superAdminLoginAction(
     return { error: "此帳號沒有超級管理員權限" };
   }
 
-  // Same MFA gate as the unit login: AAL1 + verified TOTP factor → verify page.
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.nextLevel === "aal2" && aal.currentLevel === "aal1") {
-    redirect("/super-admin/login/verify");
+  await supabase.auth.signOut();
+
+  const otpErr = await sendLoginEmailOtp(email);
+  if (otpErr) {
+    return { error: otpErr };
   }
 
-  redirect("/super-admin");
+  redirect(
+    `/super-admin/login/verify?email=${encodeURIComponent(email)}`,
+  );
 }

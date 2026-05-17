@@ -121,38 +121,27 @@ export default function AdminPage() {
     <AdminShell
       topbarTitle="書籍管理"
       topbarRight={
-        // 桌機 topbar 同時放主要動作（新書入庫）+ 次要動作（匯出）；
-        // 新書入庫只在桌機顯示，因為手機已有底部 FAB 提供同一動作。
-        // 桌機點擊開手動表單彈窗（不走 /checkin 的相機流程）。
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setManualCheckinOpen(true)}
-            className="press-feedback hidden md:inline-flex items-center gap-1 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 px-3 h-9 rounded-full"
+        <button
+          type="button"
+          onClick={() => setManualCheckinOpen(true)}
+          className="press-feedback hidden md:inline-flex items-center gap-1 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 px-3 h-9 rounded-full"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="shrink-0"
+            aria-hidden
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="shrink-0"
-              aria-hidden
-            >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            <span className="leading-none">新書入庫</span>
-          </button>
-          <a
-            href={exportHref}
-            className="press-feedback inline-flex items-center gap-1 text-sm font-medium text-neutral-800 hover:text-neutral-900 px-3 h-9 rounded-full bg-white border border-neutral-200 hover:border-neutral-400"
-          >
-            <span className="leading-none">匯出</span>
-          </a>
-        </div>
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          <span className="leading-none">新書入庫</span>
+        </button>
       }
     >
       <dl className="mb-6 grid grid-cols-4 divide-x divide-neutral-200 border border-neutral-200 rounded-xl p-3 bg-neutral-100">
@@ -170,14 +159,22 @@ export default function AdminPage() {
           wrapperClassName="flex-1 min-w-0"
           className="w-full h-[42px] px-4 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 transition"
         />
-        <div className="w-1/3 shrink-0">
-          <CategorySelect
-            sizeVariant="sm"
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            options={categoryOptions}
-            placeholder="全部"
-          />
+        <div className="flex shrink-0 items-stretch gap-2">
+          <div className="w-[7.5rem] sm:w-32">
+            <CategorySelect
+              sizeVariant="sm"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              options={categoryOptions}
+              placeholder="全部"
+            />
+          </div>
+          <a
+            href={exportHref}
+            className="press-feedback inline-flex items-center justify-center shrink-0 text-sm font-medium text-neutral-800 hover:text-neutral-900 px-3 h-[42px] rounded-lg bg-white border border-neutral-200 hover:border-neutral-400"
+          >
+            匯出
+          </a>
         </div>
       </div>
       <div className="mb-6 flex items-center gap-2">

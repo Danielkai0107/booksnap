@@ -24,6 +24,7 @@ const UNIT_LOGIN = "/login";
 function isPublicUnitPath(pathname: string): boolean {
   return (
     pathname === UNIT_LOGIN ||
+    pathname.startsWith(`${UNIT_LOGIN}/`) ||
     pathname.startsWith("/register") ||
     pathname === "/forgot-password" ||
     pathname === "/favicon.ico"
@@ -89,43 +90,11 @@ export async function proxy(request: NextRequest) {
   const role = (user?.app_metadata?.role as "unit" | "super_admin" | undefined) ?? null;
   const { pathname, search } = request.nextUrl;
 
-  // --- MFA gate -------------------------------------------------------------
-  // If the user has any verified TOTP factor we leave them at AAL1 right
-  // after `signInWithPassword`. Until they verify on `/login/verify` (or the
-  // super-admin twin) we only let them touch:
-  //   - the verify page itself,
-  //   - shared sign-out flows under `/auth/*`,
-  //   - public `/o/*` and `/api/public/*` (handled by the open-access check
-  //     above, not reachable here).
-  // Everything else gets bounced to verify so the user can't sneak past MFA.
-  let needsMfa = false;
-  let mfaPath: "/login/verify" | "/super-admin/login/verify" = "/login/verify";
-  if (user) {
-    const { data: aal } =
-      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    needsMfa =
-      aal?.currentLevel === "aal1" && aal?.nextLevel === "aal2";
-    mfaPath =
-      role === "super_admin" ? "/super-admin/login/verify" : "/login/verify";
-  }
-
   // --- Public reader entry points (`/o/{slug}/*`, `/api/public/*`) ---------
   // These must be reachable without a session and never get redirected based
   // on role, otherwise QR-code flows for non-logged-in readers would break.
   if (isOpenAccessPath(pathname)) {
     return response;
-  }
-
-  if (needsMfa) {
-    if (pathname === mfaPath) return response;
-    if (pathname.startsWith("/auth/")) return response;
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "mfa_required" }, { status: 401 });
-    }
-    const url = request.nextUrl.clone();
-    url.pathname = mfaPath;
-    url.search = pathname === "/" ? "" : `?next=${encodeURIComponent(pathname + search)}`;
-    return NextResponse.redirect(url);
   }
 
   // --- /super-admin/* paths -------------------------------------------------
