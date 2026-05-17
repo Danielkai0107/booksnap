@@ -12,6 +12,8 @@ export type BookPreview = {
   status: string | null;
   shelf_id: string | null;
   current_holder: string | null;
+  current_location?: string | null;
+  current_holder_phone_masked?: string | null;
   admin_name: string | null;
   checkin_time: string | null;
   category_name: string | null;
@@ -109,6 +111,16 @@ export default function BookPreviewSheet({
                 <span className="text-neutral-900 font-medium">
                   {book.current_holder}
                 </span>
+                {book.current_holder_phone_masked && (
+                  <span className="ml-1 text-neutral-400 font-mono">
+                    ({book.current_holder_phone_masked})
+                  </span>
+                )}
+                {book.current_location && (
+                  <span className="ml-1 text-neutral-500">
+                    @ {book.current_location}
+                  </span>
+                )}
               </p>
             )}
           </div>
@@ -159,7 +171,7 @@ function StatusPill({ status }: { status: string }) {
     return (
       <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-        在庫
+        可借
       </span>
     );
   }

@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
     作者: b.authors ?? "",
     出版社: b.publisher ?? "",
     出版日期: b.published_date ?? "",
-    狀態: b.status === "available" ? "在庫" : "已借出",
+    狀態: b.status === "available" ? "可借" : "已借出",
     目前持有人: b.current_holder ?? "",
     借出位置: b.current_location ?? "",
     書架編號: b.shelf_id ?? "",

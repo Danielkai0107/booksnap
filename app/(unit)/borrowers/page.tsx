@@ -88,22 +88,22 @@ export default function BorrowersPage() {
             <li key={b.id} className="py-4">
               <Link
                 href={`/borrowers/${encodeURIComponent(b.id)}`}
-                className="press-feedback flex items-center gap-3"
+                className="press-feedback flex items-stretch gap-3"
               >
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-neutral-900 truncate">
                     {b.display_name}
                   </p>
                   <p className="text-xs text-neutral-500 mt-0.5 font-mono">
-                    {maskPhoneAdmin(b.phone)}
+                    {b.phone}
                   </p>
                   {b.email && (
-                    <p className="text-xs text-neutral-400 mt-0.5 truncate">
+                    <p className="text-xs text-neutral-400 mt-2 truncate">
                       {b.email}
                     </p>
                   )}
                 </div>
-                <div className="text-right shrink-0">
+                <div className="self-stretch flex flex-col items-end justify-between shrink-0">
                   {b.holding_count > 0 ? (
                     <span className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
                       持有 {b.holding_count} 本
@@ -114,7 +114,7 @@ export default function BorrowersPage() {
                     </span>
                   )}
                   {b.last_active_at && (
-                    <p className="text-[11px] text-neutral-400 tabular-nums mt-1">
+                    <p className="text-[11px] text-neutral-400 tabular-nums">
                       {new Date(b.last_active_at).toLocaleDateString("zh-TW")}
                     </p>
                   )}

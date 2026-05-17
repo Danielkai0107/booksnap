@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import BookPreviewSheet, {
+  type BookPreview,
+} from "@/components/BookPreviewSheet";
 import SearchInput from "@/components/SearchInput";
 import { useToast } from "@/components/ToastProvider";
 
@@ -35,6 +38,7 @@ export default function CatalogClient({ slug, orgName }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+  const [previewBookId, setPreviewBookId] = useState<string | null>(null);
   const toast = useToast();
 
   const fetchAll = useCallback(async () => {
@@ -80,6 +84,16 @@ export default function CatalogClient({ slug, orgName }: Props) {
       );
     });
   }, [books, query, statusFilter, categoryFilter]);
+
+  const booksById = useMemo(() => {
+    const map: Record<string, PublicBook> = {};
+    for (const b of books) map[b.book_id] = b;
+    return map;
+  }, [books]);
+
+  const previewBook: BookPreview | null = previewBookId
+    ? toBookPreview(booksById[previewBookId])
+    : null;
 
   return (
     <div className="pt-6 pb-12">
@@ -136,7 +150,7 @@ export default function CatalogClient({ slug, orgName }: Props) {
         <FilterChip
           active={statusFilter === "available"}
           onClick={() => setStatusFilter("available")}
-          label="在館"
+          label="可借"
           dotColor="bg-emerald-500"
         />
         <FilterChip
@@ -161,58 +175,87 @@ export default function CatalogClient({ slug, orgName }: Props) {
       ) : (
         <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
           {filtered.map((b) => (
-            <li key={b.book_id} className="py-3 flex items-start gap-3">
-              {b.image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={b.image_url}
-                  alt={b.title}
-                  className="w-12 h-16 object-cover rounded border border-neutral-200 shrink-0"
-                />
-              ) : (
-                <div className="w-12 h-16 bg-neutral-100 rounded shrink-0" />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-neutral-900 truncate">
-                  {b.title}
-                </p>
-                <p className="text-[11px] text-neutral-400 font-mono mt-0.5">
-                  {b.book_id}
-                  {b.shelf_id ? ` · 書架 ${b.shelf_id}` : ""}
-                </p>
-                <div className="mt-2 flex items-center gap-2 flex-wrap">
-                  <StatusPill status={b.status} />
-                  {b.category_name && (
-                    <span className="text-[11px] text-neutral-600 bg-neutral-100 border border-neutral-200 px-2 py-0.5 rounded-full">
-                      {b.category_name}
-                    </span>
+            <li key={b.book_id} className="py-3">
+              <button
+                type="button"
+                onClick={() => setPreviewBookId(b.book_id)}
+                className="press-feedback w-full flex items-start gap-3 text-left"
+              >
+                {b.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={b.image_url}
+                    alt={b.title}
+                    className="w-12 h-16 object-cover rounded border border-neutral-200 shrink-0"
+                  />
+                ) : (
+                  <div className="w-12 h-16 bg-neutral-100 rounded shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-neutral-900 truncate">
+                    {b.title}
+                  </p>
+                  <p className="text-[11px] text-neutral-400 font-mono mt-0.5">
+                    {b.book_id}
+                    {b.shelf_id ? ` · 書架 ${b.shelf_id}` : ""}
+                  </p>
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <StatusPill status={b.status} />
+                    {b.category_name && (
+                      <span className="text-[11px] text-neutral-600 bg-neutral-100 border border-neutral-200 px-2 py-0.5 rounded-full">
+                        {b.category_name}
+                      </span>
+                    )}
+                  </div>
+                  {b.status === "borrowed" && b.current_holder && (
+                    <p className="mt-2 text-xs text-neutral-600">
+                      出借中：
+                      <span className="text-neutral-900 font-medium">
+                        {b.current_holder}
+                      </span>
+                      {b.current_holder_phone_masked && (
+                        <span className="ml-1 text-neutral-400 font-mono">
+                          ({b.current_holder_phone_masked})
+                        </span>
+                      )}
+                      {b.current_location && (
+                        <span className="ml-1 text-neutral-500">
+                          @ {b.current_location}
+                        </span>
+                      )}
+                    </p>
                   )}
                 </div>
-                {b.status === "borrowed" && b.current_holder && (
-                  <p className="mt-2 text-xs text-neutral-600">
-                    出借中：
-                    <span className="text-neutral-900 font-medium">
-                      {b.current_holder}
-                    </span>
-                    {b.current_holder_phone_masked && (
-                      <span className="ml-1 text-neutral-400 font-mono">
-                        ({b.current_holder_phone_masked})
-                      </span>
-                    )}
-                    {b.current_location && (
-                      <span className="ml-1 text-neutral-500">
-                        @ {b.current_location}
-                      </span>
-                    )}
-                  </p>
-                )}
-              </div>
+              </button>
             </li>
           ))}
         </ul>
       )}
+
+      <BookPreviewSheet
+        open={previewBookId !== null}
+        onClose={() => setPreviewBookId(null)}
+        book={previewBook}
+      />
     </div>
   );
+}
+
+function toBookPreview(b: PublicBook | undefined): BookPreview | null {
+  if (!b) return null;
+  return {
+    book_id: b.book_id,
+    title: b.title,
+    image_url: b.image_url,
+    status: b.status,
+    shelf_id: b.shelf_id,
+    current_holder: b.current_holder,
+    current_location: b.current_location,
+    current_holder_phone_masked: b.current_holder_phone_masked,
+    admin_name: null,
+    checkin_time: null,
+    category_name: b.category_name,
+  };
 }
 
 function FilterChip({
@@ -230,7 +273,7 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`press-feedback inline-flex items-center gap-1.5 h-[26px] text-xs font-medium px-3 rounded-full border transition ${
+      className={`press-feedback inline-flex items-center gap-1.5 h-[38px] text-xs font-medium px-3 rounded-full border transition ${
         active
           ? "bg-neutral-900 text-white border-neutral-900"
           : "bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400"
@@ -247,7 +290,7 @@ function StatusPill({ status }: { status: string }) {
     return (
       <span className="inline-flex items-center gap-1.5 h-[22px] text-[11px] px-2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium whitespace-nowrap">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-        在館
+        可借
       </span>
     );
   }

@@ -212,14 +212,6 @@ export default function LabelsPage() {
             共 {selectedBooks.length} 張 · {sizeLabel}
             {printMode === "a4" ? " · A4 拼版" : " · 熱感單張"}
           </p>
-          <p className="text-xs text-neutral-400">{printHint}</p>
-          {a4Hint ? (
-            <p className="text-xs text-neutral-400">{a4Hint}</p>
-          ) : null}
-          <p className="text-xs text-neutral-400">
-            標籤機請用「下載 ZPL」→ 以 Zebra 驅動或 Zebra Setup Utilities
-            傳送 .zpl（203 dpi）。瀏覽器列印請選與上方相同的列印方式。
-          </p>
         </div>
 
         <div className="print-area">
@@ -229,9 +221,16 @@ export default function LabelsPage() {
             </p>
           )}
           {printMode === "a4" ? (
-            <div className="label-a4-frame">{labelSheet}</div>
+            <>
+              <p className="no-print md:hidden mb-2 text-[11px] text-neutral-400 text-center">
+                預覽為實際 A4 尺寸，可左右滑動檢視
+              </p>
+              <div className="label-a4-scroll">
+                <div className="label-a4-frame">{labelSheet}</div>
+              </div>
+            </>
           ) : (
-            labelSheet
+            <div className="label-thermal-scroll">{labelSheet}</div>
           )}
         </div>
       </AdminShell>

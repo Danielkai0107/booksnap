@@ -75,5 +75,13 @@ export async function loginAction(
     return { error: "你的單位已停用，請聯絡管理員" };
   }
 
+  // MFA gate: if the user has any verified TOTP factor, the session is at
+  // AAL1 right after password login and must be lifted to AAL2 by entering
+  // their authenticator code on `/login/verify`.
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal?.nextLevel === "aal2" && aal.currentLevel === "aal1") {
+    redirect("/login/verify");
+  }
+
   redirect("/");
 }

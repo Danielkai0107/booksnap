@@ -390,11 +390,28 @@ textarea {
   align-content: flex-start;
 }
 
-/* A4 拼版預覽：模擬一張 A4 可列印區 */
+/* 熱感預覽：手機上維持實際 mm 尺寸，置中並避免外部容器被撐寬 */
+.label-thermal-scroll {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.label-thermal-scroll > .label-print-sheet {
+  justify-content: center;
+}
+
+/* A4 拼版預覽：模擬一張 A4 可列印區（始終 210mm，超出由外層水平捲動） */
+.label-a4-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
+}
+
 .label-a4-frame {
   box-sizing: border-box;
   width: 210mm;
-  max-width: 100%;
   margin: 0 auto;
   padding: 10mm;
   background: #fff;
@@ -425,6 +442,12 @@ textarea {
     inset: auto;
     background: white;
     padding: 0;
+  }
+  .label-a4-scroll,
+  .label-thermal-scroll {
+    overflow: visible;
+    padding: 0;
+    display: block;
   }
   .label-a4-frame {
     border: none;

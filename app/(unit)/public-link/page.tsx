@@ -60,7 +60,7 @@ export default function PublicLinkPage() {
   }, [toast]);
 
   return (
-    <AdminShell topbarTitle="借還 QR／連結">
+    <AdminShell topbarTitle="我的借閱連結">
       {settings === null ? (
         <div className="py-20 flex justify-center">
           <div className="w-7 h-7 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />

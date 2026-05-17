@@ -87,7 +87,7 @@ export default function CategoriesPage() {
           {categories.length === 0 ? "尚無分類" : "沒有符合的分類"}
         </p>
       ) : (
-        <ul className="space-y-2.5">
+        <ul className="grid grid-cols-1 md:grid-cols-3 gap-4 space-y-2.5">
           {filtered.map((c) => (
             <li
               key={c.id}
@@ -110,7 +110,9 @@ export default function CategoriesPage() {
                     <circle cx="4.75" cy="4.75" r="0.85" fill="currentColor" />
                   </svg>
                 </span>
-                <p className="font-medium text-neutral-900 truncate">{c.name}</p>
+                <p className="font-medium text-neutral-900 truncate">
+                  {c.name}
+                </p>
               </div>
               <div className="flex gap-2 shrink-0">
                 <button
@@ -230,7 +232,6 @@ export default function CategoriesPage() {
           </p>
         </BottomSheet>
       )}
-
     </AdminShell>
   );
 }
@@ -260,7 +261,7 @@ function CategoryEditSheet({
           method: isEdit ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: trimmed }),
-        }
+        },
       );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, MouseEvent } from "react";
+import { createPortal } from "react-dom";
 
 type Props = Omit<React.ImgHTMLAttributes<HTMLImageElement>, "onClick"> & {
   /**
@@ -22,13 +23,18 @@ export default function ZoomableImage({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setOpen(false);
+      }
     };
-    document.addEventListener("keydown", onKey);
+    // Capture so Escape closes the image before a parent sheet handles it.
+    document.addEventListener("keydown", onKey, { capture: true });
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, { capture: true });
       document.body.style.overflow = prev;
     };
   }, [open]);
@@ -51,44 +57,48 @@ export default function ZoomableImage({
         onClick={handleClick}
         {...rest}
       />
-      {open && finalZoomSrc && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out select-none"
-          onClick={(e) => {
-            e.stopPropagation();
-            setOpen(false);
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="圖片預覽"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={finalZoomSrc}
-            alt={alt}
-            className="max-w-full max-h-full object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
-          <button
-            type="button"
+      {open &&
+        finalZoomSrc &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out select-none"
             onClick={(e) => {
               e.stopPropagation();
               setOpen(false);
             }}
-            aria-label="關閉預覽"
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md text-white flex items-center justify-center transition"
+            role="dialog"
+            aria-modal="true"
+            aria-label="圖片預覽"
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path
-                d="M1 1L13 13M13 1L1 13"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-      )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={finalZoomSrc}
+              alt={alt}
+              className="max-w-full max-h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen(false);
+              }}
+              aria-label="關閉預覽"
+              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md text-white flex items-center justify-center transition"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path
+                  d="M1 1L13 13M13 1L1 13"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

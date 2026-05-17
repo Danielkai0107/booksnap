@@ -157,7 +157,7 @@ export default function AdminPage() {
     >
       <dl className="mb-6 grid grid-cols-4 divide-x divide-neutral-200 border border-neutral-200 rounded-xl p-3 bg-neutral-100">
         <Stat label="總書籍" value={books.length} />
-        <Stat label="在庫" value={availableCount} />
+        <Stat label="可借" value={availableCount} />
         <Stat label="已借出" value={borrowedCount} />
         <Stat label="出借人" value={memberCount} />
       </dl>
@@ -192,7 +192,7 @@ export default function AdminPage() {
           onClick={() => setStatusFilter("available")}
           dotColor="bg-emerald-500"
         >
-          在庫
+          可借
         </StatusFilterChip>
         <StatusFilterChip
           active={statusFilter === "borrowed"}
@@ -243,20 +243,24 @@ export default function AdminPage() {
                     <p className="text-xs text-neutral-400 mt-1 font-mono truncate">
                       {b.book_id}
                     </p>
-                    {b.category_id && (
-                      <div className="mt-1.5">
-                        <CategoryTag
-                          name={categoryNameById.get(b.category_id)}
-                        />
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between gap-2 mt-2.5">
+                    <div className="flex items-center justify-between gap-2 mt-2">
                       <span className="text-xs text-neutral-500 truncate min-w-0">
                         {b.current_holder ?? ""}
                       </span>
-                      <span className="shrink-0">
-                        <StatusPill status={b.status} />
-                      </span>
+                    </div>
+                    <div className="flex w-full justify-between items-center gap-2 mt-2">
+                      {b.category_id && (
+                        <div className="">
+                          <CategoryTag
+                            name={categoryNameById.get(b.category_id)}
+                          />
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="shrink-0">
+                          <StatusPill status={b.status} />
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </Link>
@@ -498,7 +502,7 @@ function StatusPill({ status }: { status: string }) {
     return (
       <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium whitespace-nowrap">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-        在庫
+        可借
       </span>
     );
   }
@@ -525,7 +529,7 @@ function StatusFilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 h-[26px] text-xs font-medium px-3 rounded-full border transition ${
+      className={`inline-flex items-center gap-1.5 h-[38px] text-xs font-medium px-3 rounded-full border transition ${
         active
           ? "bg-neutral-900 text-white border-neutral-900"
           : "bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400"

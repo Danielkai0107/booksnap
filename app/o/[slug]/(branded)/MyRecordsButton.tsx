@@ -161,7 +161,7 @@ export default function MyRecordsButton({
               : `${orgName} · 查無紀錄`
         }
         maxHeight="92vh"
-        minContentHeight="62vh"
+        minContentHeight={phase === "lookup" ? "0" : "62vh"}
         footer={
           phase === "lookup" ? (
             <div className="flex gap-3">

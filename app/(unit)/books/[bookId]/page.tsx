@@ -329,7 +329,7 @@ function StatusPill({ status }: { status: string }) {
     return (
       <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-        在庫
+        可借
       </span>
     );
   }

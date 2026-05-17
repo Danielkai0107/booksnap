@@ -36,5 +36,11 @@ export async function superAdminLoginAction(
     return { error: "此帳號沒有超級管理員權限" };
   }
 
+  // Same MFA gate as the unit login: AAL1 + verified TOTP factor → verify page.
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal?.nextLevel === "aal2" && aal.currentLevel === "aal1") {
+    redirect("/super-admin/login/verify");
+  }
+
   redirect("/super-admin");
 }

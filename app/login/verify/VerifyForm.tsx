@@ -3,31 +3,26 @@
 import { useActionState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ToastProvider";
 import {
-  superAdminLoginAction,
-  type SaLoginState,
+  verifyLoginMfaAction,
+  superAdminVerifyLoginMfaAction,
+  type LoginVerifyState,
 } from "./actions";
 
-const initial: SaLoginState = {};
+const initial: LoginVerifyState = {};
 
-export default function SuperAdminLoginForm({
-  initialNotice,
+export default function VerifyForm({
+  next,
+  variant,
 }: {
-  initialNotice?: string | null;
+  next: string;
+  variant: "unit" | "super";
 }) {
-  const [state, formAction, pending] = useActionState(
-    superAdminLoginAction,
-    initial
-  );
+  const action = variant === "super"
+    ? superAdminVerifyLoginMfaAction
+    : verifyLoginMfaAction;
+  const [state, formAction, pending] = useActionState(action, initial);
   const toast = useToast();
   const lastErrorRef = useRef<string | null>(null);
-  const noticeFiredRef = useRef(false);
-
-  useEffect(() => {
-    if (initialNotice && !noticeFiredRef.current) {
-      noticeFiredRef.current = true;
-      toast.info(initialNotice);
-    }
-  }, [initialNotice, toast]);
 
   useEffect(() => {
     const err = state?.error ?? null;
@@ -41,30 +36,28 @@ export default function SuperAdminLoginForm({
 
   return (
     <form action={formAction} className="mt-8 space-y-4">
+      <input type="hidden" name="next" value={next} />
       <div>
         <label className="block text-xs font-medium text-neutral-500 mb-1.5">
-          Email
+          驗證碼
         </label>
         <input
-          type="email"
-          name="email"
+          type="text"
+          name="code"
           required
-          autoComplete="email"
-          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
+          autoFocus
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          pattern="\d{6}"
+          maxLength={6}
+          placeholder="••••••"
+          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-300 tracking-[0.4em] text-center font-mono focus:outline-none focus:border-neutral-900 transition"
         />
       </div>
-      <div>
-        <label className="block text-xs font-medium text-neutral-500 mb-1.5">
-          密碼
-        </label>
-        <input
-          type="password"
-          name="password"
-          required
-          autoComplete="current-password"
-          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
-        />
-      </div>
+
+      <p className="text-xs text-neutral-500 leading-relaxed">
+        從您的驗證 App（如 Google Authenticator、1Password、Authy）取得當前的 6 碼驗證碼。
+      </p>
 
       <div
         className="fixed inset-x-0 bottom-0 z-10 px-6 pt-4 bg-white md:static md:p-0 md:bg-transparent"
@@ -76,7 +69,7 @@ export default function SuperAdminLoginForm({
             disabled={pending}
             className="w-full h-[46px] bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium rounded-lg transition"
           >
-            {pending ? "登入中…" : "登入"}
+            {pending ? "驗證中…" : "驗證"}
           </button>
         </div>
       </div>

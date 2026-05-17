@@ -89,7 +89,7 @@ export default function SettingsClient({ basic }: Props) {
 
   return (
     <div className="space-y-6">
-      <section className="border border-neutral-200 rounded-2xl p-5 md:p-7 space-y-4">
+      <section className="md:max-w-5xl mx-auto space-y-4">
         <Field label="單位名稱">
           <input
             type="text"

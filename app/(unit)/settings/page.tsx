@@ -147,6 +147,11 @@ function MenuList({ plan }: { plan: OrgPlan | null }) {
         hint="編輯單位名稱、所在縣市、聯絡資訊"
       />
       <MenuRow
+        href="/settings/security"
+        label="資安設定"
+        hint="雙重驗證（TOTP）、登入安全"
+      />
+      <MenuRow
         href="/billing"
         label="訂閱管理"
         hint="升級／降級方案、查看帳單記錄"

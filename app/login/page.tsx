@@ -16,9 +16,13 @@ export default async function LoginPage({
         ? "你的單位註冊申請未通過，請聯絡管理員"
         : sp.status === "suspended"
           ? "你的單位目前已停用，請聯絡管理員"
-          : sp.error === "no_org"
-            ? "此帳號尚未綁定單位，請聯絡管理員"
-            : null;
+          : sp.status === "password_reset"
+            ? "密碼已重設，請以新密碼登入"
+            : sp.error === "no_org"
+              ? "此帳號尚未綁定單位，請聯絡管理員"
+              : sp.error === "invalid_link"
+                ? "重設連結已失效或已使用，請重新申請"
+                : null;
 
   return (
     <main className="min-h-screen flex flex-col px-6 sm:px-10 pt-20 md:pt-0 md:items-center md:justify-center bg-white">
@@ -31,6 +35,15 @@ export default async function LoginPage({
         </p>
 
         <LoginForm initialNotice={notice} />
+
+        <p className="mt-4 text-center text-sm">
+          <Link
+            href="/forgot-password"
+            className="text-neutral-500 hover:text-neutral-900 hover:underline"
+          >
+            忘記密碼？
+          </Link>
+        </p>
 
         <p className="mt-6 text-center text-sm text-neutral-500">
           還沒有單位帳號？

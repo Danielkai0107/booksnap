@@ -28,7 +28,7 @@ function Segment<T extends string>({
     <div
       role="group"
       aria-label={ariaLabel}
-      className={`inline-flex rounded-lg border border-neutral-200 p-0.5 bg-neutral-50 ${className}`.trim()}
+      className={`inline-flex rounded-lg border border-neutral-200 p-0.5 bg-neutral-50 w-full md:w-auto ${className}`.trim()}
     >
       {options.map((opt) => {
         const active = value === opt.id;
@@ -38,7 +38,7 @@ function Segment<T extends string>({
             type="button"
             aria-pressed={active}
             onClick={() => onChange(opt.id)}
-            className={`press-feedback px-3 py-1.5 text-xs font-medium rounded-md transition ${
+            className={`press-feedback px-3 py-1.5 text-xs font-medium rounded-md transition w-full md:w-auto  ${
               active
                 ? "bg-white text-neutral-900 shadow-sm"
                 : "text-neutral-500 hover:text-neutral-700"

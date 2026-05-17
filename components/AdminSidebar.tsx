@@ -25,7 +25,7 @@ const items: readonly NavItem[] = [
   { href: "/labels", label: "標籤列印", matchExact: false, Icon: PrinterIcon },
   {
     href: "/public-link",
-    label: "借還 QR／連結",
+    label: "我的借閱連結",
     matchExact: false,
     Icon: LinkIcon,
   },
@@ -150,7 +150,7 @@ function PublicLinkButton({ onClick }: { onClick?: () => void }) {
       className={bottomItemClass}
     >
       <EyeIcon className="shrink-0" width={18} height={18} aria-hidden />
-      <span className="truncate">借閱入口</span>
+      <span className="truncate">我的借閱入口</span>
     </Link>
   );
 }
