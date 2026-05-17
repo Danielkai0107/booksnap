@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import OtpInput from "@/components/OtpInput";
 import { useToast } from "@/components/ToastProvider";
 
 type Factor = {
@@ -224,20 +225,22 @@ export default function MfaSettings() {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-neutral-500 mb-1.5">
+          <label
+            htmlFor="mfa-enroll-otp"
+            className="block text-xs font-medium text-neutral-500 mb-1.5"
+          >
             App 顯示的 6 碼驗證碼
           </label>
-          <input
-            type="text"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="\d{6}"
-            maxLength={6}
-            placeholder="••••••"
-            className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-300 tracking-[0.4em] text-center font-mono focus:outline-none focus:border-neutral-900 transition"
-          />
+          <div className="flex justify-center">
+            <OtpInput
+              id="mfa-enroll-otp"
+              value={code}
+              onChange={setCode}
+              length={6}
+              maxLength={6}
+              autoFocus
+            />
+          </div>
         </div>
 
         <div className="flex gap-3 pt-1">

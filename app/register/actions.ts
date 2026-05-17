@@ -52,9 +52,23 @@ export async function requestRegisterOtp(
     return { stage: "form", error: "兩次輸入的密碼不一致", values };
   }
 
+  const admin = createAdminClient();
+  const { data: existingOrg } = await admin
+    .from("organizations")
+    .select("id")
+    .eq("contact_email", email)
+    .maybeSingle();
+  if (existingOrg) {
+    return {
+      stage: "form",
+      error: "此 Email 已被註冊",
+      values,
+    };
+  }
+
   const origin = (await headers()).get("origin") ?? "";
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -72,6 +86,16 @@ export async function requestRegisterOtp(
       };
     }
     return { stage: "form", error: error.message, values };
+  }
+
+  // Supabase 防 email 枚舉：重複註冊時常不回 error，而是 user.identities 為空陣列。
+  const identities = data.user?.identities ?? [];
+  if (identities.length === 0) {
+    return {
+      stage: "form",
+      error: "此 Email 已被註冊",
+      values,
+    };
   }
 
   return {
@@ -129,6 +153,17 @@ export async function verifyRegisterOtp(
   }
 
   const user = verifyData.user;
+  const admin = createAdminClient();
+
+  const { data: existingProfile } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (existingProfile) {
+    redirect("/login?error=already_registered");
+  }
+
   const meta = (user.user_metadata ?? {}) as {
     unit_name?: string;
     city?: string;
@@ -148,8 +183,6 @@ export async function verifyRegisterOtp(
       error: "註冊資料遺失，請從第一步驟重新輸入",
     };
   }
-
-  const admin = createAdminClient();
 
   // Promote the auth user from anonymous → unit role. This must happen
   // before any organization-related routing is allowed.
@@ -217,6 +250,31 @@ export async function verifyRegisterOtp(
   }
 
   redirect("/");
+}
+
+export type ResendRegisterOtpResult = {
+  ok: boolean;
+  error?: string;
+};
+
+/** Client-callable resend for the verify stage countdown button. */
+export async function resendRegisterOtpByEmail(
+  email: string,
+): Promise<ResendRegisterOtpResult> {
+  const trimmed = email.trim().toLowerCase();
+  if (!trimmed) {
+    return { ok: false, error: "找不到 Email，請從第一步重新送出" };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email: trimmed,
+  });
+  if (error) {
+    console.error("[register] resend signup OTP failed", error);
+    return { ok: false, error: "重新寄送失敗，請稍後再試" };
+  }
+  return { ok: true };
 }
 
 /**

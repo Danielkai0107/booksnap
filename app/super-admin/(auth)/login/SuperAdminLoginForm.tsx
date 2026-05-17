@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ToastProvider";
+import AuthStepForm from "@/components/AuthStepForm";
 import {
   superAdminLoginAction,
   type SaLoginState,
@@ -40,37 +42,18 @@ export default function SuperAdminLoginForm({
   }, [state, toast]);
 
   return (
-    <form action={formAction} className="mt-8 space-y-4">
-      <div>
-        <label className="block text-xs font-medium text-neutral-500 mb-1.5">
-          Email
-        </label>
-        <input
-          type="email"
-          name="email"
-          required
-          autoComplete="email"
-          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-neutral-500 mb-1.5">
-          密碼
-        </label>
-        <input
-          type="password"
-          name="password"
-          required
-          autoComplete="current-password"
-          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
-        />
-      </div>
-
-      <div
-        className="fixed inset-x-0 bottom-0 z-10 px-6 pt-4 bg-white md:static md:p-0 md:bg-transparent"
-        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 16px)" }}
-      >
-        <div className="max-w-sm mx-auto">
+    <AuthStepForm
+      action={formAction}
+      footer={
+        <>
+          <p className="mb-4 text-center text-sm">
+            <Link
+              href="/super-admin/forgot-password"
+              className="text-neutral-500 hover:text-neutral-900 hover:underline"
+            >
+              忘記密碼？
+            </Link>
+          </p>
           <button
             type="submit"
             disabled={pending}
@@ -78,8 +61,35 @@ export default function SuperAdminLoginForm({
           >
             {pending ? "登入中…" : "登入"}
           </button>
+        </>
+      }
+    >
+      <div className="w-full space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-neutral-500 mb-1.5">
+            Email
+          </label>
+          <input
+            type="email"
+            name="email"
+            required
+            autoComplete="email"
+            className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-neutral-500 mb-1.5">
+            密碼
+          </label>
+          <input
+            type="password"
+            name="password"
+            required
+            autoComplete="current-password"
+            className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 focus:outline-none focus:border-neutral-900 transition"
+          />
         </div>
       </div>
-    </form>
+    </AuthStepForm>
   );
 }

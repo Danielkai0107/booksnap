@@ -1,4 +1,4 @@
-import Link from "next/link";
+import AuthFlowPage from "@/components/AuthFlowPage";
 import LoginForm from "./LoginForm";
 
 type Search = Promise<{ status?: string; error?: string; next?: string }>;
@@ -22,39 +22,16 @@ export default async function LoginPage({
               ? "此帳號尚未綁定單位，請聯絡管理員"
               : sp.error === "invalid_link"
                 ? "重設連結已失效或已使用，請重新申請"
-                : null;
+                : sp.error === "already_registered"
+                  ? "此 Email 已註冊，請直接登入"
+                  : null;
 
   return (
-    <main className="min-h-screen flex flex-col px-6 sm:px-10 pt-20 md:pt-0 md:items-center md:justify-center bg-white">
-      <div className="w-full max-w-sm mx-auto pb-32 md:pb-0">
-        <h1 className="text-center text-3xl font-semibold tracking-tight text-neutral-900">
-          booksnap
-        </h1>
-        <p className="mt-5 text-center text-sm text-neutral-400 tracking-wide">
-          教育圖書資產管理系統
-        </p>
-
-        <LoginForm initialNotice={notice} />
-
-        <p className="mt-4 text-center text-sm">
-          <Link
-            href="/forgot-password"
-            className="text-neutral-500 hover:text-neutral-900 hover:underline"
-          >
-            忘記密碼？
-          </Link>
-        </p>
-
-        <p className="mt-6 text-center text-sm text-neutral-500">
-          還沒有單位帳號？
-          <Link
-            href="/register"
-            className="ml-1 text-neutral-900 font-medium hover:underline"
-          >
-            註冊單位
-          </Link>
-        </p>
-      </div>
-    </main>
+    <AuthFlowPage
+      title="booksnap"
+      subtitle="教育圖書資產管理系統"
+    >
+      <LoginForm initialNotice={notice} />
+    </AuthFlowPage>
   );
 }

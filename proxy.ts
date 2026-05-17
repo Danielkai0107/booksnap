@@ -33,16 +33,16 @@ function isPublicUnitPath(pathname: string): boolean {
 function isOpenAccessPath(pathname: string): boolean {
   // Routes that must work regardless of auth state, with no role-based
   // redirects. `/auth/callback` lands users (still unauthenticated) from
-  // recovery / signup emails. `/reset-password` (and the super-admin twin)
-  // serve two modes from the same URL — link mode (logged in via callback)
-  // and OTP fallback mode (still logged out) — so neither side of the
-  // proxy's auth gating can fire.
+  // recovery / signup emails. `/reset-password` (password step) and
+  // `/reset-password/verify` (OTP step) must both bypass auth gating.
   return (
     pathname.startsWith("/o/") ||
     pathname.startsWith("/api/public/") ||
     pathname === "/auth/callback" ||
     pathname === "/reset-password" ||
-    pathname === "/super-admin/reset-password"
+    pathname.startsWith("/reset-password/") ||
+    pathname === "/super-admin/reset-password" ||
+    pathname.startsWith("/super-admin/reset-password/")
   );
 }
 

@@ -1,26 +1,28 @@
 "use server";
 
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export type ForgotPasswordState = {
-  ok?: boolean;
-  email?: string;
+  error?: string;
+};
+
+export type ResendRecoveryResult = {
+  ok: boolean;
   error?: string;
 };
 
 /**
- * Sends a password recovery email via Supabase. We always return `ok: true`
- * (regardless of whether the email exists in the system) so the form does not
- * leak which addresses are registered. Real errors are logged server-side.
+ * Sends a password recovery email via Supabase. We never tell the caller
+ * whether the email actually exists in the system (returning that signal
+ * would leak account enumeration), so the action just succeeds quietly and
+ * any underlying Supabase error is logged server-side.
  *
- * The email itself is customised in the Supabase Dashboard's "Reset Password"
- * template to include both `{{ .ConfirmationURL }}` (the main link) and
- * `{{ .Token }}` (a 6-digit OTP) — the OTP is the fallback path when the
- * recipient's mail server prefetches links and silently consumes the token.
- *
- * The `next` parameter passed to `/auth/callback` decides which reset page the
- * user lands on after the link is clicked (unit vs super-admin).
+ * The email template (configured in the Supabase Dashboard) embeds both
+ * `{{ .ConfirmationURL }}` and `{{ .Token }}` so the recipient can either
+ * click the link (PKCE flow → `/auth/callback`) or copy the OTP and paste
+ * it into the reset form on a different device.
  */
 async function sendRecoveryEmail(email: string, nextPath: string) {
   const origin = (await headers()).get("origin") ?? "";
@@ -33,6 +35,12 @@ async function sendRecoveryEmail(email: string, nextPath: string) {
   }
 }
 
+/**
+ * Form action for `/forgot-password`. Sends the recovery email and bounces
+ * the user straight to `/reset-password/verify?email=…` — there is no intermediate
+ * "we sent the email" splash screen anymore (UX optimisation: one less click,
+ * the user is already prepared to enter the code from the email).
+ */
 export async function forgotPasswordAction(
   _prev: ForgotPasswordState,
   formData: FormData,
@@ -43,7 +51,7 @@ export async function forgotPasswordAction(
   if (!email) return { error: "請輸入 Email" };
 
   await sendRecoveryEmail(email, "/reset-password");
-  return { ok: true, email };
+  redirect(`/reset-password/verify?email=${encodeURIComponent(email)}`);
 }
 
 export async function superAdminForgotPasswordAction(
@@ -56,5 +64,28 @@ export async function superAdminForgotPasswordAction(
   if (!email) return { error: "請輸入 Email" };
 
   await sendRecoveryEmail(email, "/super-admin/reset-password");
-  return { ok: true, email };
+  redirect(
+    `/super-admin/reset-password/verify?email=${encodeURIComponent(email)}`,
+  );
+}
+
+/**
+ * Called from the "重新寄送" countdown button on `/reset-password/verify`. Reuses
+ * the same email the user originally typed (passed via URL → form prop)
+ * so they don't have to re-enter it. Returns a plain object instead of
+ * redirecting because the reset form needs to stay mounted to keep the
+ * password fields the user already typed.
+ */
+export async function resendRecoveryEmailAction(
+  email: string,
+  variant: "unit" | "super",
+): Promise<ResendRecoveryResult> {
+  const trimmed = email.trim().toLowerCase();
+  if (!trimmed) {
+    return { ok: false, error: "找不到 Email，請重新申請" };
+  }
+  const nextPath =
+    variant === "super" ? "/super-admin/reset-password" : "/reset-password";
+  await sendRecoveryEmail(trimmed, nextPath);
+  return { ok: true };
 }

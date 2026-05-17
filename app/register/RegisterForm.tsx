@@ -1,28 +1,35 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import Link from "next/link";
 import { useToast } from "@/components/ToastProvider";
 import { TW_CITIES } from "@/lib/cities";
+import AuthStepForm from "@/components/AuthStepForm";
+import OtpInput from "@/components/OtpInput";
+import { maskEmailForDisplay } from "@/lib/mask-email";
 import {
   requestRegisterOtp,
-  resendRegisterOtp,
+  resendRegisterOtpByEmail,
   verifyRegisterOtp,
 } from "./actions";
 import { REGISTER_INITIAL, type RegisterState } from "./types";
 
+const RESEND_COOLDOWN_SECONDS = 60;
+
 export default function RegisterForm() {
   const [state, formAction, pending] = useActionState<RegisterState, FormData>(
     async (prev, formData) => {
-      // Single useActionState across both stages: the action dispatched
-      // depends on whichever submit button (or hidden `_intent` field) the
-      // user hit. Keeping a single state machine avoids the awkward two-
-      // action-states-fighting situation on stage transitions.
       const intent = String(formData.get("_intent") ?? "");
       if (intent === "verify") return verifyRegisterOtp(prev, formData);
-      if (intent === "resend") return resendRegisterOtp(prev, formData);
       return requestRegisterOtp(prev, formData);
     },
-    REGISTER_INITIAL
+    REGISTER_INITIAL,
   );
 
   const toast = useToast();
@@ -40,7 +47,7 @@ export default function RegisterForm() {
   }, [state, toast]);
 
   useEffect(() => {
-    const info = state.stage === "verify" ? state.info ?? null : null;
+    const info = state.stage === "verify" ? (state.info ?? null) : null;
     if (info && info !== lastInfoRef.current) {
       lastInfoRef.current = info;
       toast.success(info);
@@ -69,7 +76,27 @@ function FormStage({
   const [city, setCity] = useState<string>(v.city ?? "");
 
   return (
-    <form action={action} className="mt-8 space-y-4">
+    <AuthStepForm
+      action={action}
+      middle="scroll"
+      footer={
+        <div className="flex gap-3">
+          <Link
+            href="/login"
+            className="flex-1 h-[46px] inline-flex items-center justify-center rounded-lg border border-neutral-300 text-sm font-medium text-neutral-900 hover:bg-neutral-50 transition"
+          >
+            返回登入
+          </Link>
+          <button
+            type="submit"
+            disabled={pending}
+            className="flex-1 h-[46px] bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium rounded-lg transition"
+          >
+            {pending ? "寄送中…" : "寄送驗證信"}
+          </button>
+        </div>
+      }
+    >
       <input type="hidden" name="_intent" value="request" />
       <Field label="縣市">
         <div className="relative">
@@ -166,22 +193,7 @@ function FormStage({
       <p className="text-xs text-neutral-500 leading-relaxed">
         送出後我們會寄出驗證碼到您的 Email，驗證後即可開始使用。
       </p>
-
-      <div
-        className="fixed inset-x-0 bottom-0 z-10 px-6 pt-4 bg-white md:static md:p-0 md:bg-transparent"
-        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 16px)" }}
-      >
-        <div className="max-w-sm mx-auto">
-          <button
-            type="submit"
-            disabled={pending}
-            className="w-full h-[46px] bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium rounded-lg transition"
-          >
-            {pending ? "寄送中…" : "下一步：寄送驗證碼"}
-          </button>
-        </div>
-      </div>
-    </form>
+    </AuthStepForm>
   );
 }
 
@@ -194,62 +206,82 @@ function VerifyStage({
   action: (formData: FormData) => void;
   pending: boolean;
 }) {
+  const toast = useToast();
+  const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN_SECONDS);
+  const [resendPending, startResend] = useTransition();
+
+  useEffect(() => {
+    if (secondsLeft <= 0) return;
+    const timer = setInterval(() => {
+      setSecondsLeft((n) => Math.max(0, n - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [secondsLeft]);
+
+  function handleResend() {
+    if (secondsLeft > 0 || resendPending) return;
+    startResend(async () => {
+      const res = await resendRegisterOtpByEmail(state.email);
+      if (res.ok) {
+        toast.success("已重新寄送驗證信，請查收信箱");
+        setSecondsLeft(RESEND_COOLDOWN_SECONDS);
+      } else {
+        toast.error(res.error ?? "重新寄送失敗，請稍後再試");
+      }
+    });
+  }
+
+  const resendLabel = resendPending
+    ? "寄送中…"
+    : secondsLeft > 0
+      ? `重新寄送驗證信（${secondsLeft} 秒）`
+      : "重新寄送驗證信";
+
   return (
-    <div className="mt-8 space-y-4">
-      <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-5 py-4 text-sm text-neutral-700 leading-relaxed">
-        <p className="font-medium text-neutral-900">驗證信已寄出</p>
-        <p className="mt-1.5 text-neutral-600 break-all">
-          請檢查 <span className="font-medium">{state.email}</span>{" "}
-          的信箱，並輸入信中的數字驗證碼。
-        </p>
-      </div>
-
-      <form action={action} className="space-y-4">
-        <input type="hidden" name="_intent" value="verify" />
-        <Field label="驗證碼">
-          <input
-            type="text"
-            name="token"
-            required
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="\d{6,10}"
-            maxLength={10}
-            placeholder="輸入信中的數字驗證碼"
-            className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-300 tracking-[0.3em] text-center font-mono focus:outline-none focus:border-neutral-900 transition"
-          />
-        </Field>
-
-        <div
-          className="fixed inset-x-0 bottom-0 z-10 px-6 pt-4 bg-white md:static md:p-0 md:bg-transparent"
-          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 16px)" }}
-        >
-          <div className="max-w-sm mx-auto">
+    <AuthStepForm
+      action={action}
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={secondsLeft > 0 || resendPending || pending}
+            className="mb-5 w-full text-center text-sm text-neutral-600 hover:text-neutral-900 disabled:text-neutral-400 disabled:cursor-not-allowed transition"
+          >
+            {resendLabel}
+          </button>
+          <div className="flex gap-3">
+            <Link
+              href="/login"
+              className="flex-1 h-[46px] inline-flex items-center justify-center rounded-lg border border-neutral-300 text-sm font-medium text-neutral-900 hover:bg-neutral-50 transition"
+            >
+              返回登入
+            </Link>
             <button
               type="submit"
               disabled={pending}
-              className="w-full h-[46px] bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium rounded-lg transition"
+              className="flex-1 h-[46px] bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium rounded-lg transition"
             >
               {pending ? "驗證中…" : "完成註冊"}
             </button>
           </div>
-        </div>
-      </form>
-
-      <form action={action} className="text-center">
-        <input type="hidden" name="_intent" value="resend" />
-        <button
-          type="submit"
-          disabled={pending}
-          className="text-sm text-neutral-500 hover:text-neutral-900 hover:underline transition disabled:opacity-50"
-        >
-          沒收到信？重新寄送驗證碼
-        </button>
-      </form>
-    </div>
+        </>
+      }
+    >
+      <input type="hidden" name="_intent" value="verify" />
+      <OtpInput
+        name="token"
+        required
+        autoFocus
+        length={6}
+        maxLength={10}
+      />
+      <p className="mt-5 w-full text-center text-xs text-neutral-500">
+        已發送給 {maskEmailForDisplay(state.email)}
+      </p>
+    </AuthStepForm>
   );
 }
-
 function Field({
   label,
   children,

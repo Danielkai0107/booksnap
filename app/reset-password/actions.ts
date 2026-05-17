@@ -9,25 +9,14 @@ export type ResetPasswordState = {
 };
 
 /**
- * Two entry modes share this action:
- *
- * 1. **Link mode** — `/auth/callback` already did `exchangeCodeForSession`
- *    when the recipient clicked the email link. The form only carries the
- *    new password fields; we just call `updateUser({ password })`.
- *
- * 2. **OTP fallback mode** — when the email link was prefetched (e.g.
- *    Microsoft Defender Safe Links) the token gets consumed silently.
- *    The form then carries `email` + `token` (the 6-digit OTP) and we
- *    call `verifyOtp({ type:'recovery' })` first to obtain a session,
- *    before `updateUser`.
- *
- * In both modes we sign the user out at the end so they have to log in
- * again with the new password — this re-runs the org status checks in
- * `loginAction` that are bypassed for an already-authenticated session.
+ * Sets a new password after the user has a recovery session — either from
+ * clicking the email link (`/auth/callback` → here) or from verifying the
+ * OTP on `/reset-password/verify` first.
  */
 async function resetPassword(
   formData: FormData,
   loginPath: string,
+  verifyPath: string,
 ): Promise<ResetPasswordState> {
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("passwordConfirm") ?? "");
@@ -39,32 +28,9 @@ async function resetPassword(
   }
 
   const supabase = await createClient();
-
-  const otpToken = String(formData.get("token") ?? "").trim();
-  const otpEmail = String(formData.get("email") ?? "").trim().toLowerCase();
-  if (otpToken) {
-    // Email OTP length is configurable in Supabase (6–10 digits). We accept
-    // anything in that range so we don't have to redeploy if the operator
-    // changes the dashboard setting.
-    if (!/^\d{6,10}$/.test(otpToken)) {
-      return { error: "驗證碼格式不正確（應為 6–10 位數字）" };
-    }
-    if (!otpEmail) {
-      return { error: "請輸入註冊用的 Email" };
-    }
-    const { error } = await supabase.auth.verifyOtp({
-      email: otpEmail,
-      token: otpToken,
-      type: "recovery",
-    });
-    if (error) {
-      return { error: "驗證碼錯誤或已過期，請重新申請" };
-    }
-  }
-
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) {
-    return { error: "驗證已逾期，請重新申請密碼重設" };
+    redirect(verifyPath);
   }
 
   const { error: updateErr } = await supabase.auth.updateUser({ password });
@@ -80,12 +46,16 @@ export async function resetPasswordAction(
   _prev: ResetPasswordState,
   formData: FormData,
 ): Promise<ResetPasswordState> {
-  return resetPassword(formData, "/login");
+  return resetPassword(formData, "/login", "/reset-password/verify");
 }
 
 export async function superAdminResetPasswordAction(
   _prev: ResetPasswordState,
   formData: FormData,
 ): Promise<ResetPasswordState> {
-  return resetPassword(formData, "/super-admin/login");
+  return resetPassword(
+    formData,
+    "/super-admin/login",
+    "/super-admin/reset-password/verify",
+  );
 }
