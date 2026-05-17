@@ -1,5 +1,7 @@
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isOrgLocked } from "@/lib/billing/lock";
+import { maybeExpireSubscription } from "@/lib/billing/expire";
 import type { OrganizationRow } from "@/lib/supabase/types";
 
 /**
@@ -7,11 +9,19 @@ import type { OrganizationRow } from "@/lib/supabase/types";
  * (the URL prefix used by `/o/{slug}/*`).
  *
  * Wrapped in React's `cache` so a single request that hits both the layout
- * and the page only executes one query.
+ * and the page only executes one query each.
  *
  * Returns `null` for:
  *  - unknown slugs
  *  - non-approved orgs (so suspended / pending units can't run a public flow)
+ *
+ * 🔒 Lock enforcement: also loads the subscription and runs `isOrgLocked`.
+ * When the org is locked (試用結束 / 從未付費 / 訂閱過期), we force-flip
+ * both `public_borrow_enabled` and `public_catalog_enabled` to `false`
+ * on the returned object. Every public page / API already short-circuits
+ * on those flags with a friendly "暫停服務" message, so no per-route patch
+ * is needed — readers with stale QR codes will see the same UX as if the
+ * admin had manually toggled the public link off.
  */
 export const getPublicOrg = cache(
   async (slug: string): Promise<OrganizationRow | null> => {
@@ -27,8 +37,18 @@ export const getPublicOrg = cache(
       return null;
     }
     if (!data) return null;
-    if (data.status !== "approved") return null;
-    return data as OrganizationRow;
+    const org = data as OrganizationRow;
+    if (org.status !== "approved") return null;
+
+    const sub = await maybeExpireSubscription(org.id, admin);
+    if (isOrgLocked(org, sub)) {
+      return {
+        ...org,
+        public_borrow_enabled: false,
+        public_catalog_enabled: false,
+      };
+    }
+    return org;
   }
 );
 
