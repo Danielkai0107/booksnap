@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { useKeyboardInset } from "@/lib/useKeyboardInset";
 
 type Props = {
@@ -14,8 +15,10 @@ type Props = {
   onClose: () => void;
   title?: string;
   subtitle?: string;
-  children: ReactNode;
+  children?: ReactNode;
   footer?: ReactNode;
+  /** 簡短確認類：不撐滿高度、可省略內容區 */
+  compact?: boolean;
   /** Maximum height of the panel (defaults to "90vh") */
   maxHeight?: string;
   /** Minimum height for the content area (defaults to "260px") */
@@ -34,6 +37,7 @@ export default function BottomSheet({
   subtitle,
   children,
   footer,
+  compact = false,
   maxHeight = "90vh",
   minContentHeight = "260px",
 }: Props) {
@@ -146,10 +150,11 @@ export default function BottomSheet({
   }
 
   const isDragging = dragY > 0 && !closing;
+  const showContent = !compact && children != null;
 
-  return (
+  const sheet = (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center md:items-center"
+      className="fixed inset-0 z-[100] flex items-end justify-center md:items-center"
       style={{
         paddingBottom: keyboardInset,
         transition: isDragging
@@ -169,9 +174,11 @@ export default function BottomSheet({
         aria-hidden
       />
       <div
-        className="relative w-full sm:max-w-md mx-auto bg-white text-neutral-900 rounded-t-3xl md:rounded-3xl md:my-8 shadow-2xl animate-slide-up md:animate-fade-in flex flex-col touch-pan-y"
+        className={`relative w-full sm:max-w-md mx-auto bg-white text-neutral-900 rounded-t-3xl md:rounded-3xl md:my-8 shadow-2xl animate-slide-up md:animate-fade-in flex flex-col touch-pan-y ${
+          compact ? "shrink-0" : ""
+        }`}
         style={{
-          maxHeight,
+          maxHeight: compact ? undefined : maxHeight,
           transform: closing
             ? "translateY(100%)"
             : `translateY(${dragY}px)`,
@@ -188,30 +195,41 @@ export default function BottomSheet({
           <span className="w-10 h-1 bg-neutral-200 rounded-full" />
         </div>
         {(title || subtitle) && (
-          <header className="px-6 pt-4 md:pt-6 pb-3 shrink-0">
+          <header
+            className={`px-6 pt-4 md:pt-6 shrink-0 ${compact ? "pb-2" : "pb-3"}`}
+          >
             {title && (
               <h2 className="text-lg font-semibold tracking-tight text-neutral-900">
                 {title}
               </h2>
             )}
             {subtitle && (
-              <p className="mt-2 text-sm text-neutral-500">{subtitle}</p>
+              <p className="mt-2 text-sm text-neutral-500 leading-relaxed">
+                {subtitle}
+              </p>
             )}
           </header>
         )}
-        <div
-          ref={contentRef}
-          className="flex-1 overflow-y-auto scrollbar-thin px-6 pb-2 overscroll-contain"
-          style={{ minHeight: minContentHeight }}
-        >
-          {children}
-        </div>
+        {showContent && (
+          <div
+            ref={contentRef}
+            className="flex-1 overflow-y-auto scrollbar-thin px-6 pb-2 overscroll-contain"
+            style={{ minHeight: minContentHeight }}
+          >
+            {children}
+          </div>
+        )}
         {footer && (
-          <footer className="px-6 py-4 border-t border-neutral-100 shrink-0">
+          <footer
+            className={`px-6 py-4 shrink-0 ${compact ? "" : "border-t border-neutral-100"}`}
+          >
             {footer}
           </footer>
         )}
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(sheet, document.body);
 }

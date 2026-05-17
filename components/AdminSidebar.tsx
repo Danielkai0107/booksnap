@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, type ComponentType, type SVGProps } from "react";
+import { useEffect, useState, type ComponentType, type SVGProps } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import BottomSheet from "@/components/BottomSheet";
+import { useToast } from "@/components/ToastProvider";
 import { useAdminOrgInfo } from "@/lib/admin-org-info";
 import { PLAN_META } from "@/lib/plans";
 
@@ -86,10 +88,13 @@ function BrandHeader({
 }
 
 const publicLinkIconClass =
-  "absolute right-0 top-0 flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition shadow-sm";
+  "absolute right-0 top-0 flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition";
 
 function PublicLinkIconButton({ onClick }: { onClick?: () => void }) {
-  const { publicSlug } = useAdminOrgInfo();
+  const { publicSlug, orgName } = useAdminOrgInfo();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const toast = useToast();
+
   if (!publicSlug) {
     return (
       <span
@@ -97,22 +102,80 @@ function PublicLinkIconButton({ onClick }: { onClick?: () => void }) {
         aria-disabled
         title="借還頁尚未設定"
       >
-        <EyeIcon width={17} height={17} aria-hidden />
+        <BookOpenCheckIcon width={17} height={17} aria-hidden />
       </span>
     );
   }
+
+  async function handleShare() {
+    const publicUrl = `${window.location.origin}/o/${publicSlug}`;
+    const shareData = {
+      url: publicUrl,
+      title: `${orgName || "booksnap"} · 借還書`,
+      text: "掃描書上 QR 即可借書、還書",
+    };
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return;
+        console.warn("[sidebar] native share failed, fallback to copy", err);
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success("已複製借還連結");
+    } catch (err) {
+      console.error("[sidebar] copy failed", err);
+      toast.error("分享失敗，請手動複製連結");
+    }
+  }
+
+  function handleGo() {
+    setSheetOpen(false);
+    onClick?.();
+    window.open(`/o/${publicSlug}`, "_blank", "noopener,noreferrer");
+  }
+
   return (
-    <Link
-      href={`/o/${publicSlug}`}
-      onClick={onClick}
-      target="_blank"
-      rel="noopener"
-      className={publicLinkIconClass}
-      aria-label="我的借閱入口"
-      title="我的借閱入口"
-    >
-      <EyeIcon width={17} height={17} aria-hidden />
-    </Link>
+    <>
+      <button
+        type="button"
+        onClick={() => setSheetOpen(true)}
+        className={publicLinkIconClass}
+        aria-label="我的借閱入口"
+        title="我的借閱入口"
+      >
+        <BookOpenCheckIcon width={17} height={17} aria-hidden />
+      </button>
+
+      <BottomSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        compact
+        title="準備前往借閱入口"
+        subtitle="可以分享給你的使用者"
+        footer={
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleShare}
+              className="flex-1 min-w-0 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
+            >
+              分享
+            </button>
+            <button
+              type="button"
+              onClick={handleGo}
+              className="flex-1 min-w-0 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+            >
+              前往
+            </button>
+          </div>
+        }
+      />
+    </>
   );
 }
 
@@ -275,11 +338,13 @@ function LinkIcon(props: IconProps) {
   );
 }
 
-function EyeIcon(props: IconProps) {
+/** lucide `book-open-check` */
+function BookOpenCheckIcon(props: IconProps) {
   return (
     <svg {...svgProps(props)}>
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
+      <path d="M12 21V7" />
+      <path d="m16 12 2 2 4-4" />
+      <path d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3" />
     </svg>
   );
 }

@@ -12,10 +12,7 @@ type Props = {
 };
 
 /**
- * Full-height auth step shell.
- *
- * Mobile: title top, flex-1 form, optional after.
- * Desktop (md+): single centered card (title + form + after) in the viewport.
+ * Full-height auth step shell — 手機與桌面同一套：視窗置中、標題 + 表單自然流排版。
  */
 export default function AuthFlowPage({
   title,
@@ -26,22 +23,16 @@ export default function AuthFlowPage({
   after,
 }: Props) {
   return (
-    <main className="flex min-h-dvh flex-col bg-white px-6 sm:px-10 md:items-center md:justify-center md:overflow-y-auto md:py-12">
-      <div className="mx-auto flex w-full max-w-sm min-h-0 flex-1 flex-col md:min-h-0 md:flex-none md:shrink-0 md:gap-8">
-        <header className="shrink-0 pt-12 text-center md:pt-0">
+    <main className="flex min-h-dvh flex-col items-center justify-center overflow-y-auto bg-white px-6 py-12 sm:px-10">
+      <div className="mx-auto flex w-full max-w-sm flex-col gap-8">
+        <header className="shrink-0 text-center">
           <h1 className={titleClassName}>{title}</h1>
           {subtitle ? <p className={subtitleClassName}>{subtitle}</p> : null}
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col md:min-h-0 md:flex-none">
-          {children}
-        </div>
+        <div className="w-full">{children}</div>
 
-        {after ? (
-          <div className="shrink-0 pb-8 text-center md:pb-0 md:pt-6">
-            {after}
-          </div>
-        ) : null}
+        {after ? <div className="shrink-0 text-center">{after}</div> : null}
       </div>
     </main>
   );

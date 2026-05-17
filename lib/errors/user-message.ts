@@ -66,11 +66,15 @@ export function extractErrorMessage(error: unknown): string | null {
     const s = error.message.trim();
     return s || null;
   }
-  if (typeof error === "object" && "message" in error) {
-    const m = (error as { message: unknown }).message;
-    if (typeof m === "string") {
-      const s = m.trim();
-      return s || null;
+  if (typeof error === "object") {
+    const obj = error as { message?: unknown; code?: unknown };
+    if (typeof obj.message === "string") {
+      const s = obj.message.trim();
+      if (s) return s;
+    }
+    if (typeof obj.code === "string") {
+      const c = obj.code.trim();
+      if (c) return c;
     }
   }
   return null;
