@@ -102,12 +102,14 @@ export async function verifyRegisterOtp(
   const token = String(formData.get("token") ?? "").trim();
   const email = prev.email;
 
-  if (!/^\d{6}$/.test(token)) {
+  // Email OTP length is configurable in Supabase (6–10 digits); accept the
+  // whole range so the operator can change the setting without a deploy.
+  if (!/^\d{6,10}$/.test(token)) {
     return {
       stage: "verify",
       email,
       values: prev.values,
-      error: "請輸入信中的 6 碼驗證碼",
+      error: "請輸入信中的數字驗證碼",
     };
   }
 

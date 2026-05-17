@@ -64,7 +64,7 @@ export default function ResetPasswordForm({
           </div>
           <div>
             <label className="block text-xs font-medium text-neutral-500 mb-1.5">
-              驗證碼（信中的 6 碼）
+              驗證碼（信中提供）
             </label>
             <input
               type="text"
@@ -72,10 +72,10 @@ export default function ResetPasswordForm({
               required
               inputMode="numeric"
               autoComplete="one-time-code"
-              pattern="\d{6}"
-              maxLength={6}
-              placeholder="••••••"
-              className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-300 tracking-[0.4em] text-center font-mono focus:outline-none focus:border-neutral-900 transition"
+              pattern="\d{6,10}"
+              maxLength={10}
+              placeholder="輸入信中的數字驗證碼"
+              className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-300 tracking-[0.3em] text-center font-mono focus:outline-none focus:border-neutral-900 transition"
             />
           </div>
         </>
@@ -112,7 +112,7 @@ export default function ResetPasswordForm({
       <p className="text-xs text-neutral-500 leading-relaxed">
         {hasSession
           ? "重設密碼後將自動登出，請以新密碼重新登入。"
-          : "輸入信中的 6 碼驗證碼後，可直接設定新密碼。重設成功後將自動登出。"}
+          : "輸入信中的驗證碼後，可直接設定新密碼。重設成功後將自動登出。"}
       </p>
 
       <div

@@ -17,9 +17,8 @@ type Props = {
 };
 
 export default function ForgotPasswordForm({ variant }: Props) {
-  const action = variant === "super"
-    ? superAdminForgotPasswordAction
-    : forgotPasswordAction;
+  const action =
+    variant === "super" ? superAdminForgotPasswordAction : forgotPasswordAction;
   const [state, formAction, pending] = useActionState(action, initial);
   const toast = useToast();
   const lastErrorRef = useRef<string | null>(null);
@@ -34,9 +33,8 @@ export default function ForgotPasswordForm({ variant }: Props) {
     }
   }, [state, toast]);
 
-  const resetPath = variant === "super"
-    ? "/super-admin/reset-password"
-    : "/reset-password";
+  const resetPath =
+    variant === "super" ? "/super-admin/reset-password" : "/reset-password";
   const loginPath = variant === "super" ? "/super-admin/login" : "/login";
 
   if (state?.ok) {
@@ -48,7 +46,8 @@ export default function ForgotPasswordForm({ variant }: Props) {
         <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-5 py-4 text-sm text-neutral-700 leading-relaxed">
           <p className="font-medium text-neutral-900">驗證信已寄出</p>
           <p className="mt-1.5 text-neutral-600">
-            如果這個 Email 有對應的帳號，您應該很快會在信箱看到一封來自 booksnap 的重設密碼信。請點擊信中的連結，或複製 6 碼驗證碼。
+            如果這個 Email 有對應的帳號，您應該很快會在信箱看到一封來自 booksnap
+            的重設密碼信。請點擊信中的連結，或複製驗證碼。
           </p>
         </div>
 
@@ -88,7 +87,7 @@ export default function ForgotPasswordForm({ variant }: Props) {
       </div>
 
       <p className="text-xs text-neutral-500 leading-relaxed">
-        我們會寄出含連結與 6 碼驗證碼的重設信，連結與驗證碼擇一即可。
+        我們會寄出含連結與驗證碼的重設信，連結與驗證碼擇一即可。
       </p>
 
       <div

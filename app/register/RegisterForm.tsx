@@ -164,7 +164,7 @@ function FormStage({
       </Field>
 
       <p className="text-xs text-neutral-500 leading-relaxed">
-        送出後我們會寄出 6 碼驗證碼到您的 Email，驗證後即可開始使用。
+        送出後我們會寄出驗證碼到您的 Email，驗證後即可開始使用。
       </p>
 
       <div
@@ -200,7 +200,7 @@ function VerifyStage({
         <p className="font-medium text-neutral-900">驗證信已寄出</p>
         <p className="mt-1.5 text-neutral-600 break-all">
           請檢查 <span className="font-medium">{state.email}</span>{" "}
-          的信箱，並輸入信中的 6 碼驗證碼。
+          的信箱，並輸入信中的數字驗證碼。
         </p>
       </div>
 
@@ -213,10 +213,10 @@ function VerifyStage({
             required
             inputMode="numeric"
             autoComplete="one-time-code"
-            pattern="\d{6}"
-            maxLength={6}
-            placeholder="••••••"
-            className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-300 tracking-[0.4em] text-center font-mono focus:outline-none focus:border-neutral-900 transition"
+            pattern="\d{6,10}"
+            maxLength={10}
+            placeholder="輸入信中的數字驗證碼"
+            className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-300 tracking-[0.3em] text-center font-mono focus:outline-none focus:border-neutral-900 transition"
           />
         </Field>
 

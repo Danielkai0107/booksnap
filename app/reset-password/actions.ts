@@ -43,8 +43,11 @@ async function resetPassword(
   const otpToken = String(formData.get("token") ?? "").trim();
   const otpEmail = String(formData.get("email") ?? "").trim().toLowerCase();
   if (otpToken) {
-    if (!/^\d{6}$/.test(otpToken)) {
-      return { error: "驗證碼必須是 6 位數字" };
+    // Email OTP length is configurable in Supabase (6–10 digits). We accept
+    // anything in that range so we don't have to redeploy if the operator
+    // changes the dashboard setting.
+    if (!/^\d{6,10}$/.test(otpToken)) {
+      return { error: "驗證碼格式不正確（應為 6–10 位數字）" };
     }
     if (!otpEmail) {
       return { error: "請輸入註冊用的 Email" };

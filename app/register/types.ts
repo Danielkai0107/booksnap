@@ -6,7 +6,7 @@
  *
  * Stage state machine:
  *   - `form`   → 表單階段（city/name/email/phone/password）
- *   - `verify` → 已寄出驗證信，等待 6 碼 OTP
+ *   - `verify` → 已寄出驗證信，等待 email OTP（長度依 Supabase 設定，6–10 碼）
  */
 export type RegisterValues = {
   city?: string;
