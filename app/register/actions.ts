@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateUniqueOrgSlug } from "@/lib/slug";
 import { isTwCity } from "@/lib/cities";
+import { toUserMessage } from "@/lib/errors/user-message";
 import type { RegisterState, RegisterValues } from "./types";
 
 /**
@@ -85,7 +86,11 @@ export async function requestRegisterOtp(
         values,
       };
     }
-    return { stage: "form", error: error.message, values };
+    return {
+      stage: "form",
+      error: toUserMessage(error, "無法寄送驗證信，請稍後再試"),
+      values,
+    };
   }
 
   // Supabase 防 email 枚舉：重複註冊時常不回 error，而是 user.identities 為空陣列。
@@ -194,7 +199,7 @@ export async function verifyRegisterOtp(
       stage: "verify",
       email,
       values: prev.values,
-      error: roleErr.message,
+      error: toUserMessage(roleErr, "無法完成註冊，請稍後再試"),
     };
   }
 
@@ -205,7 +210,7 @@ export async function verifyRegisterOtp(
     await admin.auth.admin.deleteUser(user.id);
     return {
       stage: "form",
-      error: err instanceof Error ? err.message : "建立借還連結失敗",
+      error: toUserMessage(err, "建立借還連結失敗"),
       values: prev.values,
     };
   }
@@ -229,7 +234,7 @@ export async function verifyRegisterOtp(
     await admin.auth.admin.deleteUser(user.id);
     return {
       stage: "form",
-      error: orgErr?.message ?? "建立單位資料失敗",
+      error: toUserMessage(orgErr, "建立單位資料失敗"),
       values: prev.values,
     };
   }
@@ -244,7 +249,7 @@ export async function verifyRegisterOtp(
     await admin.auth.admin.deleteUser(user.id);
     return {
       stage: "form",
-      error: profileErr.message,
+      error: toUserMessage(profileErr, "建立單位資料失敗"),
       values: prev.values,
     };
   }

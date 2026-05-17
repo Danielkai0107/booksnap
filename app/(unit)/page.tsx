@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import AuthStatusToast from "@/components/AuthStatusToast";
 import { supabase, BookRow, type CategoryRow } from "@/lib/supabase";
 import AdminShell from "@/components/AdminShell";
 import BookActionsMenu from "@/components/BookActionsMenu";
@@ -118,7 +119,9 @@ export default function AdminPage() {
   }, [query, categoryFilter, statusFilter]);
 
   return (
-    <AdminShell
+    <>
+      <AuthStatusToast homePath="/" />
+      <AdminShell
       topbarTitle="書籍管理"
       topbarRight={
         <button
@@ -478,6 +481,7 @@ export default function AdminPage() {
         </BottomSheet>
       )}
     </AdminShell>
+    </>
   );
 }
 

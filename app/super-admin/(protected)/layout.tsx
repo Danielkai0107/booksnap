@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AuthStatusToast from "@/components/AuthStatusToast";
 import { requireSuperAdmin } from "@/lib/auth";
 import { superAdminSignOut } from "../actions";
 
@@ -11,6 +12,7 @@ export default async function SuperAdminProtectedLayout({
 
   return (
     <div className="min-h-screen bg-neutral-50">
+      <AuthStatusToast homePath="/super-admin" />
       <header className="sticky top-0 z-20 bg-white border-b border-neutral-200">
         <div className="max-w-5xl mx-auto px-5 md:px-10 h-14 flex items-center justify-between gap-3">
           <Link

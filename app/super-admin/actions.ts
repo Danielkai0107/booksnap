@@ -10,6 +10,7 @@ import {
   type OrgPlan,
 } from "@/lib/plans";
 import { writeAuditLog } from "@/lib/billing/apply";
+import { toUserMessage } from "@/lib/errors/user-message";
 
 async function assertSuperAdmin(): Promise<{ userId: string }> {
   const supabase = await createClient();
@@ -136,7 +137,7 @@ export async function updateOrganization(
     .eq("id", orgId)
     .maybeSingle();
   if (readErr || !current) {
-    return { ok: false, error: readErr?.message ?? "找不到單位" };
+    return { ok: false, error: toUserMessage(readErr, "找不到單位") };
   }
 
   const { error: updateErr } = await admin
@@ -149,7 +150,7 @@ export async function updateOrganization(
     })
     .eq("id", orgId);
   if (updateErr) {
-    return { ok: false, error: updateErr.message };
+    return { ok: false, error: toUserMessage(updateErr, "更新單位失敗") };
   }
 
   // Keep the auth user's login email in sync with contact_email
@@ -164,7 +165,7 @@ export async function updateOrganization(
     if (authErr) {
       return {
         ok: false,
-        error: `單位資料已更新，但登入 Email 同步失敗：${authErr.message}`,
+        error: `單位資料已更新，但登入 Email 同步失敗：${toUserMessage(authErr, "請稍後再試")}`,
       };
     }
   }
@@ -195,7 +196,7 @@ export async function resetOrganizationPassword(
     password: newPassword,
   });
   if (error) {
-    return { ok: false, error: error.message };
+    return { ok: false, error: toUserMessage(error, "重設密碼失敗") };
   }
   return { ok: true };
 }
@@ -219,7 +220,7 @@ export async function updateOrganizationPlan(
     .update({ plan })
     .eq("id", orgId);
   if (error) {
-    return { ok: false, error: error.message };
+    return { ok: false, error: toUserMessage(error, "更新方案失敗") };
   }
 
   // 同步單位的訂閱列。如果不一起改，`effectivePlan()` 會優先讀
@@ -251,7 +252,7 @@ export async function updateOrganizationPlan(
         })
         .eq("id", sub.id);
       if (subErr) {
-        return { ok: false, error: subErr.message };
+        return { ok: false, error: toUserMessage(subErr, "更新訂閱失敗") };
       }
       subAction = "ended";
     } else {
@@ -267,7 +268,7 @@ export async function updateOrganizationPlan(
         })
         .eq("id", sub.id);
       if (subErr) {
-        return { ok: false, error: subErr.message };
+        return { ok: false, error: toUserMessage(subErr, "更新訂閱失敗") };
       }
       subAction = "rewritten";
     }
@@ -304,7 +305,7 @@ export async function setOrganizationBypassQuota(
     .update({ bypass_quota: bypass })
     .eq("id", orgId);
   if (error) {
-    return { ok: false, error: error.message };
+    return { ok: false, error: toUserMessage(error, "更新失敗") };
   }
   await writeAuditLog(admin, {
     actor_id: userId,
@@ -363,7 +364,7 @@ export async function updatePlanConfig(
   const { data: rows, error: readErr } = await admin
     .from("plan_configs")
     .select("*");
-  if (readErr) return { ok: false, error: readErr.message };
+  if (readErr) return { ok: false, error: toUserMessage(readErr, "讀取方案設定失敗") };
 
   const byPlan = new Map<OrgPlan, { ai_quota: number; book_quota: number; monthly_price: number }>();
   for (const r of (rows ?? []) as Array<{
@@ -416,7 +417,7 @@ export async function updatePlanConfig(
       updated_by: userId,
     })
     .eq("plan", plan);
-  if (writeErr) return { ok: false, error: writeErr.message };
+  if (writeErr) return { ok: false, error: toUserMessage(writeErr, "儲存方案設定失敗") };
 
   await writeAuditLog(admin, {
     actor_id: userId,

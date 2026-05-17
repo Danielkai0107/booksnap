@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { toUserMessage } from "@/lib/errors/user-message";
 import Toast, { type ToastKind } from "./Toast";
 
 type ToastApi = {
@@ -56,7 +57,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     () => ({
       show,
       success: (m) => show(m, "success"),
-      error: (m) => show(m, "error"),
+      error: (m) => show(toUserMessage(m), "error"),
       info: (m) => show(m, "info"),
     }),
     [show]

@@ -86,7 +86,7 @@ export default function ResetPasswordForm({ variant }: Props) {
         </div>
 
         <p className="text-xs text-neutral-500 leading-relaxed">
-          重設密碼後將自動登出，請以新密碼重新登入。
+          重設完成後將直接為您登入系統。
         </p>
       </div>
     </AuthStepForm>

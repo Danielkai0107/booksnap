@@ -92,7 +92,7 @@ export default function Toast({
             <line x1="9" y1="9" x2="15" y2="15" />
           </svg>
         )}
-        <span className="truncate">{message}</span>
+        <span className="line-clamp-2 text-center leading-snug">{message}</span>
       </div>
     </div>
   );

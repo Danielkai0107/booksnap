@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { toUserMessage } from "@/lib/errors/user-message";
 import { createClient } from "@/lib/supabase/server";
 
 export type ResetPasswordState = {
@@ -15,7 +16,7 @@ export type ResetPasswordState = {
  */
 async function resetPassword(
   formData: FormData,
-  loginPath: string,
+  homePath: string,
   verifyPath: string,
 ): Promise<ResetPasswordState> {
   const password = String(formData.get("password") ?? "");
@@ -35,18 +36,22 @@ async function resetPassword(
 
   const { error: updateErr } = await supabase.auth.updateUser({ password });
   if (updateErr) {
-    return { error: updateErr.message };
+    return { error: toUserMessage(updateErr, "無法更新密碼，請稍後再試") };
   }
 
-  await supabase.auth.signOut();
-  redirect(`${loginPath}?status=password_reset`);
+  // 保留 recovery 建立的 session，直接進入系統（不再強制回登入頁）。
+  const dest =
+    homePath === "/"
+      ? "/?status=password_reset"
+      : `${homePath}?status=password_reset`;
+  redirect(dest);
 }
 
 export async function resetPasswordAction(
   _prev: ResetPasswordState,
   formData: FormData,
 ): Promise<ResetPasswordState> {
-  return resetPassword(formData, "/login", "/reset-password/verify");
+  return resetPassword(formData, "/", "/reset-password/verify");
 }
 
 export async function superAdminResetPasswordAction(
@@ -55,7 +60,7 @@ export async function superAdminResetPasswordAction(
 ): Promise<ResetPasswordState> {
   return resetPassword(
     formData,
-    "/super-admin/login",
+    "/super-admin",
     "/super-admin/reset-password/verify",
   );
 }
