@@ -27,8 +27,8 @@ export default async function OrgLandingPage({ params }: Props) {
         <h1 className="text-center text-2xl font-semibold tracking-tight text-neutral-900">
           {org.name}
         </h1>
-        <p className="mt-3 text-center text-sm text-neutral-500">
-          掃描書本 QR 即可出借 / 歸還
+        <p className="mt-4 text-center text-md text-neutral-500">
+          借閱查詢入口
         </p>
 
         {borrowDisabled && (
@@ -37,7 +37,7 @@ export default async function OrgLandingPage({ params }: Props) {
           </p>
         )}
 
-        <div className="mt-12 grid grid-cols-2 gap-3">
+        <div className="mt-20 grid grid-cols-2 gap-3">
           <ActionButton
             href={borrowDisabled ? null : `/o/${org.public_slug}/borrow`}
             primary
@@ -116,10 +116,11 @@ export default async function OrgLandingPage({ params }: Props) {
           )}
         </div>
 
-        <p className="mt-12 text-center text-xs text-neutral-400 leading-relaxed">
-          每次出借會記錄你的手機與姓名以便追蹤書本去向。
-        </p>
       </div>
+
+      <p className="fixed inset-x-0 bottom-6 z-10 pointer-events-none text-center text-sm text-neutral-400 leading-relaxed px-5">
+        僅限 {org.name} 單位使用。
+      </p>
     </div>
   );
 }
