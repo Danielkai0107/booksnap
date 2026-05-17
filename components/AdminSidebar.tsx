@@ -88,7 +88,7 @@ function BrandHeader({
 }
 
 const publicLinkIconClass =
-  "absolute right-0 top-0 flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition";
+  "absolute right-0 top-0 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition";
 
 function PublicLinkIconButton({ onClick }: { onClick?: () => void }) {
   const { publicSlug, orgName } = useAdminOrgInfo();

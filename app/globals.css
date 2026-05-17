@@ -133,7 +133,7 @@ textarea {
   animation: slide-right 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 768px) {
   .md\:animate-fade-in {
     animation: fade-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }

@@ -152,6 +152,12 @@ export default function BottomSheet({
   const isDragging = dragY > 0 && !closing;
   const showContent = !compact && children != null;
 
+  const panelTransform = (() => {
+    if (dragY > 0) return `translateY(${dragY}px)`;
+    if (closing) return compact ? undefined : "translateY(100%)";
+    return compact ? undefined : "translateY(0)";
+  })();
+
   const sheet = (
     <div
       className="fixed inset-0 z-[100] flex items-end justify-center md:items-center"
@@ -174,17 +180,15 @@ export default function BottomSheet({
         aria-hidden
       />
       <div
-        className={`relative w-full sm:max-w-md mx-auto bg-white text-neutral-900 rounded-t-3xl md:rounded-3xl md:my-8 shadow-2xl animate-slide-up md:animate-fade-in flex flex-col touch-pan-y ${
+        className={`relative w-full sm:max-w-md mx-auto bg-white text-neutral-900 rounded-t-3xl md:rounded-3xl md:my-8 shadow-2xl max-md:animate-slide-up md:animate-fade-in flex flex-col touch-pan-y ${
           compact ? "shrink-0" : ""
-        }`}
+        } ${closing && compact ? "opacity-0 md:scale-[0.98]" : ""}`}
         style={{
           maxHeight: compact ? undefined : maxHeight,
-          transform: closing
-            ? "translateY(100%)"
-            : `translateY(${dragY}px)`,
+          transform: panelTransform,
           transition: isDragging
             ? "none"
-            : "transform 200ms cubic-bezier(0.16, 1, 0.3, 1)",
+            : "transform 200ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease",
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
