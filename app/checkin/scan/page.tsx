@@ -43,6 +43,42 @@ function candidateKey(c: LookupCandidate): string {
   return c.isbn13 ?? c.isbn10 ?? c.title;
 }
 
+/**
+ * 相機 overlay 上的用量提示：左邊「智能剩 X 次」，右邊「館藏 N/M」。
+ * 顯示與否獨立於 `BILLING_QUOTA_ENFORCED`；只要 /api/me 回得到配額就顯示。
+ */
+function UsagePill({
+  aiUsed,
+  aiLimit,
+  bookCount,
+  bookLimit,
+}: {
+  aiUsed: number;
+  aiLimit: number;
+  bookCount: number;
+  bookLimit: number;
+}) {
+  const aiRemaining = aiLimit - aiUsed;
+  const aiDepleted = aiRemaining <= 0;
+  return (
+    <p className="text-[11px] text-white/80 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full tabular-nums flex items-center gap-2">
+      <span>
+        {aiDepleted
+          ? `智能已用盡 ${aiUsed}/${aiLimit}`
+          : `智能剩 ${aiRemaining}／${aiLimit} 次`}
+      </span>
+      {bookLimit > 0 && (
+        <>
+          <span className="text-white/30">·</span>
+          <span>
+            館藏 {bookCount}/{bookLimit}
+          </span>
+        </>
+      )}
+    </p>
+  );
+}
+
 export default function CheckinScanPage() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -613,11 +649,13 @@ export default function CheckinScanPage() {
                   <p className="text-xs text-white/70 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
                     對準書封拍照辨識 · {adminName || "—"}
                   </p>
-                  {quotaEnforced && (
-                    <p className="text-[11px] text-white/60 bg-black/30 backdrop-blur-md px-2.5 py-1 rounded-full tabular-nums">
-                      智能 {aiUsed}/{aiLimit} · 館藏{" "}
-                      {bookCount + confirmedBooks.length}/{bookLimit}
-                    </p>
+                  {aiLimit > 0 && (
+                    <UsagePill
+                      aiUsed={aiUsed}
+                      aiLimit={aiLimit}
+                      bookCount={bookCount + confirmedBooks.length}
+                      bookLimit={bookLimit}
+                    />
                   )}
                 </div>
                 <div className="absolute bottom-8 inset-x-0 flex flex-col items-center z-10 px-6">
