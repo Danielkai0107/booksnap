@@ -589,10 +589,11 @@ export async function setTrialDays(
 }
 
 /**
- * Master billing switch. While `false`, the in-app UpgradeModal and the
- * BillingClient swap their "升級 Pro" CTAs for a "金流準備中，敬請期待"
- * notice and never hit `/api/billing/subscribe`. Lets us ship features before
- * a real gateway is connected without confusing early users.
+ * Master billing switch. While `false` the `/billing` page shows a
+ * BillingPausedBanner and disables the 升級 Pro CTA; every locked entry
+ * point in the app (新書入庫 / 借閱連結 / sidebar 升級膠囊) just navigates
+ * to `/billing` so the user sees the full upgrade context in one place.
+ * Lets us ship features before a real gateway is connected.
  */
 export async function setBillingEnabled(
   enabled: boolean,

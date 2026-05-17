@@ -6,10 +6,10 @@ import { useToast } from "@/components/ToastProvider";
 import { setBillingEnabled } from "../../actions";
 
 /**
- * Optimistic toggle for `app_settings.billing_enabled`. When OFF, the in-app
- * upgrade CTAs (UpgradeModal + /billing 升級 Pro 按鈕) swap to a "金流準備中"
- * notice instead of opening the gateway. Use this while the real payment
- * provider (ECPay / Stripe) is not yet wired up.
+ * Optimistic toggle for `app_settings.billing_enabled`. When OFF, the
+ * `/billing` page shows a "金流準備中" banner and the 升級 Pro CTA becomes
+ * disabled (every other locked entry point just routes here). Use while
+ * the real payment provider (ECPay / Stripe) is not yet wired up.
  */
 export default function BillingEnabledForm({
   initialEnabled,

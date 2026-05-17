@@ -4,7 +4,6 @@ import { useEffect, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import AdminShell from "@/components/AdminShell";
 import { useToast } from "@/components/ToastProvider";
-import { useUpgradeModal } from "@/components/UpgradeModal";
 import type { PlanPriceConfig } from "@/lib/plans";
 import type { TrialState } from "@/lib/billing/lock";
 
@@ -39,9 +38,12 @@ type Props = {
   subscription: SubscriptionView | null;
   payments: PaymentView[];
   initialBanner: "welcome" | string | null;
-  /** Master monetization switch. When false, 升級/恢復 CTAs open the shared
-   * UpgradeModal in its "金流準備中" mode instead of hitting the gateway. */
+  /** Master monetization switch. When false, the 升級 Pro CTA is disabled and
+   * a BillingPausedBanner is shown above the StatusCard. */
   billingEnabled: boolean;
+  /** Friendly one-liner when the user landed here from a locked entry point
+   * (e.g. 新書入庫). Rendered as a small neutral banner. */
+  reasonCopy: string | null;
 };
 
 function formatDateTW(iso: string): string {
@@ -65,10 +67,10 @@ export default function BillingClient({
   payments,
   initialBanner,
   billingEnabled,
+  reasonCopy,
 }: Props) {
   const router = useRouter();
   const toast = useToast();
-  const { openUpgradeModal } = useUpgradeModal();
   const [busy, startTransition] = useTransition();
 
   useEffect(() => {
@@ -78,10 +80,9 @@ export default function BillingClient({
   }, [initialBanner, toast]);
 
   const handleSubscribe = () => {
-    if (!billingEnabled) {
-      openUpgradeModal("billing_page_subscribe");
-      return;
-    }
+    // 金流主開關關閉時頁面頂端已有 BillingPausedBanner 解釋現況，
+    // 按鈕本身也是 disabled 樣式；這裡多一道防線避免誤打到 API。
+    if (!billingEnabled) return;
     startTransition(async () => {
       try {
         const res = await fetch("/api/billing/subscribe", { method: "POST" });
@@ -151,6 +152,7 @@ export default function BillingClient({
     <AdminShell topbarTitle="訂閱管理" backHref="/settings">
       <div className="space-y-8">
         {!billingEnabled && <BillingPausedBanner />}
+        {reasonCopy && <ReasonBanner copy={reasonCopy} />}
 
         <StatusCard
           trialState={trialState}
@@ -170,6 +172,14 @@ export default function BillingClient({
         <PaymentHistorySection payments={payments} />
       </div>
     </AdminShell>
+  );
+}
+
+function ReasonBanner({ copy }: { copy: string }) {
+  return (
+    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-5 py-4">
+      <p className="text-sm text-neutral-700 leading-relaxed">{copy}</p>
+    </div>
   );
 }
 
@@ -231,10 +241,12 @@ function StatusCard({
   onCancel: () => void;
   onResume: () => void;
 }) {
-  // 金流關閉時的 CTA 文案/樣式統一處理，方便 active_trial / expired_trial 共用
+  // 金流關閉時的 CTA 文案/樣式統一處理，方便 active_trial / expired_trial 共用。
+  // 主開關關閉時頁面頂端已有 BillingPausedBanner 解釋現況，按鈕本身只需要
+  // 顯示為「暫不可用」即可。
   const subscribeLabel = billingEnabled
     ? `立即升級 · ${proPrice.label}`
-    : "金流準備中，敬請期待";
+    : "升級通道暫未開放";
   const subscribeBusyLabel = busy ? "處理中…" : subscribeLabel;
 
   if (trialState === "active_trial") {
@@ -262,13 +274,13 @@ function StatusCard({
         <button
           type="button"
           onClick={onSubscribe}
-          disabled={busy}
+          disabled={busy || !billingEnabled}
           className={`mt-5 w-full md:w-auto px-5 py-2.5 rounded-lg text-sm font-medium transition ${
             busy
               ? "bg-neutral-300 text-white cursor-not-allowed"
               : billingEnabled
                 ? "bg-neutral-900 hover:bg-neutral-800 text-white"
-                : "bg-white border border-amber-200 text-amber-900 hover:border-amber-400"
+                : "bg-neutral-100 text-neutral-400 cursor-not-allowed"
           }`}
         >
           {subscribeBusyLabel}
@@ -295,13 +307,13 @@ function StatusCard({
         <button
           type="button"
           onClick={onSubscribe}
-          disabled={busy}
+          disabled={busy || !billingEnabled}
           className={`mt-5 w-full md:w-auto px-5 py-2.5 rounded-lg text-sm font-medium transition ${
             busy
               ? "bg-neutral-300 text-white cursor-not-allowed"
               : billingEnabled
                 ? "bg-neutral-900 hover:bg-neutral-800 text-white"
-                : "bg-white border border-amber-200 text-amber-900 hover:border-amber-400"
+                : "bg-neutral-100 text-neutral-400 cursor-not-allowed"
           }`}
         >
           {subscribeBusyLabel}

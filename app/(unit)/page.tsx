@@ -14,7 +14,6 @@ import EditBookSheet from "@/components/EditBookSheet";
 import ManualCheckinSheet from "@/components/ManualCheckinSheet";
 import SearchInput from "@/components/SearchInput";
 import { useToast } from "@/components/ToastProvider";
-import { useUpgradeModal } from "@/components/UpgradeModal";
 import { useAdminOrgInfo } from "@/lib/admin-org-info";
 
 type EditTarget = BookRow | null;
@@ -35,13 +34,13 @@ export default function AdminPage() {
   // 桌機沒有相機，按「新書入庫」走手動表單彈窗。手機 FAB 仍走 /checkin 拍照。
   const [manualCheckinOpen, setManualCheckinOpen] = useState(false);
   const toast = useToast();
-  // 試用 / 試用過期時，「新書入庫」走升級彈窗而非真實流程。
+  // 試用過期 / 未付費時，「新書入庫」一律導去 /billing 讓使用者看到完整
+  // 升級情境（試用狀態、金流主開關等），不用半路再彈窗。
   const { locked } = useAdminOrgInfo();
-  const { openUpgradeModal } = useUpgradeModal();
 
   const handleDesktopCheckin = () => {
     if (locked) {
-      openUpgradeModal("new_book_desktop");
+      router.push("/billing?from=new_book");
       return;
     }
     setManualCheckinOpen(true);
@@ -50,7 +49,7 @@ export default function AdminPage() {
   const handleMobileCheckin = (e: React.MouseEvent) => {
     if (locked) {
       e.preventDefault();
-      openUpgradeModal("new_book_mobile");
+      router.push("/billing?from=new_book");
     }
   };
 
@@ -117,20 +116,6 @@ export default function AdminPage() {
       // ignore malformed payload
     }
   }, [toast]);
-
-  // 如果是被 /checkin server-side redirect 過來的（trial 過期等），自動彈出升級窗。
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const upgrade = params.get("upgrade");
-    if (!upgrade) return;
-    openUpgradeModal(upgrade);
-    params.delete("upgrade");
-    const qs = params.toString();
-    const next = qs ? `?${qs}` : window.location.pathname;
-    window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
-    void next;
-  }, [openUpgradeModal]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

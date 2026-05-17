@@ -2,10 +2,9 @@
 
 import { useEffect, useState, type ComponentType, type SVGProps } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import BottomSheet from "@/components/BottomSheet";
 import { useToast } from "@/components/ToastProvider";
-import { useUpgradeModal } from "@/components/UpgradeModal";
 import { signOutAction } from "@/app/auth/actions";
 import SignOutButton, { signOutOutlineClass } from "@/components/SignOutButton";
 import { useAdminOrgInfo } from "@/lib/admin-org-info";
@@ -120,7 +119,7 @@ function PublicLinkIconButton({ onClick }: { onClick?: () => void }) {
   const { publicSlug, orgName, locked } = useAdminOrgInfo();
   const [sheetOpen, setSheetOpen] = useState(false);
   const toast = useToast();
-  const { openUpgradeModal } = useUpgradeModal();
+  const router = useRouter();
 
   if (!publicSlug) {
     return (
@@ -137,7 +136,7 @@ function PublicLinkIconButton({ onClick }: { onClick?: () => void }) {
   async function handleShare() {
     if (locked) {
       setSheetOpen(false);
-      openUpgradeModal("sidebar_share");
+      router.push("/billing?from=public_link");
       return;
     }
     const publicUrl = `${window.location.origin}/o/${publicSlug}`;
@@ -167,7 +166,7 @@ function PublicLinkIconButton({ onClick }: { onClick?: () => void }) {
   function handleGo() {
     if (locked) {
       setSheetOpen(false);
-      openUpgradeModal("sidebar_go");
+      router.push("/billing?from=public_link");
       return;
     }
     setSheetOpen(false);

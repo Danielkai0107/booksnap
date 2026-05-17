@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import { useToast } from "@/components/ToastProvider";
-import { useUpgradeModal } from "@/components/UpgradeModal";
 import { useAdminOrgInfo } from "@/lib/admin-org-info";
 
 type Props = {
@@ -35,8 +35,11 @@ export default function PublicLinkClient({
   const [qrUrl, setQrUrl] = useState<string>("");
   const [savingFor, setSavingFor] = useState<"borrow" | "catalog" | null>(null);
   const toast = useToast();
+  const router = useRouter();
   const { locked } = useAdminOrgInfo();
-  const { openUpgradeModal } = useUpgradeModal();
+  // 鎖定狀態下所有 CTA 一律導去 /billing，讓使用者看到完整升級情境
+  // （試用狀態、金流主開關等），而不是被半路彈窗打斷。
+  const goToBilling = () => router.push("/billing?from=public_link");
 
   useEffect(() => {
     QRCode.toDataURL(publicUrl, {
@@ -56,7 +59,7 @@ export default function PublicLinkClient({
    */
   async function shareLink() {
     if (locked) {
-      openUpgradeModal("public_link_share");
+      goToBilling();
       return;
     }
     const shareData = {
@@ -87,11 +90,11 @@ export default function PublicLinkClient({
 
   /**
    * 「前往」按鈕：在新分頁開啟讀者實際看到的借閱入口，方便管理員確認外觀。
-   * 與側欄 BottomSheet 的「前往」行為一致。鎖定時改開升級彈窗。
+   * 與側欄 BottomSheet 的「前往」行為一致。鎖定時改導去 /billing。
    */
   function goToPublic() {
     if (locked) {
-      openUpgradeModal("public_link_go");
+      goToBilling();
       return;
     }
     window.open(publicUrl, "_blank", "noopener,noreferrer");
@@ -131,7 +134,7 @@ export default function PublicLinkClient({
             // 顯示反而讓人誤以為功能可用。給一個視覺等寬的「鎖住」佔位卡。
             <button
               type="button"
-              onClick={() => openUpgradeModal("public_link_qr")}
+              onClick={goToBilling}
               className="press-feedback w-48 h-48 md:w-56 md:h-56 flex flex-col items-center justify-center gap-3 border border-dashed border-neutral-300 rounded-lg bg-neutral-50/60 hover:bg-neutral-100/60 hover:border-neutral-400 transition"
             >
               <svg
@@ -185,7 +188,7 @@ export default function PublicLinkClient({
           {locked ? (
             <button
               type="button"
-              onClick={() => openUpgradeModal("public_link_download")}
+              onClick={goToBilling}
               className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2.5 rounded-lg transition"
             >
               <DownloadIcon />
@@ -223,7 +226,7 @@ export default function PublicLinkClient({
           checked={borrowEnabled}
           disabled={savingFor === "borrow"}
           locked={locked}
-          onLockedClick={() => openUpgradeModal("public_borrow_toggle")}
+          onLockedClick={goToBilling}
           onChange={(v) => {
             setBorrowEnabled(v);
             void patchToggle({ public_borrow_enabled: v }, "borrow");
@@ -235,7 +238,7 @@ export default function PublicLinkClient({
           checked={catalogEnabled}
           disabled={savingFor === "catalog"}
           locked={locked}
-          onLockedClick={() => openUpgradeModal("public_catalog_toggle")}
+          onLockedClick={goToBilling}
           onChange={(v) => {
             setCatalogEnabled(v);
             void patchToggle({ public_catalog_enabled: v }, "catalog");

@@ -61,10 +61,10 @@ export type AppSettings = {
   /** Default trial length applied at org approval. Editable in super-admin settings. */
   trialDays: number;
   /**
-   * Master switch for monetization. When `false`, both the in-app
-   * `UpgradeModal` and the `/billing` page swap their "升級 Pro" CTA for a
-   * "金流準備中，敬請期待" notice and never hit `/api/billing/subscribe`.
-   * Lets us ship to early users before any real gateway is connected.
+   * Master switch for monetization. When `false` the `/billing` page shows a
+   * BillingPausedBanner and disables the 升級 Pro CTA; every locked entry
+   * point in the app routes the user to `/billing` so they see the full
+   * context. Lets us ship to early users before any real gateway is wired up.
    */
   billingEnabled: boolean;
 };

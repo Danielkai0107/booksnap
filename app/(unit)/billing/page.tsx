@@ -8,12 +8,21 @@ import BillingClient from "./BillingClient";
 
 export const dynamic = "force-dynamic";
 
+/** Maps `?from=xxx` (set by upstream locked entry points) to a friendly
+ * one-liner shown above the StatusCard. Tells the user why they landed here
+ * so the upgrade gate doesn't feel like a non-sequitur. */
+const REASON_COPY: Record<string, string> = {
+  new_book: "需要升級後才能新增書本入庫，目前可繼續瀏覽試用內容。",
+  public_link: "借閱連結 / QR 為付費功能，升級後即可分享給讀者。",
+};
+
 export default async function AdminBillingPage({
   searchParams,
 }: {
   searchParams: Promise<{
     welcome?: string;
     reason?: string;
+    from?: string;
   }>;
 }) {
   const session = await requireUnitSession();
@@ -38,6 +47,7 @@ export default async function AdminBillingPage({
 
   const sp = await searchParams;
   const initialBanner = sp.welcome === "1" ? "welcome" : sp.reason ?? null;
+  const reasonCopy = sp.from ? (REASON_COPY[sp.from] ?? null) : null;
 
   return (
     <BillingClient
@@ -49,6 +59,7 @@ export default async function AdminBillingPage({
       payments={payments.map(serializePayment)}
       initialBanner={initialBanner}
       billingEnabled={billingEnabled}
+      reasonCopy={reasonCopy}
     />
   );
 }

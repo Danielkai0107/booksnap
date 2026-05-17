@@ -5,10 +5,6 @@ import { useRouter } from "next/navigation";
 import AdminSidebar, { AdminMobileMenu } from "./AdminSidebar";
 import ScrollToTopButton from "./ScrollToTopButton";
 
-// `UpgradeModalProvider` 掛在 `app/(unit)/layout.tsx`，覆蓋整個 unit route
-// group。寫在這裡會比 page component 還內層，導致 page 自己 useUpgradeModal()
-// 拿到 no-op fallback，新書入庫等入口的升級彈窗就會默默壞掉。
-
 type Props = {
   children: ReactNode;
   /**

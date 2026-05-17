@@ -15,9 +15,9 @@ export type AdminOrgInfo = {
   trialEndsAt: string | null;
   trialState: TrialState | null;
   /**
-   * Global monetization switch from `app_settings.billing_enabled`. When
-   * false the UpgradeModal and BillingClient swap CTAs for a
-   * "金流準備中，敬請期待" notice instead of opening the gateway.
+   * Global monetization switch from `app_settings.billing_enabled`. Pages
+   * read this via the /billing server load (not directly off this hook), but
+   * we surface it here too so future client components can react if needed.
    */
   billingEnabled: boolean;
 };
