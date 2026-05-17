@@ -45,6 +45,7 @@ export default async function DeepLinkBookPage({ params }: Props) {
         slug={org.public_slug}
         title="服務暫停"
         message={`${org.name} 目前暫停讀者借還，請聯絡單位人員。`}
+        tone="neutral"
       />
     );
   }
@@ -60,14 +61,20 @@ function ErrorState({
   slug,
   title,
   message,
+  tone = "amber",
 }: {
   slug: string;
   title: string;
   message: string;
+  /** "amber" = 真正的錯誤（找不到資料 / 標 QR 錯單位）；
+   *  "neutral" = 設定上的暫停（金流鎖、admin 主動關閉），不該用警告色嚇人。 */
+  tone?: "amber" | "neutral";
 }) {
+  const iconBg = tone === "neutral" ? "bg-neutral-100" : "bg-amber-50";
+  const iconColor = tone === "neutral" ? "text-neutral-500" : "text-amber-600";
   return (
     <div className="pt-16 max-w-sm mx-auto text-center">
-      <div className="mx-auto w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center mb-5">
+      <div className={`mx-auto w-12 h-12 rounded-full ${iconBg} flex items-center justify-center mb-5`}>
         <svg
           width="22"
           height="22"
@@ -77,7 +84,7 @@ function ErrorState({
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="text-amber-600"
+          className={iconColor}
           aria-hidden
         >
           <circle cx="12" cy="12" r="10" />

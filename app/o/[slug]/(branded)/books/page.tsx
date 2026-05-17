@@ -18,7 +18,7 @@ export default async function PublicCatalogPage({ params }: Props) {
   if (!org) notFound();
   if (!org.public_catalog_enabled) {
     return (
-      <div className="pt-16 text-center text-sm text-amber-700">
+      <div className="pt-16 text-center text-sm text-neutral-600">
         本單位未開放讀者查書功能。
       </div>
     );

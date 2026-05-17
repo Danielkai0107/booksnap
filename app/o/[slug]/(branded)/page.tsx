@@ -30,7 +30,7 @@ export default async function OrgLandingPage({ params }: Props) {
         <p className="mt-4 text-center text-md text-neutral-500">{org.name}</p>
 
         {borrowDisabled && (
-          <p className="mt-6 text-center text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+          <p className="mt-6 text-center text-sm text-neutral-600 bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3">
             本單位目前已暫停讀者借還，請聯絡單位人員。
           </p>
         )}
@@ -78,41 +78,45 @@ export default async function OrgLandingPage({ params }: Props) {
           />
         </div>
 
-        <div
-          className={`mt-8 ${org.public_catalog_enabled ? "grid grid-cols-2 gap-3" : ""}`}
-        >
-          <MyRecordsButton
-            slug={org.public_slug}
-            orgName={org.name}
-            catalogEnabled={!!org.public_catalog_enabled}
-          />
-          {org.public_catalog_enabled && (
-            <ActionButton
-              href={`/o/${org.public_slug}/books`}
-              label="書籍查詢"
-              icon={
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <line x1="8" y1="6" x2="21" y2="6" />
-                  <line x1="8" y1="12" x2="21" y2="12" />
-                  <line x1="8" y1="18" x2="21" y2="18" />
-                  <line x1="3.5" y1="6" x2="3.51" y2="6" />
-                  <line x1="3.5" y1="12" x2="3.51" y2="12" />
-                  <line x1="3.5" y1="18" x2="3.51" y2="18" />
-                </svg>
-              }
+        {/* 服務暫停時把「我的紀錄」也一併隱藏：API 端會回空（getPublicOrg
+            鎖住會 override toggles），即使能查也只看得到歷史殘影，徒增困惑。 */}
+        {!borrowDisabled && (
+          <div
+            className={`mt-8 ${org.public_catalog_enabled ? "grid grid-cols-2 gap-3" : ""}`}
+          >
+            <MyRecordsButton
+              slug={org.public_slug}
+              orgName={org.name}
+              catalogEnabled={!!org.public_catalog_enabled}
             />
-          )}
-        </div>
+            {org.public_catalog_enabled && (
+              <ActionButton
+                href={`/o/${org.public_slug}/books`}
+                label="書籍查詢"
+                icon={
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <line x1="8" y1="6" x2="21" y2="6" />
+                    <line x1="8" y1="12" x2="21" y2="12" />
+                    <line x1="8" y1="18" x2="21" y2="18" />
+                    <line x1="3.5" y1="6" x2="3.51" y2="6" />
+                    <line x1="3.5" y1="12" x2="3.51" y2="12" />
+                    <line x1="3.5" y1="18" x2="3.51" y2="18" />
+                  </svg>
+                }
+              />
+            )}
+          </div>
+        )}
       </div>
 
       <p className="fixed inset-x-0 bottom-6 z-10 pointer-events-none text-center text-sm text-neutral-400 leading-relaxed px-5">

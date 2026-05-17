@@ -21,7 +21,7 @@ export default async function PublicBorrowPage({
   if (!org) notFound();
   if (!org.public_borrow_enabled) {
     return (
-      <div className="pt-16 text-center text-sm text-amber-700">
+      <div className="pt-16 text-center text-sm text-neutral-600">
         本單位目前已暫停讀者借還，請聯絡單位人員。
       </div>
     );
