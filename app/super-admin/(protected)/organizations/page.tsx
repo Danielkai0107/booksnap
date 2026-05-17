@@ -6,12 +6,8 @@ import type {
   SubscriptionRow,
   SubscriptionStatus,
 } from "@/lib/supabase/types";
-import {
-  PLAN_META,
-  effectivePlan,
-  getOrgPeriod,
-  loadPlanConfigs,
-} from "@/lib/plans";
+import { PLAN_META, effectivePlan } from "@/lib/plans";
+import { trialDaysRemaining, trialState } from "@/lib/billing/lock";
 import OrgRowActions from "./OrgRowActions";
 
 type TabKey = "pending" | "approved" | "rejected" | "suspended" | "all";
@@ -30,20 +26,20 @@ function statusLabel(s: OrgStatus): string {
   return s === "pending"
     ? "待審核"
     : s === "approved"
-    ? "已通過"
-    : s === "rejected"
-    ? "已退回"
-    : "已停用";
+      ? "已通過"
+      : s === "rejected"
+        ? "已退回"
+        : "已停用";
 }
 
 function statusPillClass(s: OrgStatus): string {
   return s === "pending"
     ? "bg-amber-50 text-amber-700 border-amber-100"
     : s === "approved"
-    ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-    : s === "rejected"
-    ? "bg-red-50 text-red-700 border-red-100"
-    : "bg-neutral-100 text-neutral-600 border-neutral-200";
+      ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+      : s === "rejected"
+        ? "bg-red-50 text-red-700 border-red-100"
+        : "bg-neutral-100 text-neutral-600 border-neutral-200";
 }
 
 function subscriptionStatusPillClass(s: SubscriptionStatus): string {
@@ -91,7 +87,6 @@ export default async function OrganizationsPage({
   const { data, error } = await query;
   const orgs = (data ?? []) as OrganizationRow[];
 
-  // 撈訂閱資訊，後續用來決定 effective plan / billing-anchored period
   const orgIds = orgs.map((o) => o.id);
   const { data: subsRaw } =
     orgIds.length === 0
@@ -105,26 +100,7 @@ export default async function OrganizationsPage({
     subByOrgId.set(s.organization_id, s),
   );
 
-  // 本期 AI 用量：以訂閱期或啟用日當錨點。一次撈出所有 (organization_id, created_at)
-  // 再前端 per-org 過濾聚合，避免 N 次 round trip。
-  const { data: aiRows } = await admin
-    .from("ai_usage_logs")
-    .select("organization_id, created_at");
-  const aiUsedByOrg = new Map<string, number>();
-  const now = new Date();
-  for (const o of orgs) {
-    const sub = subByOrgId.get(o.id) ?? null;
-    const { start } = getOrgPeriod(o, sub, now);
-    const startMs = start.getTime();
-    const count = (aiRows ?? []).reduce((acc, r) => {
-      const row = r as { organization_id: string; created_at: string };
-      if (row.organization_id !== o.id) return acc;
-      return new Date(row.created_at).getTime() >= startMs ? acc + 1 : acc;
-    }, 0);
-    aiUsedByOrg.set(o.id, count);
-  }
-
-  // 館藏冊數：以 organization_id 群組計數一次撈完
+  // 館藏總冊數（純資訊欄位，不再代表配額）。一次撈出 organization_id 在前端 group。
   const { data: bookRows } = await admin
     .from("books")
     .select("organization_id");
@@ -134,15 +110,13 @@ export default async function OrganizationsPage({
     bookCountByOrg.set(id, (bookCountByOrg.get(id) ?? 0) + 1);
   });
 
-  const { quotas } = await loadPlanConfigs(admin);
-
   return (
     <div>
       <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
         單位管理
       </h1>
       <p className="mt-2 text-sm text-neutral-500">
-        審核、停用、重設單位密碼。
+        審核、停用、重設單位密碼、啟用付費、延長試用。
       </p>
 
       <div className="mt-6 flex gap-1 border-b border-neutral-200">
@@ -179,93 +153,108 @@ export default async function OrganizationsPage({
           {orgs.map((o) => {
             const sub = subByOrgId.get(o.id) ?? null;
             const ePlan = effectivePlan(o, sub);
+            const state = trialState(o, sub);
+            const daysLeft = trialDaysRemaining(o);
+            const planPillLabel =
+              state === "active_trial" && typeof daysLeft === "number"
+                ? `試用剩 ${daysLeft} 天`
+                : state === "expired_trial"
+                  ? "試用過期"
+                  : PLAN_META[ePlan].label;
+            const planPillClass =
+              state === "expired_trial"
+                ? "bg-red-50 text-red-700 border-red-100"
+                : PLAN_META[ePlan].pillClass;
             return (
-            <li
-              key={o.id}
-              className="bg-white border border-neutral-200 rounded-2xl p-5"
-            >
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-base font-semibold text-neutral-900">
-                      {o.name}
-                    </h2>
-                    <span
-                      className={`inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium ${statusPillClass(
-                        o.status
-                      )}`}
-                    >
-                      {statusLabel(o.status)}
-                    </span>
-                    <span
-                      className={`inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium ${PLAN_META[ePlan].pillClass}`}
-                    >
-                      {PLAN_META[ePlan].label}
-                    </span>
-                    {sub && (
+              <li
+                key={o.id}
+                className="bg-white border border-neutral-200 rounded-2xl p-5"
+              >
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-base font-semibold text-neutral-900">
+                        {o.name}
+                      </h2>
                       <span
-                        className={`inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium ${subscriptionStatusPillClass(sub.status)}`}
+                        className={`inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium ${statusPillClass(
+                          o.status,
+                        )}`}
                       >
-                        {subscriptionStatusLabel(sub.status)}
+                        {statusLabel(o.status)}
                       </span>
-                    )}
-                    {sub?.cancel_at_period_end && sub.status === "active" && (
-                      <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium bg-amber-50 text-amber-700 border-amber-100">
-                        期末取消
+                      <span
+                        className={`inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium ${planPillClass}`}
+                      >
+                        {planPillLabel}
                       </span>
-                    )}
-                    {o.bypass_quota && (
-                      <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
-                        免配額
-                      </span>
-                    )}
+                      {sub && (
+                        <span
+                          className={`inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium ${subscriptionStatusPillClass(sub.status)}`}
+                        >
+                          {subscriptionStatusLabel(sub.status)}
+                        </span>
+                      )}
+                      {sub?.cancel_at_period_end && sub.status === "active" && (
+                        <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium bg-amber-50 text-amber-700 border-amber-100">
+                          到期取消
+                        </span>
+                      )}
+                      {o.bypass_quota && (
+                        <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
+                          免鎖
+                        </span>
+                      )}
+                    </div>
+                    <dl className="mt-3 text-sm text-neutral-600 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
+                      <Pair k="縣市" v={o.city} />
+                      <Pair k="Email" v={o.contact_email} />
+                      <Pair k="聯絡電話" v={o.contact_phone} />
+                      <Pair
+                        k="送出時間"
+                        v={new Date(o.created_at).toLocaleString("zh-TW")}
+                      />
+                      {o.approved_at && (
+                        <Pair
+                          k="核准時間"
+                          v={new Date(o.approved_at).toLocaleString("zh-TW")}
+                        />
+                      )}
+                      {o.trial_ends_at && state !== "paid" && (
+                        <Pair
+                          k="試用到期"
+                          v={new Date(o.trial_ends_at).toLocaleString("zh-TW")}
+                        />
+                      )}
+                      {sub && (
+                        <Pair
+                          k="本期"
+                          v={`${new Date(sub.current_period_start).toLocaleDateString("zh-TW")} ~ ${new Date(sub.current_period_end).toLocaleDateString("zh-TW")}`}
+                        />
+                      )}
+                      {o.rejected_reason && (
+                        <Pair k="退回原因" v={o.rejected_reason} />
+                      )}
+                      <Pair
+                        k="館藏總冊數"
+                        v={`${(bookCountByOrg.get(o.id) ?? 0).toLocaleString()} 冊`}
+                      />
+                    </dl>
                   </div>
-                  <dl className="mt-3 text-sm text-neutral-600 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
-                    <Pair k="縣市" v={o.city} />
-                    <Pair k="Email" v={o.contact_email} />
-                    <Pair k="聯絡電話" v={o.contact_phone} />
-                    <Pair
-                      k="送出時間"
-                      v={new Date(o.created_at).toLocaleString("zh-TW")}
-                    />
-                    {o.approved_at && (
-                      <Pair
-                        k="核准時間"
-                        v={new Date(o.approved_at).toLocaleString("zh-TW")}
-                      />
-                    )}
-                    {sub && (
-                      <Pair
-                        k="本期"
-                        v={`${new Date(sub.current_period_start).toLocaleDateString("zh-TW")} ~ ${new Date(sub.current_period_end).toLocaleDateString("zh-TW")}`}
-                      />
-                    )}
-                    {o.rejected_reason && (
-                      <Pair k="退回原因" v={o.rejected_reason} />
-                    )}
-                    <Pair
-                      k="本期 AI 用量"
-                      v={`${(aiUsedByOrg.get(o.id) ?? 0).toLocaleString()} / ${quotas[ePlan].ai.toLocaleString()} 次`}
-                    />
-                    <Pair
-                      k="館藏冊數"
-                      v={`${(bookCountByOrg.get(o.id) ?? 0).toLocaleString()} / ${quotas[ePlan].books.toLocaleString()} 冊`}
-                    />
-                  </dl>
+                  <OrgRowActions
+                    orgId={o.id}
+                    orgName={o.name}
+                    status={o.status}
+                    plan={o.plan}
+                    trialState={state}
+                    trialEndsAt={o.trial_ends_at}
+                    city={o.city}
+                    contactEmail={o.contact_email}
+                    contactPhone={o.contact_phone}
+                    bypassQuota={o.bypass_quota}
+                  />
                 </div>
-                <OrgRowActions
-                  orgId={o.id}
-                  orgName={o.name}
-                  status={o.status}
-                  plan={o.plan}
-                  city={o.city}
-                  contactEmail={o.contact_email}
-                  contactPhone={o.contact_phone}
-                  bypassQuota={o.bypass_quota}
-                  allQuotas={quotas}
-                />
-              </div>
-            </li>
+              </li>
             );
           })}
         </ul>

@@ -22,49 +22,54 @@ npm run dev
 
 ## 環境變數（`.env.local`）
 
-| Key                              | 預先填入 | 說明                                                     |
-| -------------------------------- | :------: | -------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`       |    ✅    | Supabase 專案 URL                                        |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  |    ✅    | Supabase anon key                                        |
-| `SUPABASE_SERVICE_ROLE_KEY`      |    ✅    | Server-only，bypasses RLS                                |
-| `ANTHROPIC_API_KEY`              |    ❌    | 書封 OCR 辨識（Claude vision）                           |
-| `GOOGLE_BOOKS_API_KEY`           |    ❌    | Google Books ISBN 查詢的 quota（沒給走匿名 1000/day）    |
+| Key                              | 預先填入 | 說明                                                      |
+| -------------------------------- | :------: | --------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`       |    ✅    | Supabase 專案 URL                                         |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  |    ✅    | Supabase anon key                                         |
+| `SUPABASE_SERVICE_ROLE_KEY`      |    ✅    | Server-only，bypasses RLS                                 |
+| `ANTHROPIC_API_KEY`              |    ❌    | 書封 OCR 辨識（Claude vision）                            |
+| `GOOGLE_BOOKS_API_KEY`           |    ❌    | Google Books ISBN 查詢的 quota（沒給走匿名 1000/day）     |
 | `BILLING_PROVIDER`               |    ✅    | `instant`（預設）：點擊即升級。改 `ecpay`/`jkopay` 接金流 |
-| `BILLING_QUOTA_ENFORCED`         |    ✅    | `true` 才會在 `/api/recognize`、`/api/books` 回 402     |
-| `NEXT_PUBLIC_SITE_URL`           |  上線建議 | 例如 `https://booksnaplib.com`；註冊／重設密碼信內連結用   |
-| `NEXT_PUBLIC_BILLING_RETURN_URL` |  上線建議 | 例如 `https://booksnaplib.com/billing`（訂閱完成回跳）     |
+| `NEXT_PUBLIC_SITE_URL`           | 上線建議 | 例如 `https://booksnaplib.com`；註冊／重設密碼信內連結用  |
+| `NEXT_PUBLIC_BILLING_RETURN_URL` | 上線建議 | 例如 `https://booksnaplib.com/billing`（訂閱完成回跳）    |
 
 ## 計費（Billing）
 
-第一版用 `InstantGateway`：使用者按下訂閱就升級、不收錢，後續再接街口／綠界。
-- 設計重點在 [`lib/billing/gateway.ts`](lib/billing/gateway.ts) interface；換 provider 只動 `lib/billing/index.ts` factory 與新增實作檔。
-- 所有 DB 變更走 [`lib/billing/apply.ts`](lib/billing/apply.ts) → `applyGatewayEvent`，InstantGateway 與真實 webhook 共用。
-- 用戶端訂閱管理頁：`/billing`（仿 Cursor 樣式：當前訂閱、取消／恢復、帳單記錄）。
-- 配額硬擋：`BILLING_QUOTA_ENFORCED=true` + 單位 `bypass_quota=false` 時，`/api/recognize`、`/api/books` POST 會回 402。可在 Super Admin → 設定查看，並逐筆在「單位管理」勾「免配額」豁免。
-- Super Admin → 訂閱：所有訂閱列表 + 最近一筆扣款。
-- Super Admin → 總覽：MRR、本月新訂閱／取消、Pro／Plus 進行中數量。
+商業模式很簡單：**核准後免費試用 N 天（預設 30 天），到期後鎖定升級**。
+
+- **方案只有一個**：Pro，月費 `NT$ 990`（可在 Super Admin → 方案設定線上改）。試用天數可在 Super Admin → 營運設定改。
+- **鎖定邏輯**集中在 [`lib/billing/lock.ts`](lib/billing/lock.ts) 的 `isOrgLocked(org, sub)`：付費中或 `bypass_quota=true` → 不鎖；其他（試用中、試用過期、取消後）→ 全鎖。
+- **鎖時擋兩個入口**：新書入庫（首頁按鈕 + 手機 FAB + `/checkin` server redirect）、借閱連結 toggle / 分享按鈕。其他頁仍可預覽。
+- **API 防呆**：`/api/recognize`、`/api/books` 在 lock 時回 `403 { error: "locked" }`，外層 UI 已先擋下，這層僅防呆。
+- **訂閱管理頁** `/billing`：試用中（倒數）／付費中（下個帳單日 + 取消）／已取消但期內（恢復）三狀態。
+- **Super Admin** 控制：
+  - 核准單位時自動寫入 `trial_ends_at`（用全域 `trial_days`）。
+  - 單位列：「啟用付費」「取消付費（期末／立即）」「延長試用 N 天」。
+  - 「免鎖單位」可豁免任何鎖定（內部測試／合作夥伴用）。
+- **金流抽象**：[`lib/billing/gateway.ts`](lib/billing/gateway.ts) interface，所有 DB 變更走 [`lib/billing/apply.ts`](lib/billing/apply.ts) → `applyGatewayEvent`，instant 與真實 webhook 共用。
 
 要接真實金流：
+
 1. 在 [`lib/billing/`](lib/billing/) 新增 `ecpay.ts`（或 `jkopay.ts`），實作 `PaymentGateway`。
 2. 在 [`lib/billing/index.ts`](lib/billing/index.ts) factory 加 `case`。
 3. 將 `BILLING_PROVIDER` 環境變數改成新 provider。
-4. 其他 UI／業務邏輯／配額擋下均不需修改。
+4. UI／鎖定邏輯／API 防呆均不需修改。
 
 ## 頁面導覽
 
-| 路徑              | 功能                                                      |
-| ----------------- | --------------------------------------------------------- |
-| `/`               | 書籍列表 + 搜尋 + 下載 Excel（後台首頁）                  |
-| `/checkin`        | 輸入管理員名稱                                            |
-| `/checkin/scan`   | 相機拍照 + OCR 批次辨識書封                               |
-| `/checkin/result` | 結算頁：產生 `LIB-YYYYMMDD-NNN`、QR、條碼、列印標籤、送出 |
-| `/borrowers`      | 出借人總覽                                                |
-| `/categories`     | 分類管理                                                  |
-| `/labels`         | 標籤列印                                                  |
-| `/settings`       | 設定中心（用量、單位資料、訂閱管理、登出）                |
-| `/settings/profile` | 單位資料（編輯單位名稱／聯絡資訊）                      |
-| `/billing`        | 訂閱管理（升級／降級／帳單記錄）                          |
-| `/public-link`    | 借還公開連結／QR                                          |
+| 路徑                | 功能                                                      |
+| ------------------- | --------------------------------------------------------- |
+| `/`                 | 書籍列表 + 搜尋 + 下載 Excel（後台首頁）                  |
+| `/checkin`          | 輸入管理員名稱                                            |
+| `/checkin/scan`     | 相機拍照 + OCR 批次辨識書封                               |
+| `/checkin/result`   | 結算頁：產生 `LIB-YYYYMMDD-NNN`、QR、條碼、列印標籤、送出 |
+| `/borrowers`        | 出借人總覽                                                |
+| `/categories`       | 分類管理                                                  |
+| `/labels`           | 標籤列印                                                  |
+| `/settings`         | 設定中心（使用紀錄、單位資料、訂閱管理、登出）            |
+| `/settings/profile` | 單位資料（編輯單位名稱／聯絡資訊）                        |
+| `/billing`          | 訂閱管理（試用倒數／升級／取消／帳單記錄）                |
+| `/public-link`      | 借還公開連結／QR                                          |
 
 ## API
 
@@ -74,9 +79,9 @@ npm run dev
 | `POST /api/books`             | 批次上傳書封到 Storage bucket，並 insert 到 `books`                |
 | `POST /api/return`            | 更新書籍為「已借出」並記錄書架與時間                               |
 | `GET /api/export`             | 將 `books` 表匯出為 Excel（xlsx）                                  |
-| `GET /api/me`                 | 當前 session 的 org / plan / subscription / usage                  |
-| `POST /api/billing/subscribe` | 訂閱（plan=pro/plus）；回傳 redirectUrl                            |
-| `POST /api/billing/cancel`    | 期末取消                                                           |
+| `GET /api/me`                 | 當前 session 的 org / plan / subscription / locked / 試用倒數      |
+| `POST /api/billing/subscribe` | 訂閱 Pro（恆為 990 月費）；回傳 redirectUrl                        |
+| `POST /api/billing/cancel`    | 到期取消                                                           |
 | `POST /api/billing/resume`    | 期內恢復                                                           |
 | `POST /api/billing/webhook`   | 金流商 webhook 入口（InstantGateway 不會收到）                     |
 

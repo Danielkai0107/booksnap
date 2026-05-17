@@ -5,13 +5,15 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  PLAN_ORDER,
+  invalidateAppSettingsCache,
   invalidatePlanConfigsCache,
-  type OrgPlan,
+  loadAppSettings,
 } from "@/lib/plans";
 import { writeAuditLog } from "@/lib/billing/apply";
+import { getGateway } from "@/lib/billing";
 import { signOutLocal } from "@/lib/auth/sign-out";
 import { toUserMessage } from "@/lib/errors/user-message";
+import type { SubscriptionRow } from "@/lib/supabase/types";
 
 async function assertSuperAdmin(): Promise<{ userId: string }> {
   const supabase = await createClient();
@@ -23,16 +25,36 @@ async function assertSuperAdmin(): Promise<{ userId: string }> {
   return { userId: data.user!.id };
 }
 
+/**
+ * Approving an org also stamps the trial window (now + global trial_days from
+ * `app_settings`). Re-approving an already-approved org refreshes the trial
+ * only when `trial_ends_at` is null (so VIP / paid orgs never lose state).
+ */
 export async function approveOrganization(orgId: string): Promise<void> {
   await assertSuperAdmin();
   const admin = createAdminClient();
+  const { trialDays } = await loadAppSettings(admin);
+  const now = new Date();
+  const trialEnds = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
+
+  const { data: existing } = await admin
+    .from("organizations")
+    .select("trial_ends_at, plan")
+    .eq("id", orgId)
+    .maybeSingle();
+
+  const updates: Record<string, unknown> = {
+    status: "approved",
+    approved_at: now.toISOString(),
+    rejected_reason: null,
+  };
+  if (!existing?.trial_ends_at && existing?.plan !== "pro") {
+    updates.trial_ends_at = trialEnds.toISOString();
+  }
+
   const { error } = await admin
     .from("organizations")
-    .update({
-      status: "approved",
-      approved_at: new Date().toISOString(),
-      rejected_reason: null,
-    })
+    .update(updates)
     .eq("id", orgId);
   if (error) throw error;
   revalidatePath("/super-admin");
@@ -41,7 +63,7 @@ export async function approveOrganization(orgId: string): Promise<void> {
 
 export async function rejectOrganization(
   orgId: string,
-  reason: string
+  reason: string,
 ): Promise<void> {
   await assertSuperAdmin();
   const admin = createAdminClient();
@@ -115,7 +137,7 @@ export type UpdateOrgInput = {
 
 export async function updateOrganization(
   orgId: string,
-  input: UpdateOrgInput
+  input: UpdateOrgInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   await assertSuperAdmin();
 
@@ -131,7 +153,6 @@ export async function updateOrganization(
 
   const admin = createAdminClient();
 
-  // Read current org to detect email change
   const { data: current, error: readErr } = await admin
     .from("organizations")
     .select("contact_email, owner_user_id")
@@ -154,14 +175,10 @@ export async function updateOrganization(
     return { ok: false, error: toUserMessage(updateErr, "更新單位失敗") };
   }
 
-  // Keep the auth user's login email in sync with contact_email
-  if (
-    current.contact_email !== contactEmail &&
-    current.owner_user_id
-  ) {
+  if (current.contact_email !== contactEmail && current.owner_user_id) {
     const { error: authErr } = await admin.auth.admin.updateUserById(
       current.owner_user_id,
-      { email: contactEmail, email_confirm: true }
+      { email: contactEmail, email_confirm: true },
     );
     if (authErr) {
       return {
@@ -178,7 +195,7 @@ export async function updateOrganization(
 
 export async function resetOrganizationPassword(
   orgId: string,
-  newPassword: string
+  newPassword: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   await assertSuperAdmin();
   if (newPassword.length < 8) {
@@ -202,102 +219,378 @@ export async function resetOrganizationPassword(
   return { ok: true };
 }
 
-export async function updateOrganizationPlan(
+/**
+ * Manually activate a paid subscription for an org without going through the
+ * checkout flow. Routes through the same `applyGatewayEvent` pipeline as a
+ * real webhook so all downstream effects (subscription row, payment row,
+ * audit log) fire identically.
+ *
+ * Used by super-admin to grant paid access to demo / VIP / friends-of-the-team
+ * orgs. Refuses when a live subscription already exists.
+ */
+export async function grantPaidSubscription(
   orgId: string,
-  plan: OrgPlan
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { userId } = await assertSuperAdmin();
-  if (!PLAN_ORDER.includes(plan)) {
-    return { ok: false, error: "不支援的方案" };
-  }
   const admin = createAdminClient();
-  const { data: before } = await admin
+
+  const { data: org } = await admin
     .from("organizations")
-    .select("plan")
+    .select("id, name, contact_email, plan")
     .eq("id", orgId)
     .maybeSingle();
-  const { error } = await admin
-    .from("organizations")
-    .update({ plan })
-    .eq("id", orgId);
-  if (error) {
-    return { ok: false, error: toUserMessage(error, "更新方案失敗") };
-  }
+  if (!org) return { ok: false, error: "找不到單位" };
 
-  // 同步單位的訂閱列。如果不一起改，`effectivePlan()` 會優先讀
-  // subscription.plan，造成 super admin 改了卻看不到任何變化。
-  const { data: sub } = await admin
+  const { data: existing } = await admin
     .from("subscriptions")
-    .select("id, status, current_period_end, cancelled_at")
+    .select("*")
     .eq("organization_id", orgId)
     .maybeSingle();
-  const nowIso = new Date().toISOString();
-  const subIsLive =
-    !!sub &&
-    (sub.status === "active" ||
-      sub.status === "past_due" ||
-      (sub.status === "cancelled" &&
-        new Date(sub.current_period_end).getTime() > Date.now()));
-  let subAction: "ended" | "rewritten" | null = null;
-  if (subIsLive && sub) {
-    if (plan === "free") {
-      // 立刻結束訂閱期，effectivePlan 就會 fallback 到 org.plan ('free')。
-      const { error: subErr } = await admin
-        .from("subscriptions")
-        .update({
-          status: "cancelled",
-          current_period_end: nowIso,
-          cancel_at_period_end: true,
-          cancelled_at: sub.cancelled_at ?? nowIso,
-          scheduled_plan: "free",
-        })
-        .eq("id", sub.id);
-      if (subErr) {
-        return { ok: false, error: toUserMessage(subErr, "更新訂閱失敗") };
-      }
-      subAction = "ended";
-    } else {
-      // 將訂閱的 plan 強制蓋成目標方案，並清掉任何排程／取消狀態。
-      const { error: subErr } = await admin
-        .from("subscriptions")
-        .update({
-          plan,
-          status: "active",
-          cancel_at_period_end: false,
-          cancelled_at: null,
-          scheduled_plan: null,
-        })
-        .eq("id", sub.id);
-      if (subErr) {
-        return { ok: false, error: toUserMessage(subErr, "更新訂閱失敗") };
-      }
-      subAction = "rewritten";
+  const current = (existing as SubscriptionRow | null) ?? null;
+  if (
+    current &&
+    (current.status === "active" || current.status === "past_due") &&
+    !current.cancel_at_period_end
+  ) {
+    return { ok: false, error: "此單位已有進行中的訂閱" };
+  }
+
+  // If there is a "cancelled but still inside period" sub, just resume it.
+  if (
+    current &&
+    (current.status === "active" || current.status === "past_due") &&
+    current.cancel_at_period_end
+  ) {
+    try {
+      await getGateway().resume(current.gateway_sub_id);
+      await writeAuditLog(admin, {
+        actor_id: userId,
+        actor_role: "super_admin",
+        action: "sub.granted_by_admin",
+        target_org_id: orgId,
+        meta: { mode: "resume" },
+      });
+      revalidatePath("/super-admin");
+      revalidatePath("/super-admin/organizations");
+      revalidatePath("/super-admin/subscriptions");
+      revalidatePath("/billing");
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : "resume_failed",
+      };
     }
   }
 
-  // 人工切換方案會繞過金流；audit log 留紀錄，便於日後對帳。
-  await writeAuditLog(admin, {
-    actor_id: userId,
-    actor_role: "super_admin",
-    action: "plan.changed.by_admin",
-    target_org_id: orgId,
-    meta: {
-      from_plan: before?.plan ?? null,
-      to_plan: plan,
-      subscription_action: subAction,
-    },
-  });
+  try {
+    await getGateway().createSubscription({
+      orgId: org.id,
+      plan: "pro",
+      orgName: org.name,
+      contactEmail: org.contact_email,
+      successUrl: "/billing?welcome=1",
+      cancelUrl: "/billing",
+    });
+    await writeAuditLog(admin, {
+      actor_id: userId,
+      actor_role: "super_admin",
+      action: "sub.granted_by_admin",
+      target_org_id: orgId,
+      meta: { mode: "create" },
+    });
+    revalidatePath("/super-admin");
+    revalidatePath("/super-admin/organizations");
+    revalidatePath("/super-admin/subscriptions");
+    revalidatePath("/billing");
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "grant_failed",
+    };
+  }
+}
+
+/**
+ * Cancel a paid subscription. `mode` decides whether to schedule the cancel
+ * at the end of the current period (default, refund-friendly) or take effect
+ * immediately (refunds, fraud cases).
+ */
+export async function cancelOrganizationSubscription(
+  orgId: string,
+  mode: "period_end" | "immediate",
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { userId } = await assertSuperAdmin();
+  const admin = createAdminClient();
+  const { data: sub } = await admin
+    .from("subscriptions")
+    .select("*")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  const row = (sub as SubscriptionRow | null) ?? null;
+  if (!row) return { ok: false, error: "此單位沒有訂閱" };
+
+  if (mode === "period_end") {
+    try {
+      await getGateway().cancelAtPeriodEnd(row.gateway_sub_id);
+      await writeAuditLog(admin, {
+        actor_id: userId,
+        actor_role: "super_admin",
+        action: "sub.cancelled_by_admin",
+        target_org_id: orgId,
+        meta: { mode },
+      });
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : "cancel_failed",
+      };
+    }
+  } else {
+    const nowIso = new Date().toISOString();
+    const { error: subErr } = await admin
+      .from("subscriptions")
+      .update({
+        status: "cancelled",
+        current_period_end: nowIso,
+        cancel_at_period_end: true,
+        cancelled_at: nowIso,
+        scheduled_plan: "trial",
+      })
+      .eq("id", row.id);
+    if (subErr) {
+      return { ok: false, error: toUserMessage(subErr, "更新訂閱失敗") };
+    }
+    await writeAuditLog(admin, {
+      actor_id: userId,
+      actor_role: "super_admin",
+      action: "sub.cancelled_by_admin",
+      target_org_id: orgId,
+      meta: { mode },
+    });
+  }
+
   revalidatePath("/super-admin");
   revalidatePath("/super-admin/organizations");
   revalidatePath("/super-admin/subscriptions");
   revalidatePath("/billing");
-  revalidatePath("/");
+  return { ok: true };
+}
+
+/**
+ * Push out the trial deadline by `days`. The new deadline is
+ * `max(now, trial_ends_at) + days`, so extending an already-expired trial
+ * counts from today (no retroactive credit).
+ */
+export async function extendOrganizationTrial(
+  orgId: string,
+  days: number,
+): Promise<{ ok: true; newTrialEndsAt: string } | { ok: false; error: string }> {
+  const { userId } = await assertSuperAdmin();
+  const n = Math.floor(Number(days));
+  if (!Number.isFinite(n) || n <= 0) {
+    return { ok: false, error: "天數需為 > 0 的整數" };
+  }
+  if (n > 365) {
+    return { ok: false, error: "單次最多 365 天" };
+  }
+  const admin = createAdminClient();
+  const { data: org } = await admin
+    .from("organizations")
+    .select("plan, trial_ends_at")
+    .eq("id", orgId)
+    .maybeSingle();
+  if (!org) return { ok: false, error: "找不到單位" };
+  if (org.plan === "pro") {
+    return { ok: false, error: "Pro 單位不需要延長試用" };
+  }
+
+  const now = Date.now();
+  const base = org.trial_ends_at
+    ? Math.max(now, new Date(org.trial_ends_at).getTime())
+    : now;
+  const next = new Date(base + n * 24 * 60 * 60 * 1000);
+
+  const { error } = await admin
+    .from("organizations")
+    .update({ trial_ends_at: next.toISOString() })
+    .eq("id", orgId);
+  if (error) {
+    return { ok: false, error: toUserMessage(error, "延長失敗") };
+  }
+
+  await writeAuditLog(admin, {
+    actor_id: userId,
+    actor_role: "super_admin",
+    action: "trial.extended",
+    target_org_id: orgId,
+    meta: {
+      days: n,
+      from: org.trial_ends_at,
+      to: next.toISOString(),
+    },
+  });
+
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/organizations");
+  return { ok: true, newTrialEndsAt: next.toISOString() };
+}
+
+/**
+ * Immediately end an org's trial — sets `trial_ends_at = now`, which puts
+ * `isOrgLocked()` into the "expired_trial" branch on the next request. Useful
+ * for support flows where we want to stop free use right now (no period_end
+ * grace). Refuses Pro orgs (use `cancelOrganizationSubscription` instead).
+ */
+export async function endOrganizationTrial(
+  orgId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { userId } = await assertSuperAdmin();
+  const admin = createAdminClient();
+  const { data: org } = await admin
+    .from("organizations")
+    .select("plan, trial_ends_at")
+    .eq("id", orgId)
+    .maybeSingle();
+  if (!org) return { ok: false, error: "找不到單位" };
+  if (org.plan === "pro") {
+    return { ok: false, error: "Pro 單位請改用「取消付費」" };
+  }
+
+  const nowIso = new Date().toISOString();
+  const { error } = await admin
+    .from("organizations")
+    .update({ trial_ends_at: nowIso })
+    .eq("id", orgId);
+  if (error) {
+    return { ok: false, error: toUserMessage(error, "結束試用失敗") };
+  }
+
+  await writeAuditLog(admin, {
+    actor_id: userId,
+    actor_role: "super_admin",
+    action: "trial.ended_by_admin",
+    target_org_id: orgId,
+    meta: { from: org.trial_ends_at, to: nowIso },
+  });
+
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/organizations");
+  return { ok: true };
+}
+
+/**
+ * Reset an org back to a fresh-trial state — as if it had just been approved.
+ *
+ *   - Deletes the subscription row (payments.subscription_id is
+ *     `ON DELETE SET NULL` so payment history is preserved for audit).
+ *   - Sets `plan = 'trial'` (defensive, in case a Pro org is being reset).
+ *   - Sets `trial_ends_at = now + global trial_days`.
+ *
+ * Unlike `extendOrganizationTrial`, this OVERWRITES — it does not stack on
+ * the existing deadline. Used for demo refresh, customer rescue, or test
+ * harnesses that want to re-run the trial flow.
+ */
+export async function resetOrganizationTrial(
+  orgId: string,
+): Promise<{ ok: true; newTrialEndsAt: string } | { ok: false; error: string }> {
+  const { userId } = await assertSuperAdmin();
+  const admin = createAdminClient();
+  const { data: org } = await admin
+    .from("organizations")
+    .select("plan, trial_ends_at")
+    .eq("id", orgId)
+    .maybeSingle();
+  if (!org) return { ok: false, error: "找不到單位" };
+
+  const { trialDays } = await loadAppSettings(admin);
+  const next = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
+
+  // 1) Wipe the subscription. `payments.subscription_id` is ON DELETE SET NULL
+  // so payment history rows survive (just lose their FK).
+  const { error: subErr } = await admin
+    .from("subscriptions")
+    .delete()
+    .eq("organization_id", orgId);
+  if (subErr) {
+    return { ok: false, error: toUserMessage(subErr, "刪除訂閱失敗") };
+  }
+
+  // 2) Reset plan + trial deadline to brand-new-account state.
+  const { error } = await admin
+    .from("organizations")
+    .update({ plan: "trial", trial_ends_at: next.toISOString() })
+    .eq("id", orgId);
+  if (error) {
+    return { ok: false, error: toUserMessage(error, "重置試用失敗") };
+  }
+
+  await writeAuditLog(admin, {
+    actor_id: userId,
+    actor_role: "super_admin",
+    action: "trial.reset_by_admin",
+    target_org_id: orgId,
+    meta: {
+      days: trialDays,
+      from_plan: org.plan,
+      from_trial_ends_at: org.trial_ends_at,
+      to_trial_ends_at: next.toISOString(),
+    },
+  });
+
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/organizations");
+  revalidatePath("/super-admin/subscriptions");
+  revalidatePath("/billing");
+  return { ok: true, newTrialEndsAt: next.toISOString() };
+}
+
+/**
+ * Update the global default trial length used by `approveOrganization`. Does
+ * not retroactively change existing trials.
+ */
+export async function setTrialDays(
+  days: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { userId } = await assertSuperAdmin();
+  const n = Math.floor(Number(days));
+  if (!Number.isFinite(n) || n <= 0) {
+    return { ok: false, error: "天數需為 > 0 的整數" };
+  }
+  if (n > 365) {
+    return { ok: false, error: "最多 365 天" };
+  }
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("app_settings")
+    .upsert(
+      {
+        key: "trial_days",
+        value: n,
+        updated_at: new Date().toISOString(),
+        updated_by: userId,
+      },
+      { onConflict: "key" },
+    );
+  if (error) {
+    return { ok: false, error: toUserMessage(error, "儲存失敗") };
+  }
+  invalidateAppSettingsCache();
+  await writeAuditLog(admin, {
+    actor_id: userId,
+    actor_role: "super_admin",
+    action: "settings.trial_days_changed",
+    target_org_id: null,
+    meta: { days: n },
+  });
+  revalidatePath("/super-admin/settings");
   return { ok: true };
 }
 
 export async function setOrganizationBypassQuota(
   orgId: string,
-  bypass: boolean
+  bypass: boolean,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { userId } = await assertSuperAdmin();
   const admin = createAdminClient();
@@ -321,104 +614,47 @@ export async function setOrganizationBypassQuota(
   return { ok: true };
 }
 
-export type UpdatePlanConfigInput = {
-  aiQuota: number;
-  bookQuota: number;
+export type UpdatePlanPriceInput = {
   monthlyPrice: number;
 };
 
 /**
- * Updates the editable quota / price for a single plan tier. The Pro tier
- * cannot be set lower than Plus (and Plus lower than Free) on any axis —
- * preserves the invariant the UI relies on for upgrade/downgrade arrows.
- * Writes are audit-logged and the in-process cache in `lib/plans.ts` is
- * invalidated so the same instance picks up the change immediately.
+ * Updates the editable monthly price of the single paid tier. Only `pro` is a
+ * valid plan after the 2026-05 simplification; the function still accepts a
+ * plan param for symmetry but rejects anything else.
  */
-export async function updatePlanConfig(
-  plan: OrgPlan,
-  input: UpdatePlanConfigInput,
+export async function updatePlanPrice(
+  plan: "pro",
+  input: UpdatePlanPriceInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { userId } = await assertSuperAdmin();
-  if (!PLAN_ORDER.includes(plan)) {
+  if (plan !== "pro") {
     return { ok: false, error: "不支援的方案" };
   }
 
-  const aiQuota = Math.floor(Number(input.aiQuota));
-  const bookQuota = Math.floor(Number(input.bookQuota));
   const monthlyPrice = Math.floor(Number(input.monthlyPrice));
-  if (!Number.isFinite(aiQuota) || aiQuota < 0) {
-    return { ok: false, error: "AI 配額需為 ≥ 0 的整數" };
-  }
-  if (!Number.isFinite(bookQuota) || bookQuota < 0) {
-    return { ok: false, error: "館藏配額需為 ≥ 0 的整數" };
-  }
   if (!Number.isFinite(monthlyPrice) || monthlyPrice < 0) {
     return { ok: false, error: "價格需為 ≥ 0 的整數" };
   }
-  if (plan === "free" && monthlyPrice !== 0) {
-    return { ok: false, error: "Free 方案價格必須為 0" };
-  }
 
   const admin = createAdminClient();
-
-  // Fetch all rows so we can enforce free < plus < pro on every axis.
-  const { data: rows, error: readErr } = await admin
+  const { data: before } = await admin
     .from("plan_configs")
-    .select("*");
-  if (readErr) return { ok: false, error: toUserMessage(readErr, "讀取方案設定失敗") };
-
-  const byPlan = new Map<OrgPlan, { ai_quota: number; book_quota: number; monthly_price: number }>();
-  for (const r of (rows ?? []) as Array<{
-    plan: OrgPlan;
-    ai_quota: number;
-    book_quota: number;
-    monthly_price: number;
-  }>) {
-    byPlan.set(r.plan, {
-      ai_quota: r.ai_quota,
-      book_quota: r.book_quota,
-      monthly_price: r.monthly_price,
-    });
-  }
-
-  const before = byPlan.get(plan) ?? null;
-  const candidate = {
-    ai_quota: aiQuota,
-    book_quota: bookQuota,
-    monthly_price: monthlyPrice,
-  };
-
-  const orderCheck = ["ai_quota", "book_quota", "monthly_price"] as const;
-  const enforceOrder = (lower: OrgPlan, higher: OrgPlan): string | null => {
-    const lo = lower === plan ? candidate : byPlan.get(lower);
-    const hi = higher === plan ? candidate : byPlan.get(higher);
-    if (!lo || !hi) return null;
-      for (const key of orderCheck) {
-      if (hi[key] < lo[key]) {
-        const labels: Record<typeof key, string> = {
-          ai_quota: "AI 配額",
-          book_quota: "館藏配額",
-          monthly_price: "價格",
-        };
-        return `${labels[key]} 必須 ${planLabel(higher)} ≥ ${planLabel(lower)}`;
-      }
-    }
-    return null;
-  };
-  const violation = enforceOrder("free", "plus") ?? enforceOrder("plus", "pro");
-  if (violation) return { ok: false, error: violation };
+    .select("monthly_price")
+    .eq("plan", "pro")
+    .maybeSingle();
 
   const { error: writeErr } = await admin
     .from("plan_configs")
     .update({
-      ai_quota: aiQuota,
-      book_quota: bookQuota,
       monthly_price: monthlyPrice,
       updated_at: new Date().toISOString(),
       updated_by: userId,
     })
-    .eq("plan", plan);
-  if (writeErr) return { ok: false, error: toUserMessage(writeErr, "儲存方案設定失敗") };
+    .eq("plan", "pro");
+  if (writeErr) {
+    return { ok: false, error: toUserMessage(writeErr, "儲存方案設定失敗") };
+  }
 
   await writeAuditLog(admin, {
     actor_id: userId,
@@ -427,15 +663,12 @@ export async function updatePlanConfig(
     target_org_id: null,
     meta: {
       plan,
-      before,
-      after: candidate,
+      before: before?.monthly_price ?? null,
+      after: monthlyPrice,
     },
   });
 
-  // Drop the in-process cache so this instance reads fresh values on the
-  // next request. Other instances pick up after the 60s TTL elapses.
   invalidatePlanConfigsCache();
-
   revalidatePath("/super-admin");
   revalidatePath("/super-admin/plans");
   revalidatePath("/super-admin/organizations");
@@ -444,8 +677,105 @@ export async function updatePlanConfig(
   return { ok: true };
 }
 
-function planLabel(plan: OrgPlan): string {
-  return plan === "free" ? "Free" : plan === "plus" ? "Plus" : "Pro";
+/**
+ * Permanently delete an organization and all its data.
+ *
+ * Order of operations:
+ *   1. Wipe storage objects under `book-covers/{orgId}/` (paginated; storage
+ *      has no CASCADE).
+ *   2. Write the audit log row BEFORE the delete — `audit_logs.target_org_id`
+ *      has `ON DELETE SET NULL`, so the log row survives but loses the FK.
+ *   3. Delete the `organizations` row. All children
+ *      (books, subscriptions, payments, profiles, ai_usage_logs, …) cascade.
+ *   4. Delete the Supabase auth user that owned the org (no CASCADE between
+ *      `auth.users` and `public.profiles`/`organizations`).
+ *
+ * Caller must pass the org name as `confirmName` (typed in the UI) to avoid
+ * accidental clicks — this is irreversible.
+ */
+export async function deleteOrganization(
+  orgId: string,
+  confirmName: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { userId } = await assertSuperAdmin();
+  const admin = createAdminClient();
+
+  const { data: org, error: readErr } = await admin
+    .from("organizations")
+    .select("id, name, owner_user_id")
+    .eq("id", orgId)
+    .maybeSingle();
+  if (readErr || !org) {
+    return { ok: false, error: toUserMessage(readErr, "找不到單位") };
+  }
+  if (confirmName.trim() !== org.name) {
+    return { ok: false, error: "確認字串不符合單位名稱" };
+  }
+
+  // 1) Storage: page through book-covers/{orgId}/ and remove in batches.
+  // Pagination protects against orgs with > 1000 book covers.
+  const PAGE = 1000;
+  for (;;) {
+    const { data: files, error: listErr } = await admin.storage
+      .from("book-covers")
+      .list(orgId, { limit: PAGE });
+    if (listErr) {
+      console.error("[deleteOrganization] storage list error", listErr);
+      break; // best-effort; continue to DB delete
+    }
+    if (!files || files.length === 0) break;
+    const paths = files.map((f) => `${orgId}/${f.name}`);
+    const { error: rmErr } = await admin.storage
+      .from("book-covers")
+      .remove(paths);
+    if (rmErr) {
+      console.error("[deleteOrganization] storage remove error", rmErr);
+      break;
+    }
+    if (files.length < PAGE) break;
+  }
+
+  // 2) Audit log written before deletion so `target_org_id` is still valid;
+  // CASCADE on audit_logs sets it to NULL after the delete completes.
+  await writeAuditLog(admin, {
+    actor_id: userId,
+    actor_role: "super_admin",
+    action: "org.deleted_by_admin",
+    target_org_id: orgId,
+    meta: {
+      name: org.name,
+      owner_user_id: org.owner_user_id,
+    },
+  });
+
+  // 3) Delete the org. All FK children CASCADE except audit_logs (SET NULL).
+  const { error: deleteErr } = await admin
+    .from("organizations")
+    .delete()
+    .eq("id", orgId);
+  if (deleteErr) {
+    return { ok: false, error: toUserMessage(deleteErr, "刪除單位失敗") };
+  }
+
+  // 4) Delete the auth user. We log failures but don't rollback — the org
+  // row is gone and the auth user is now an orphan (can be cleaned up
+  // manually if needed).
+  if (org.owner_user_id) {
+    const { error: authErr } = await admin.auth.admin.deleteUser(
+      org.owner_user_id,
+    );
+    if (authErr) {
+      console.error(
+        "[deleteOrganization] auth user delete failed (orphan left)",
+        authErr,
+      );
+    }
+  }
+
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/organizations");
+  revalidatePath("/super-admin/subscriptions");
+  return { ok: true };
 }
 
 export async function superAdminSignOut(): Promise<void> {

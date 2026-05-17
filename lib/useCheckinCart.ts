@@ -4,10 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDateYMD, generateBookId } from "@/lib/bookId";
 import { supabase } from "@/lib/supabase";
-import {
-  QuotaExceededError,
-  isQuotaErrorPayload,
-} from "@/lib/billing/clientErrors";
 
 /**
  * 共用購物車形式的「待入庫書籍」狀態。
@@ -156,12 +152,6 @@ export function useCheckinCart(options?: { redirectIfNoAdmin?: boolean }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (res.status === 402) {
-        const data = await res.json().catch(() => ({}));
-        if (isQuotaErrorPayload(data)) {
-          throw new QuotaExceededError(data);
-        }
-      }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `HTTP ${res.status}`);

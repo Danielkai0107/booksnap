@@ -1,15 +1,17 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isQuotaEnforcedGlobally } from "@/lib/billing/flags";
+import { loadAppSettings } from "@/lib/plans";
 import type { OrganizationRow } from "@/lib/supabase/types";
+import TrialDaysForm from "./TrialDaysForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function SuperAdminSettingsPage() {
-  const enforced = isQuotaEnforcedGlobally();
   const provider = process.env.BILLING_PROVIDER ?? "instant";
 
   const admin = createAdminClient();
+  const { trialDays } = await loadAppSettings(admin, { bypassCache: true });
+
   const { data: bypassRows } = await admin
     .from("organizations")
     .select("id, name, contact_email, plan, bypass_quota")
@@ -27,57 +29,47 @@ export default async function SuperAdminSettingsPage() {
           營運設定
         </h1>
         <p className="mt-2 text-sm text-neutral-500">
-          全域開關與系統狀態。修改 env 後請重新部署。
+          全域開關與系統狀態。試用天數可線上調整，其餘需改 env 並重新部署。
         </p>
       </header>
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-5">
-        <h2 className="text-sm font-medium text-neutral-900">配額硬擋開關</h2>
+        <h2 className="text-sm font-medium text-neutral-900">預設試用天數</h2>
         <p className="mt-1.5 text-xs text-neutral-500 leading-relaxed">
-          控制 <code>/api/recognize</code> 與 <code>/api/books</code> POST
-          是否在用量超出方案配額時回 402；UI 會自動引導使用者升級。
-          要關閉開關但又想留特定單位的權益，請改在「單位管理」勾選免配額。
+          新單位通過審核時，會自動設定試用截止日為「核准日 + N 天」。
+          只影響「之後新核准的單位」；既有單位請改用單位列表上的「延長試用」。
         </p>
-        <div className="mt-4 flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3">
-          <div>
-            <p className="text-sm font-medium text-neutral-900">
-              <code>BILLING_QUOTA_ENFORCED</code>
-            </p>
-            <p className="mt-0.5 text-xs text-neutral-500">
-              目前 env 值（生效需重新部署）
-            </p>
-          </div>
-          <span
-            className={`inline-flex items-center h-[26px] px-3 rounded-full border text-xs font-medium ${
-              enforced
-                ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                : "bg-neutral-100 text-neutral-600 border-neutral-200"
-            }`}
-          >
-            {enforced ? "已啟用" : "已關閉"}
-          </span>
+        <div className="mt-4">
+          <TrialDaysForm initialDays={trialDays} />
         </div>
       </section>
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-5">
-        <h2 className="text-sm font-medium text-neutral-900">金流提供者</h2>
+        <h2 className="text-sm font-medium text-neutral-900">方案與金流</h2>
         <p className="mt-1.5 text-xs text-neutral-500 leading-relaxed">
-          目前由 <code>BILLING_PROVIDER</code> 決定（<code>{provider}</code>
-          ）。<code>instant</code> 代表內部測試金流，按下訂閱即升級不會實際扣款；
-          上線真實金流時請改成 <code>ecpay</code> / <code>jkopay</code>
-          並重新部署。
+          目前付費月費由{" "}
+          <Link
+            href="/super-admin/plans"
+            className="text-neutral-900 underline underline-offset-2 hover:no-underline"
+          >
+            方案設定
+          </Link>{" "}
+          管理。金流商由 <code>BILLING_PROVIDER</code> env 決定（
+          <code>{provider}</code>）；<code>instant</code>{" "}
+          代表內部測試金流，按下訂閱即刻啟用、不會實際扣款。上線真實金流時請改成 <code>ecpay</code>{" "}
+          / <code>jkopay</code> 並重新部署。
         </p>
       </section>
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-5">
         <h2 className="text-sm font-medium text-neutral-900">
-          免配額單位（{bypassOrgs.length}）
+          免鎖單位（{bypassOrgs.length}）
         </h2>
         <p className="mt-1.5 text-xs text-neutral-500 leading-relaxed">
-          這些單位不受配額硬擋影響。請至「單位管理」逐筆切換。
+          這些單位不受升級鎖影響，即使試用結束也能無限使用全部功能。請至「單位管理」逐筆切換。
         </p>
         {bypassOrgs.length === 0 ? (
-          <p className="mt-4 text-sm text-neutral-400">目前沒有免配額單位。</p>
+          <p className="mt-4 text-sm text-neutral-400">目前沒有免鎖單位。</p>
         ) : (
           <ul className="mt-4 space-y-2">
             {bypassOrgs.map((o) => (

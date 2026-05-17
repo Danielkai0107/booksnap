@@ -1,59 +1,41 @@
 /**
- * Single source of truth for plan metadata, monthly/total quotas, and billing-anchored period math.
+ * Single source of truth for plan metadata, the paid price, and
+ * billing-anchored period math.
  *
- * Quotas are enforced server-side in `/api/recognize` and `/api/books` POST when
- * `BILLING_QUOTA_ENFORCED=true` and the org has `bypass_quota=false`. See
- * `lib/billing/flags.ts`. Both the sidebar and the super-admin pages call into
- * this module so the displayed quota / pill label stay consistent whenever we
- * tweak the limits or add a new tier.
+ * 2026-05 simplification: the multi-tier free/plus/pro model was collapsed
+ * to a single paid tier (`pro`) plus a free `trial` state. Quotas no longer
+ * exist; the upgrade gate is binary (`isOrgLocked` in `lib/billing/lock.ts`).
  *
- * Numbers (quotas + prices) live in the `plan_configs` table and are loaded
- * via `loadPlanConfigs()` below; PLAN_QUOTAS / PLAN_PRICE remain as fallback
- * defaults when the DB is unreachable. PLAN_META is hard-coded UI metadata
- * (label / pill colour) — not user-tunable.
+ * The paid price lives in the `plan_configs` table (still editable via the
+ * super-admin plans page); other tunables (default trial days) live in
+ * `app_settings`. Both are cached in-process for 60s.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "./supabase/admin";
 import type {
-  OrgPlan,
   OrganizationRow,
+  OrgPlan,
+  PaidPlan,
   SubscriptionRow,
 } from "./supabase/types";
 
 export type { OrgPlan } from "./supabase/types";
 
 /**
- * Tier ordering, from lowest to highest. Pro is intentionally the top tier
- * (more expensive, larger quotas); Plus is the entry-level paid tier. Keep
- * this in sync with PLAN_QUOTAS / PLAN_PRICE below.
+ * Tier ordering used by UI helpers. Only `trial` and `pro` exist now.
  */
-export const PLAN_ORDER: readonly OrgPlan[] = ["free", "plus", "pro"] as const;
+export const PLAN_ORDER: readonly OrgPlan[] = ["trial", "pro"] as const;
 
-export type PlanQuotaConfig = { ai: number; books: number };
 export type PlanPriceConfig = { monthly: number; label: string };
-
-/**
- * Hard-coded fallback values, also used to seed the `plan_configs` table.
- * Keep in sync with the migration `add_plan_configs_table`.
- */
-export const PLAN_QUOTAS: Record<OrgPlan, PlanQuotaConfig> = {
-  free: { ai: 20, books: 100 },
-  plus: { ai: 200, books: 500 },
-  pro: { ai: 1000, books: 3000 },
-};
 
 export const PLAN_META: Record<
   OrgPlan,
   { label: string; pillClass: string }
 > = {
-  free: {
-    label: "Free",
-    pillClass: "bg-neutral-100 text-neutral-700 border-neutral-200",
-  },
-  plus: {
-    label: "Plus",
-    pillClass: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  trial: {
+    label: "試用中",
+    pillClass: "bg-amber-50 text-amber-700 border-amber-100",
   },
   pro: {
     label: "Pro",
@@ -62,86 +44,131 @@ export const PLAN_META: Record<
 };
 
 /**
- * Monthly subscription prices in TWD. Plus is the entry paid tier; Pro is the
- * top tier. The label is rendered as-is on the upgrade modal & billing page.
+ * Hard-coded fallback prices, used to seed `plan_configs` and as a safety net
+ * when the DB is unreachable. Keep in sync with the migration.
  */
 export const PLAN_PRICE: Record<OrgPlan, PlanPriceConfig> = {
-  free: { monthly: 0, label: "免費" },
-  plus: { monthly: 299, label: "NT$ 299／月" },
-  pro: { monthly: 999, label: "NT$ 999／月" },
+  trial: { monthly: 0, label: "免費試用" },
+  pro: { monthly: 990, label: "NT$ 990／月" },
 };
 
 export type PlanConfigs = {
-  quotas: Record<OrgPlan, PlanQuotaConfig>;
+  /** Single editable paid price; trial is always 0. */
   prices: Record<OrgPlan, PlanPriceConfig>;
 };
 
+export type AppSettings = {
+  /** Default trial length applied at org approval. Editable in super-admin settings. */
+  trialDays: number;
+};
+
+const DEFAULT_TRIAL_DAYS = 30;
+
 export function formatPriceLabel(plan: OrgPlan, monthly: number): string {
-  if (plan === "free" || monthly === 0) return "免費";
+  if (plan === "trial" || monthly === 0) return "免費試用";
   return `NT$ ${monthly.toLocaleString()}／月`;
 }
 
-const FALLBACK_PLAN_CONFIGS: PlanConfigs = {
-  quotas: PLAN_QUOTAS,
-  prices: PLAN_PRICE,
-};
+const FALLBACK_PLAN_CONFIGS: PlanConfigs = { prices: PLAN_PRICE };
+const FALLBACK_APP_SETTINGS: AppSettings = { trialDays: DEFAULT_TRIAL_DAYS };
 
-type CacheEntry = { value: PlanConfigs; loadedAt: number };
-let cached: CacheEntry | null = null;
+type CacheEntry<T> = { value: T; loadedAt: number };
 const CACHE_TTL_MS = 60 * 1000;
 
+let planCache: CacheEntry<PlanConfigs> | null = null;
+let settingsCache: CacheEntry<AppSettings> | null = null;
+
 /**
- * Reads `plan_configs` once per process and caches for 60s. Super-admin edits
- * call `invalidatePlanConfigsCache()` so the same instance picks up changes
- * immediately. Other instances (in a multi-pod deployment) see them after the
- * TTL — acceptable for plan-tuning operations which are rare and reversible.
- *
- * If the DB is unreachable or the table is empty, falls back to the
- * hardcoded `PLAN_QUOTAS` / `PLAN_PRICE` constants so the app keeps serving.
+ * Reads the single `pro` row from `plan_configs`. Returns fallback prices when
+ * the row is missing or the DB is unreachable so the app keeps serving.
  */
 export async function loadPlanConfigs(
   client?: SupabaseClient,
   options?: { bypassCache?: boolean },
 ): Promise<PlanConfigs> {
-  if (!options?.bypassCache && cached) {
-    if (Date.now() - cached.loadedAt < CACHE_TTL_MS) return cached.value;
+  if (!options?.bypassCache && planCache) {
+    if (Date.now() - planCache.loadedAt < CACHE_TTL_MS) return planCache.value;
   }
 
   const admin = client ?? createAdminClient();
-  const { data, error } = await admin.from("plan_configs").select("*");
-  if (error || !data || data.length === 0) {
+  const { data, error } = await admin
+    .from("plan_configs")
+    .select("plan, monthly_price")
+    .eq("plan", "pro")
+    .maybeSingle();
+  if (error || !data) {
     if (error) console.warn("[plans] loadPlanConfigs error, falling back", error);
     return FALLBACK_PLAN_CONFIGS;
   }
 
-  const quotas: Record<OrgPlan, PlanQuotaConfig> = { ...PLAN_QUOTAS };
-  const prices: Record<OrgPlan, PlanPriceConfig> = { ...PLAN_PRICE };
-  for (const row of data as Array<{
-    plan: OrgPlan;
-    ai_quota: number;
-    book_quota: number;
-    monthly_price: number;
-  }>) {
-    if (!PLAN_ORDER.includes(row.plan)) continue;
-    quotas[row.plan] = { ai: row.ai_quota, books: row.book_quota };
-    prices[row.plan] = {
+  const row = data as { plan: PaidPlan; monthly_price: number };
+  const prices: Record<OrgPlan, PlanPriceConfig> = {
+    trial: PLAN_PRICE.trial,
+    pro: {
       monthly: row.monthly_price,
-      label: formatPriceLabel(row.plan, row.monthly_price),
-    };
-  }
-  const value: PlanConfigs = { quotas, prices };
-  cached = { value, loadedAt: Date.now() };
+      label: formatPriceLabel("pro", row.monthly_price),
+    },
+  };
+  const value: PlanConfigs = { prices };
+  planCache = { value, loadedAt: Date.now() };
   return value;
 }
 
 export function invalidatePlanConfigsCache(): void {
-  cached = null;
+  planCache = null;
 }
 
 /**
- * Returns the current billing period for an organization, anchored to its activation/creation
- * day-of-month. Handles months whose last day is earlier than the anchor (e.g. anchor day 31 in
- * February) by clamping to the last day of the target month.
+ * Reads tunable runtime settings (currently just `trial_days`). Falls back to
+ * `DEFAULT_TRIAL_DAYS` when the table or row is missing. The super-admin
+ * settings page should call `invalidateAppSettingsCache()` after writes.
+ */
+export async function loadAppSettings(
+  client?: SupabaseClient,
+  options?: { bypassCache?: boolean },
+): Promise<AppSettings> {
+  if (!options?.bypassCache && settingsCache) {
+    if (Date.now() - settingsCache.loadedAt < CACHE_TTL_MS) {
+      return settingsCache.value;
+    }
+  }
+
+  const admin = client ?? createAdminClient();
+  const { data, error } = await admin
+    .from("app_settings")
+    .select("key, value")
+    .eq("key", "trial_days")
+    .maybeSingle();
+  if (error || !data) {
+    if (error) console.warn("[plans] loadAppSettings error, falling back", error);
+    return FALLBACK_APP_SETTINGS;
+  }
+  const row = data as { key: string; value: unknown };
+  const trialDays = coerceTrialDays(row.value) ?? DEFAULT_TRIAL_DAYS;
+  const value: AppSettings = { trialDays };
+  settingsCache = { value, loadedAt: Date.now() };
+  return value;
+}
+
+export function invalidateAppSettingsCache(): void {
+  settingsCache = null;
+}
+
+function coerceTrialDays(raw: unknown): number | null {
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return Math.floor(raw);
+  }
+  if (typeof raw === "string") {
+    const n = parseInt(raw, 10);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
+/**
+ * Returns the current billing period for an organization, anchored to its
+ * activation/creation day-of-month. Clamps months whose last day is earlier
+ * than the anchor (e.g. anchor day 31 in February).
  *
  * Example: anchor 2026-03-17, now 2026-05-10 → [2026-04-17, 2026-05-17)
  * Example: anchor 2026-01-31, now 2026-02-20 → [2026-01-31, 2026-02-28)
@@ -199,17 +226,14 @@ export function getPeriodRange(
 }
 
 /**
- * Returns the *currently effective* plan for an organization, taking the
- * subscription state into account. Used everywhere we display the plan pill
- * or check quota.
+ * Effective plan for an org, taking subscription state into account.
+ * Used to display the pill, drive the lock decision, and surface "you are paid"
+ * vs "you are still trialing" copy.
  *
- * - active / past_due → subscription.plan (paid window still applies)
- * - cancelled but still inside `current_period_end` → subscription.plan
- * - everything else → org.plan (which defaults to 'free' for new orgs)
- *
- * NOTE: callers should pass the org's stored `plan` column too, because the
- * "variance escape hatch" (super admin manually setting plan on org) still
- * needs to work for legacy / VIP rows that don't have a real subscription.
+ *  - active / past_due → `pro` (paid window still applies)
+ *  - cancelled but still inside `current_period_end` → `pro`
+ *  - everything else → org.plan (which is `trial` for non-paid orgs after the
+ *    2026-05 migration)
  */
 export function effectivePlan(
   org: Pick<OrganizationRow, "plan">,
@@ -221,20 +245,17 @@ export function effectivePlan(
   if (subscription.status === "active" || subscription.status === "past_due") {
     return subscription.plan;
   }
-  if (
-    subscription.status === "cancelled" &&
-    periodEnd > now.getTime()
-  ) {
+  if (subscription.status === "cancelled" && periodEnd > now.getTime()) {
     return subscription.plan;
   }
   return org.plan;
 }
 
 /**
- * Returns the current billing period for an organization. If the org has an
- * active subscription, use the subscription's period (paid-day-of-month
- * anchor). Otherwise fall back to the legacy approved_at/created_at anchor so
- * Free-tier counters keep the same monthly behaviour.
+ * Returns the period range used for "this month" stats (e.g. the settings
+ * page's OCR-this-period count). Anchors to the subscription start when paid,
+ * otherwise falls back to the org's approval/creation day so trial orgs still
+ * see a monthly counter that rolls over predictably.
  */
 export function getOrgPeriod(
   org: Pick<OrganizationRow, "approved_at" | "created_at">,

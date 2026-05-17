@@ -42,7 +42,7 @@ export default async function SuperAdminDashboard() {
 
   // 方案分布只計入「已通過」的單位 — pending / rejected / suspended 的 plan 沒有實質意義。
   const approvedOrgs = (orgs ?? []).filter((o) => o.status === "approved");
-  const planCounts: Record<OrgPlan, number> = { free: 0, pro: 0, plus: 0 };
+  const planCounts: Record<OrgPlan, number> = { trial: 0, pro: 0 };
   for (const o of approvedOrgs) {
     const p = o.plan as OrgPlan | undefined;
     if (p && p in planCounts) planCounts[p] += 1;
@@ -64,17 +64,14 @@ export default async function SuperAdminDashboard() {
     expired: 0,
     pending: 0,
   };
-  const activePerPlan: Record<Exclude<OrgPlan, "free">, number> = {
-    pro: 0,
-    plus: 0,
-  };
+  let activePro = 0;
   let monthlyNew = 0;
   let monthlyCancelled = 0;
   for (const s of subs) {
     subStatusCounts[s.status] += 1;
     if (s.status === "active" || s.status === "past_due") {
       mrr += prices[s.plan].monthly;
-      activePerPlan[s.plan] += 1;
+      activePro += 1;
     }
     if (new Date(s.started_at).getTime() >= monthStart) {
       monthlyNew += 1;
@@ -142,9 +139,8 @@ export default async function SuperAdminDashboard() {
           <Stat label="本月新訂閱" value={monthlyNew} accent="emerald" />
           <Stat label="本月取消" value={monthlyCancelled} accent="amber" />
         </div>
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat label="Plus 進行中" value={activePerPlan.plus} />
-          <Stat label="Pro 進行中" value={activePerPlan.pro} />
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+          <Stat label="Pro 進行中" value={activePro} />
           <Stat
             label="扣款失敗"
             value={subStatusCounts.past_due}
@@ -159,7 +155,7 @@ export default async function SuperAdminDashboard() {
         <p className="mt-1 text-xs text-neutral-500">
           已通過的單位中，目前各方案的單位數。
         </p>
-        <div className="mt-4 grid grid-cols-3 gap-3">
+        <div className="mt-4 grid grid-cols-2 gap-3">
           {PLAN_ORDER.map((p) => {
             const meta = PLAN_META[p];
             return (

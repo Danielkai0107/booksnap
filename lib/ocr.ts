@@ -1,8 +1,3 @@
-import {
-  QuotaExceededError,
-  isQuotaErrorPayload,
-} from "./billing/clientErrors";
-
 export type RecognizeResult = {
   title: string;
   category: string | null;
@@ -15,15 +10,14 @@ export type RecognizeResult = {
  * Default engine: Anthropic Claude vision (高準確率，對中文書封表現最佳)。
  * 若提供 `categories`，Claude 會從清單中挑選最合適的分類。
  *
- * Errors:
- *  - 402 (quota): throws `QuotaExceededError`. Caller should show the upgrade
- *    prompt and stop the scan loop.
- *  - other failures: returns empty title (legacy behaviour) so the user can
- *    still type a title manually.
+ * Errors are always swallowed — caller treats them as "empty title", so the
+ * user can simply type the title manually. Server-side lock checks return 403
+ * which we also treat as empty (the outer UI should have already blocked the
+ * scan page, so this path is purely defensive).
  */
 export async function recognizeBookCover(
   imageBase64: string,
-  categories?: string[]
+  categories?: string[],
 ): Promise<RecognizeResult> {
   try {
     const response = await fetch("/api/recognize", {
@@ -31,12 +25,6 @@ export async function recognizeBookCover(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageBase64, categories: categories ?? [] }),
     });
-    if (response.status === 402) {
-      const data = await response.json().catch(() => ({}));
-      if (isQuotaErrorPayload(data)) {
-        throw new QuotaExceededError(data);
-      }
-    }
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       console.warn("[ocr] /api/recognize not ok", response.status, data);
@@ -54,7 +42,6 @@ export async function recognizeBookCover(
       source: data.source ?? "claude",
     };
   } catch (err) {
-    if (err instanceof QuotaExceededError) throw err;
     console.error("[ocr] recognize request failed", err);
     return { title: "", category: null, source: "claude" };
   }

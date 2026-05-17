@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
 import {
   approveOrganization,
@@ -10,26 +11,27 @@ import {
   resetOrganizationPassword,
   setOrganizationBypassQuota,
   updateOrganization,
-  updateOrganizationPlan,
+  grantPaidSubscription,
+  cancelOrganizationSubscription,
+  extendOrganizationTrial,
+  endOrganizationTrial,
+  resetOrganizationTrial,
+  deleteOrganization,
 } from "../../actions";
 import type { OrgPlan, OrgStatus } from "@/lib/supabase/types";
-import {
-  PLAN_META,
-  PLAN_ORDER,
-  type PlanQuotaConfig,
-} from "@/lib/plans";
+import type { TrialState } from "@/lib/billing/lock";
 
 type Props = {
   orgId: string;
   orgName: string;
   status: OrgStatus;
   plan: OrgPlan;
+  trialState: TrialState;
+  trialEndsAt: string | null;
   city: string;
   contactEmail: string;
   contactPhone: string;
   bypassQuota: boolean;
-  /** Live quotas from `plan_configs`, surfaced inside the plan dialog. */
-  allQuotas: Record<OrgPlan, PlanQuotaConfig>;
 };
 
 type DialogKind =
@@ -37,8 +39,13 @@ type DialogKind =
   | "suspend"
   | "reset"
   | "edit"
-  | "plan"
+  | "grant"
+  | "cancel"
+  | "extend"
+  | "endTrial"
+  | "resetTrial"
   | "bypass"
+  | "delete"
   | null;
 
 const CITIES = [
@@ -71,18 +78,24 @@ export default function OrgRowActions({
   orgName,
   status,
   plan,
+  trialState,
+  trialEndsAt,
   city,
   contactEmail,
   contactPhone,
   bypassQuota,
-  allQuotas,
 }: Props) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [dialog, setDialog] = useState<DialogKind>(null);
   const toast = useToast();
 
+  // 關閉 dialog 並強制 client 重新拉伺服器 tree。Server action 雖然有
+  // revalidatePath，但仍偶有 client tree 沒即時更新的情況（看到舊的試用狀態、
+  // 「結束試用」按鈕沒出現），這裡明確 refresh 一次保險。
   function close() {
     setDialog(null);
+    router.refresh();
   }
 
   function reportError(e: unknown) {
@@ -94,6 +107,7 @@ export default function OrgRowActions({
     startTransition(async () => {
       try {
         await approveOrganization(orgId);
+        router.refresh();
       } catch (e) {
         reportError(e);
       }
@@ -104,11 +118,15 @@ export default function OrgRowActions({
     startTransition(async () => {
       try {
         await reactivateOrganization(orgId);
+        router.refresh();
       } catch (e) {
         reportError(e);
       }
     });
   }
+
+  const isPaid = trialState === "paid" || trialState === "cancelled_in_period";
+  const isTrial = plan === "trial";
 
   return (
     <div className="flex flex-wrap gap-2 shrink-0">
@@ -127,11 +145,42 @@ export default function OrgRowActions({
           <SecondaryBtn onClick={() => setDialog("edit")} disabled={pending}>
             編輯
           </SecondaryBtn>
-          <SecondaryBtn onClick={() => setDialog("plan")} disabled={pending}>
-            變更方案
-          </SecondaryBtn>
+          {isTrial && !isPaid && (
+            <PrimaryBtn onClick={() => setDialog("grant")} disabled={pending}>
+              啟用付費
+            </PrimaryBtn>
+          )}
+          {isTrial && (
+            <SecondaryBtn
+              onClick={() => setDialog("extend")}
+              disabled={pending}
+            >
+              延長試用
+            </SecondaryBtn>
+          )}
+          {isTrial && (
+            <SecondaryBtn
+              onClick={() => setDialog("resetTrial")}
+              disabled={pending}
+            >
+              重置試用
+            </SecondaryBtn>
+          )}
+          {isTrial && trialState === "active_trial" && (
+            <DangerBtn onClick={() => setDialog("endTrial")} disabled={pending}>
+              結束試用
+            </DangerBtn>
+          )}
+          {isPaid && (
+            <SecondaryBtn
+              onClick={() => setDialog("cancel")}
+              disabled={pending}
+            >
+              取消付費
+            </SecondaryBtn>
+          )}
           <SecondaryBtn onClick={() => setDialog("bypass")} disabled={pending}>
-            {bypassQuota ? "取消免配額" : "免配額"}
+            {bypassQuota ? "取消免鎖" : "設為免鎖"}
           </SecondaryBtn>
           <SecondaryBtn onClick={() => setDialog("reset")} disabled={pending}>
             重設密碼
@@ -146,6 +195,15 @@ export default function OrgRowActions({
           重新啟用
         </PrimaryBtn>
       )}
+      {/* 註銷適用所有狀態；pending 也可註銷（不留爛 row）。
+          按鈕一律最後一顆，分隔線製造視覺距離避免誤觸。 */}
+      <span
+        aria-hidden
+        className="self-stretch w-px bg-neutral-200 mx-1"
+      />
+      <DangerBtn onClick={() => setDialog("delete")} disabled={pending}>
+        註銷
+      </DangerBtn>
 
       {dialog === "reject" && (
         <Modal title={`退回「${orgName}」？`} onClose={close}>
@@ -172,12 +230,41 @@ export default function OrgRowActions({
           />
         </Modal>
       )}
-      {dialog === "plan" && (
-        <Modal title={`變更「${orgName}」的方案`} onClose={close}>
-          <PlanDialog
+      {dialog === "grant" && (
+        <Modal title={`啟用「${orgName}」的付費`} onClose={close}>
+          <GrantDialog orgId={orgId} onDone={close} onError={reportError} />
+        </Modal>
+      )}
+      {dialog === "cancel" && (
+        <Modal title={`取消「${orgName}」的付費`} onClose={close}>
+          <CancelDialog orgId={orgId} onDone={close} onError={reportError} />
+        </Modal>
+      )}
+      {dialog === "extend" && (
+        <Modal title={`延長「${orgName}」的試用`} onClose={close}>
+          <ExtendDialog
             orgId={orgId}
-            current={plan}
-            allQuotas={allQuotas}
+            trialEndsAt={trialEndsAt}
+            onDone={close}
+            onError={reportError}
+          />
+        </Modal>
+      )}
+      {dialog === "endTrial" && (
+        <Modal title={`立即結束「${orgName}」的試用？`} onClose={close}>
+          <EndTrialDialog
+            orgId={orgId}
+            trialEndsAt={trialEndsAt}
+            onDone={close}
+            onError={reportError}
+          />
+        </Modal>
+      )}
+      {dialog === "resetTrial" && (
+        <Modal title={`重置「${orgName}」的試用期？`} onClose={close}>
+          <ResetTrialDialog
+            orgId={orgId}
+            trialEndsAt={trialEndsAt}
             onDone={close}
             onError={reportError}
           />
@@ -187,8 +274,8 @@ export default function OrgRowActions({
         <Modal
           title={
             bypassQuota
-              ? `取消「${orgName}」的免配額？`
-              : `將「${orgName}」設為免配額？`
+              ? `取消「${orgName}」的免鎖？`
+              : `將「${orgName}」設為免鎖？`
           }
           onClose={close}
         >
@@ -200,7 +287,297 @@ export default function OrgRowActions({
           />
         </Modal>
       )}
+      {dialog === "delete" && (
+        <Modal title={`註銷「${orgName}」？`} onClose={close}>
+          <DeleteDialog
+            orgId={orgId}
+            orgName={orgName}
+            onDone={close}
+            onError={reportError}
+          />
+        </Modal>
+      )}
     </div>
+  );
+}
+
+function GrantDialog({
+  orgId,
+  onDone,
+  onError,
+}: {
+  orgId: string;
+  onDone: () => void;
+  onError: (m: string) => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <>
+      <p className="text-sm text-neutral-600 leading-relaxed">
+        將為此單位開啟 Pro 訂閱，走內部金流接口（與一般升級相同路徑），並寫入
+        audit log。常用於 demo / 朋友／VIP。
+      </p>
+      <div className="mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-800 leading-relaxed">
+        ⚠ 此操作會
+        <strong>不經過真正金流商扣款</strong>
+        ，僅在後台建立訂閱與 payment 紀錄。
+      </div>
+      <div className="mt-5 flex gap-2 justify-end">
+        <SecondaryBtn onClick={onDone} disabled={pending}>
+          取消
+        </SecondaryBtn>
+        <PrimaryBtn
+          onClick={() => {
+            startTransition(async () => {
+              const res = await grantPaidSubscription(orgId);
+              if (res.ok) onDone();
+              else onError(res.error);
+            });
+          }}
+          disabled={pending}
+        >
+          {pending ? "處理中…" : "啟用付費"}
+        </PrimaryBtn>
+      </div>
+    </>
+  );
+}
+
+function CancelDialog({
+  orgId,
+  onDone,
+  onError,
+}: {
+  orgId: string;
+  onDone: () => void;
+  onError: (m: string) => void;
+}) {
+  const [mode, setMode] = useState<"period_end" | "immediate">("period_end");
+  const [pending, startTransition] = useTransition();
+  return (
+    <>
+      <p className="text-sm text-neutral-600 leading-relaxed">
+        選擇取消方式。到期取消保留使用權至本期結束；立即取消會立刻停權，常用於退款／詐欺處理。
+      </p>
+      <div className="mt-4 space-y-2">
+        <ModeOption
+          checked={mode === "period_end"}
+          onCheck={() => setMode("period_end")}
+          title="到期取消"
+          desc="到下次扣款日才停權；使用者仍可繼續操作至到期日。"
+        />
+        <ModeOption
+          checked={mode === "immediate"}
+          onCheck={() => setMode("immediate")}
+          title="立即取消"
+          desc="馬上把訂閱期截斷，effective plan 立即降回試用狀態。"
+        />
+      </div>
+      <div className="mt-5 flex gap-2 justify-end">
+        <SecondaryBtn onClick={onDone} disabled={pending}>
+          返回
+        </SecondaryBtn>
+        <DangerBtn
+          onClick={() => {
+            startTransition(async () => {
+              const res = await cancelOrganizationSubscription(orgId, mode);
+              if (res.ok) onDone();
+              else onError(res.error);
+            });
+          }}
+          disabled={pending}
+        >
+          {pending ? "處理中…" : "確認取消"}
+        </DangerBtn>
+      </div>
+    </>
+  );
+}
+
+function ModeOption({
+  checked,
+  onCheck,
+  title,
+  desc,
+}: {
+  checked: boolean;
+  onCheck: () => void;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onCheck}
+      className={`w-full text-left px-4 py-3 rounded-xl border transition ${
+        checked
+          ? "border-neutral-900 bg-neutral-50"
+          : "border-neutral-200 hover:border-neutral-400"
+      }`}
+    >
+      <p className="text-sm font-medium text-neutral-900">{title}</p>
+      <p className="mt-0.5 text-xs text-neutral-500 leading-relaxed">{desc}</p>
+    </button>
+  );
+}
+
+function ExtendDialog({
+  orgId,
+  trialEndsAt,
+  onDone,
+  onError,
+}: {
+  orgId: string;
+  trialEndsAt: string | null;
+  onDone: () => void;
+  onError: (m: string) => void;
+}) {
+  const [days, setDays] = useState("7");
+  const [pending, startTransition] = useTransition();
+  const n = Number(days);
+  const valid = Number.isFinite(n) && n > 0 && n <= 365;
+  return (
+    <>
+      <p className="text-sm text-neutral-600 leading-relaxed">
+        延長後的新試用截止日為「
+        <strong>max(今天, 目前試用結束) + N 天</strong>
+        」。已過期的試用會從今天起算，不會回溯補償。
+      </p>
+      {trialEndsAt && (
+        <p className="mt-2 text-xs text-neutral-500">
+          目前試用截止：{new Date(trialEndsAt).toLocaleString("zh-TW")}
+        </p>
+      )}
+      <label className="mt-4 block">
+        <span className="text-xs text-neutral-500">延長天數</span>
+        <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 h-10">
+          <input
+            type="number"
+            min={1}
+            max={365}
+            value={days}
+            onChange={(e) => setDays(e.target.value)}
+            className="w-full bg-transparent text-sm tabular-nums outline-none"
+          />
+          <span className="text-xs text-neutral-500">天</span>
+        </div>
+      </label>
+      <div className="mt-5 flex gap-2 justify-end">
+        <SecondaryBtn onClick={onDone} disabled={pending}>
+          取消
+        </SecondaryBtn>
+        <PrimaryBtn
+          onClick={() => {
+            if (!valid) return;
+            startTransition(async () => {
+              const res = await extendOrganizationTrial(orgId, n);
+              if (res.ok) onDone();
+              else onError(res.error);
+            });
+          }}
+          disabled={pending || !valid}
+        >
+          {pending ? "處理中…" : `延長 ${valid ? n : "?"} 天`}
+        </PrimaryBtn>
+      </div>
+    </>
+  );
+}
+
+function EndTrialDialog({
+  orgId,
+  trialEndsAt,
+  onDone,
+  onError,
+}: {
+  orgId: string;
+  trialEndsAt: string | null;
+  onDone: () => void;
+  onError: (m: string) => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <>
+      <p className="text-sm text-neutral-600 leading-relaxed">
+        把試用截止時間設為「現在」，下一次請求就會被鎖。常用於暫停免費使用、要求對方升級或停用。
+      </p>
+      {trialEndsAt && (
+        <p className="mt-2 text-xs text-neutral-500">
+          目前試用截止：{new Date(trialEndsAt).toLocaleString("zh-TW")}
+        </p>
+      )}
+      <div className="mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-800 leading-relaxed">
+        ⚠ 不會刪除既有資料；單位仍可登入預覽，只是新書入庫／借閱連結會被擋下。
+      </div>
+      <div className="mt-5 flex gap-2 justify-end">
+        <SecondaryBtn onClick={onDone} disabled={pending}>
+          取消
+        </SecondaryBtn>
+        <DangerBtn
+          onClick={() => {
+            startTransition(async () => {
+              const res = await endOrganizationTrial(orgId);
+              if (res.ok) onDone();
+              else onError(res.error);
+            });
+          }}
+          disabled={pending}
+        >
+          {pending ? "處理中…" : "立即結束試用"}
+        </DangerBtn>
+      </div>
+    </>
+  );
+}
+
+function ResetTrialDialog({
+  orgId,
+  trialEndsAt,
+  onDone,
+  onError,
+}: {
+  orgId: string;
+  trialEndsAt: string | null;
+  onDone: () => void;
+  onError: (m: string) => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <>
+      <p className="text-sm text-neutral-600 leading-relaxed">
+        把單位回復到「剛核准的乾淨狀態」：
+      </p>
+      <ul className="mt-2 text-xs text-neutral-600 leading-relaxed space-y-0.5 list-disc list-inside">
+        <li>刪除目前訂閱列（付款紀錄會保留作為稽核）</li>
+        <li>方案重設為 trial</li>
+        <li>試用截止 = 今天 + 預設試用天數（覆寫舊值，不會疊加）</li>
+      </ul>
+      {trialEndsAt && (
+        <p className="mt-2 text-xs text-neutral-500">
+          目前試用截止：{new Date(trialEndsAt).toLocaleString("zh-TW")}
+        </p>
+      )}
+      <div className="mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-800 leading-relaxed">
+        預設試用天數可在「營運設定」調整，此處會即時讀取最新值。
+      </div>
+      <div className="mt-5 flex gap-2 justify-end">
+        <SecondaryBtn onClick={onDone} disabled={pending}>
+          取消
+        </SecondaryBtn>
+        <PrimaryBtn
+          onClick={() => {
+            startTransition(async () => {
+              const res = await resetOrganizationTrial(orgId);
+              if (res.ok) onDone();
+              else onError(res.error);
+            });
+          }}
+          disabled={pending}
+        >
+          {pending ? "處理中…" : "重置試用期"}
+        </PrimaryBtn>
+      </div>
+    </>
   );
 }
 
@@ -221,8 +598,8 @@ function BypassDialog({
     <>
       <p className="text-sm text-neutral-600 leading-relaxed">
         {next
-          ? "此單位將不受配額硬擋影響，即使全站開啟也不會被擋。常用於 VIP / 大客戶。"
-          : "取消後此單位回到一般配額管制，超量時會被擋。"}
+          ? "此單位將不受升級鎖影響，即使試用結束也能無限使用全部功能。常用於 VIP／合作夥伴。"
+          : "取消後此單位回到一般試用／付費邏輯，試用結束後會被鎖住。"}
         操作會記入 audit log。
       </p>
       <div className="mt-5 flex gap-2 justify-end">
@@ -242,91 +619,69 @@ function BypassDialog({
           }}
           disabled={pending}
         >
-          {pending ? "儲存中…" : next ? "設為免配額" : "取消免配額"}
+          {pending ? "儲存中…" : next ? "設為免鎖" : "取消免鎖"}
         </PrimaryBtn>
       </div>
     </>
   );
 }
 
-function PlanDialog({
+function DeleteDialog({
   orgId,
-  current,
-  allQuotas,
+  orgName,
   onDone,
   onError,
 }: {
   orgId: string;
-  current: OrgPlan;
-  allQuotas: Record<OrgPlan, PlanQuotaConfig>;
+  orgName: string;
   onDone: () => void;
   onError: (m: string) => void;
 }) {
-  const [selected, setSelected] = useState<OrgPlan>(current);
+  const [confirm, setConfirm] = useState("");
   const [pending, startTransition] = useTransition();
-  const dirty = selected !== current;
+  const match = confirm.trim() === orgName;
   return (
     <>
-      <p className="text-sm text-neutral-600">
-        立即變更此單位的方案。變更後配額會即時套用到單位後台與本頁顯示。
+      <p className="text-sm text-neutral-700 leading-relaxed">
+        將永久刪除此單位及其所有資料：
       </p>
-      <div className="mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-800 leading-relaxed">
-        ⚠ 此操作會
-        <strong>繞過金流商</strong>，僅供測試／緊急處理使用，不會建立訂閱與付款紀錄。動作會記入 audit log。
+      <ul className="mt-2 text-xs text-neutral-600 leading-relaxed space-y-0.5 list-disc list-inside">
+        <li>所有書本、書封圖、借閱紀錄、出借人、分類、書架</li>
+        <li>訂閱與付款紀錄、AI 用量紀錄、公開操作紀錄</li>
+        <li>該單位的登入帳號（Email 將釋出可重新註冊）</li>
+      </ul>
+      <div className="mt-3 px-3 py-2 rounded-lg bg-red-50 border border-red-100 text-xs text-red-700 leading-relaxed">
+        ⚠ 此操作無法復原。稽核紀錄（audit logs）會保留，但 target_org_id 會變 null。
       </div>
-      <div className="mt-4 space-y-2">
-        {PLAN_ORDER.map((p) => {
-          const meta = PLAN_META[p];
-          const quotas = allQuotas[p];
-          const active = selected === p;
-          return (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setSelected(p)}
-              disabled={pending}
-              className={`w-full text-left px-4 py-3 rounded-xl border transition flex items-center justify-between gap-3 ${
-                active
-                  ? "border-neutral-900 bg-neutral-50"
-                  : "border-neutral-200 hover:border-neutral-400"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <span
-                  className={`inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium ${meta.pillClass}`}
-                >
-                  {meta.label}
-                </span>
-                {p === current && (
-                  <span className="text-[11px] text-neutral-500">目前</span>
-                )}
-              </span>
-              <span className="text-xs text-neutral-600 tabular-nums">
-                AI {quotas.ai} 次／月 · 館藏 {quotas.books} 冊
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <label className="mt-4 block">
+        <span className="text-xs text-neutral-500">
+          請輸入單位名稱「{orgName}」以確認
+        </span>
+        <input
+          type="text"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          placeholder={orgName}
+          className="mt-1.5 w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm focus:outline-none focus:border-red-600 transition"
+        />
+      </label>
       <div className="mt-5 flex gap-2 justify-end">
         <SecondaryBtn onClick={onDone} disabled={pending}>
           取消
         </SecondaryBtn>
-        <PrimaryBtn
+        <DangerBtn
           onClick={() => {
+            if (!match) return;
             startTransition(async () => {
-              const res = await updateOrganizationPlan(orgId, selected);
-              if (res.ok) {
-                onDone();
-              } else {
-                onError(res.error);
-              }
+              const res = await deleteOrganization(orgId, confirm.trim());
+              if (res.ok) onDone();
+              else onError(res.error);
             });
           }}
-          disabled={pending || !dirty}
+          disabled={pending || !match}
         >
-          {pending ? "儲存中…" : "確認變更"}
-        </PrimaryBtn>
+          {pending ? "註銷中…" : "確認註銷"}
+        </DangerBtn>
       </div>
     </>
   );

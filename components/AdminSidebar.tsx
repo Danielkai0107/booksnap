@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import BottomSheet from "@/components/BottomSheet";
 import { useToast } from "@/components/ToastProvider";
+import { useUpgradeModal } from "@/components/UpgradeModal";
 import { useAdminOrgInfo } from "@/lib/admin-org-info";
 import { PLAN_META } from "@/lib/plans";
 
@@ -44,10 +45,20 @@ function BrandHeader({
   onClick?: () => void;
   className?: string;
 }) {
-  const { orgName, plan } = useAdminOrgInfo();
+  const { orgName, plan, trialState, trialDaysRemaining } = useAdminOrgInfo();
   const meta = plan ? PLAN_META[plan] : null;
-  // pro 已是頂層方案，不再顯示升級按鈕。
-  const showUpgrade = plan !== null && plan !== "pro";
+  // 試用結束＋未付費才顯示升級。Pro 與試用中不顯示。
+  const showUpgrade = trialState === "expired_trial";
+  const pillLabel =
+    trialState === "active_trial" && typeof trialDaysRemaining === "number"
+      ? `試用剩 ${trialDaysRemaining} 天`
+      : trialState === "expired_trial"
+        ? "試用已結束"
+        : meta?.label;
+  const pillClass =
+    trialState === "expired_trial"
+      ? "bg-red-50 text-red-700 border-red-100"
+      : (meta?.pillClass ?? "bg-neutral-100 text-neutral-700 border-neutral-200");
   return (
     <div className={`relative mb-6 border-b border-neutral-100 pb-4 ${className}`}>
       <PublicLinkIconButton onClick={onClick} />
@@ -63,20 +74,20 @@ function BrandHeader({
           {orgName ?? "—"}
         </span>
       </Link>
-      {(meta || showUpgrade) && (
+      {(pillLabel || showUpgrade) && (
         <div className="mt-2.5 flex items-center gap-2">
-          {meta && (
+          {pillLabel && (
             <span
-              className={`inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium ${meta.pillClass}`}
+              className={`inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium ${pillClass}`}
             >
-              {meta.label}
+              {pillLabel}
             </span>
           )}
           {showUpgrade && (
             <Link
               href="/billing"
               onClick={onClick}
-              className="ml-auto inline-flex items-center h-[22px] px-2.5 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-900 text-[11px] font-medium transition"
+              className="ml-auto inline-flex items-center h-[22px] px-2.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white text-[11px] font-medium transition"
             >
               升級
             </Link>
@@ -91,9 +102,10 @@ const publicLinkIconClass =
   "absolute right-0 top-0 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition";
 
 function PublicLinkIconButton({ onClick }: { onClick?: () => void }) {
-  const { publicSlug, orgName } = useAdminOrgInfo();
+  const { publicSlug, orgName, locked } = useAdminOrgInfo();
   const [sheetOpen, setSheetOpen] = useState(false);
   const toast = useToast();
+  const { openUpgradeModal } = useUpgradeModal();
 
   if (!publicSlug) {
     return (
@@ -108,6 +120,11 @@ function PublicLinkIconButton({ onClick }: { onClick?: () => void }) {
   }
 
   async function handleShare() {
+    if (locked) {
+      setSheetOpen(false);
+      openUpgradeModal("sidebar_share");
+      return;
+    }
     const publicUrl = `${window.location.origin}/o/${publicSlug}`;
     const shareData = {
       url: publicUrl,
@@ -133,6 +150,11 @@ function PublicLinkIconButton({ onClick }: { onClick?: () => void }) {
   }
 
   function handleGo() {
+    if (locked) {
+      setSheetOpen(false);
+      openUpgradeModal("sidebar_go");
+      return;
+    }
     setSheetOpen(false);
     onClick?.();
     window.open(`/o/${publicSlug}`, "_blank", "noopener,noreferrer");

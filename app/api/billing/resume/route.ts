@@ -7,9 +7,9 @@ import type { SubscriptionRow } from "@/lib/supabase/types";
 export const runtime = "nodejs";
 
 /**
- * Clears any pending plan change ("保留目前方案"):
- *  - `scheduled_plan='free'` (= `cancel_at_period_end=true`) → un-cancel
- *  - `scheduled_plan='plus' | 'pro'`                          → drop scheduled switch
+ * Clears any pending cancellation ("保留目前方案"):
+ *  - `scheduled_plan='trial'` (= `cancel_at_period_end=true`) → un-cancel,
+ *    keeping the org on `pro` until the next billing cycle.
  *
  * After `current_period_end` has passed the row should already be `expired`
  * and the user needs to subscribe afresh; we 409 in that case.

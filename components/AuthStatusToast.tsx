@@ -10,6 +10,9 @@ const MESSAGES: Record<string, string> = {
 
 /**
  * 讀取 `?status=` 顯示一次性 toast 並清掉 query（用於 server redirect 後提示）。
+ *
+ * 重要：只在「已知的 status 值」才動 URL，否則會跟其他用 `?status=` 當 filter
+ * 的頁面（例如訂閱列表的 tab）衝突，導致使用者一點 tab 就被踢回 homePath。
  */
 export default function AuthStatusToast({ homePath }: { homePath: string }) {
   const searchParams = useSearchParams();
@@ -20,7 +23,8 @@ export default function AuthStatusToast({ homePath }: { homePath: string }) {
     const status = searchParams.get("status");
     if (!status) return;
     const message = MESSAGES[status];
-    if (message) toast.success(message);
+    if (!message) return;
+    toast.success(message);
     router.replace(homePath, { scroll: false });
   }, [searchParams, toast, router, homePath]);
 

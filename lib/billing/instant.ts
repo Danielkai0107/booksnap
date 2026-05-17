@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadPlanConfigs } from "@/lib/plans";
-import type { OrgPlan, SubscriptionRow } from "@/lib/supabase/types";
+import type { SubscriptionRow } from "@/lib/supabase/types";
 import { applyGatewayEvent, writeAuditLog } from "./apply";
 import type {
   CreateSubscriptionInput,
@@ -16,7 +16,9 @@ import type {
  * successful, writes the subscription/payment/audit rows, and bounces the
  * user back to `/billing?welcome=1`.
  *
- * We deliberately model it after a real gateway:
+ * After the 2026-05 simplification the only paid plan is `pro`, so
+ * `createSubscription` always issues a `pro` activation.
+ *
  *  - `createSubscription` builds an `activated` GatewayEvent and routes it
  *    through `applyGatewayEvent`, the same code path a real webhook would
  *    use. When we plug in ECPay / JKoPay later, the entire downstream
@@ -81,7 +83,7 @@ class InstantGateway implements PaymentGateway {
       .update({
         cancel_at_period_end: true,
         cancelled_at: new Date().toISOString(),
-        scheduled_plan: "free",
+        scheduled_plan: "trial",
       })
       .eq("id", row.id);
     if (error) throw error;
@@ -89,7 +91,7 @@ class InstantGateway implements PaymentGateway {
     await writeAuditLog(admin, {
       actor_id: null,
       actor_role: "unit",
-      action: "sub.scheduled.free",
+      action: "sub.scheduled.trial",
       target_org_id: row.organization_id,
       meta: {
         gateway: this.name,
@@ -128,51 +130,6 @@ class InstantGateway implements PaymentGateway {
       meta: {
         gateway: this.name,
         from_scheduled_plan: row.scheduled_plan,
-      },
-    });
-  }
-
-  async schedulePlanChange(
-    gatewaySubId: string,
-    targetPlan: Exclude<OrgPlan, "free"> | null,
-  ): Promise<void> {
-    const admin = createAdminClient();
-    const { data: sub } = await admin
-      .from("subscriptions")
-      .select("*")
-      .eq("gateway_sub_id", gatewaySubId)
-      .maybeSingle();
-    const row = sub as SubscriptionRow | null;
-    if (!row) {
-      throw new Error("subscription not found");
-    }
-
-    // If user re-selects their current plan, treat it as "keep current"
-    // (clear any pending change). Otherwise pre-arrange the switch.
-    const nextScheduled =
-      targetPlan === null || targetPlan === row.plan ? null : targetPlan;
-
-    const { error } = await admin
-      .from("subscriptions")
-      .update({
-        scheduled_plan: nextScheduled,
-        cancel_at_period_end: false,
-        cancelled_at: null,
-      })
-      .eq("id", row.id);
-    if (error) throw error;
-
-    await writeAuditLog(admin, {
-      actor_id: null,
-      actor_role: "unit",
-      action:
-        nextScheduled === null ? "sub.scheduled.cleared" : "sub.scheduled.switch",
-      target_org_id: row.organization_id,
-      meta: {
-        gateway: this.name,
-        from_plan: row.plan,
-        target_plan: nextScheduled,
-        period_end: row.current_period_end,
       },
     });
   }

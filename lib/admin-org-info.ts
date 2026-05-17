@@ -2,17 +2,28 @@
 
 import { useEffect, useState } from "react";
 import type { OrgPlan } from "@/lib/plans";
+import type { TrialState } from "@/lib/billing/lock";
 
 export type AdminOrgInfo = {
   orgName: string | null;
   publicSlug: string | null;
   plan: OrgPlan | null;
+  /** True when the org should be blocked from the two paid-only entry points. */
+  locked: boolean;
+  /** Whole days left in the trial; `null` when paid or trial not set; `0` when expired. */
+  trialDaysRemaining: number | null;
+  trialEndsAt: string | null;
+  trialState: TrialState | null;
 };
 
 const EMPTY: AdminOrgInfo = {
   orgName: null,
   publicSlug: null,
   plan: null,
+  locked: false,
+  trialDaysRemaining: null,
+  trialEndsAt: null,
+  trialState: null,
 };
 
 let cached: AdminOrgInfo | undefined;
@@ -27,6 +38,11 @@ function parseMe(data: Record<string, unknown>): AdminOrgInfo {
     orgName: (data.orgName as string | null | undefined) ?? null,
     publicSlug: (data.publicSlug as string | null | undefined) ?? null,
     plan: (data.plan as OrgPlan | null | undefined) ?? null,
+    locked: (data.locked as boolean | undefined) ?? false,
+    trialDaysRemaining:
+      (data.trialDaysRemaining as number | null | undefined) ?? null,
+    trialEndsAt: (data.trialEndsAt as string | null | undefined) ?? null,
+    trialState: (data.trialState as TrialState | null | undefined) ?? null,
   };
 }
 

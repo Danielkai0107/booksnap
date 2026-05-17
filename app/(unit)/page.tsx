@@ -14,6 +14,8 @@ import EditBookSheet from "@/components/EditBookSheet";
 import ManualCheckinSheet from "@/components/ManualCheckinSheet";
 import SearchInput from "@/components/SearchInput";
 import { useToast } from "@/components/ToastProvider";
+import { useUpgradeModal } from "@/components/UpgradeModal";
+import { useAdminOrgInfo } from "@/lib/admin-org-info";
 
 type EditTarget = BookRow | null;
 
@@ -33,6 +35,24 @@ export default function AdminPage() {
   // 桌機沒有相機，按「新書入庫」走手動表單彈窗。手機 FAB 仍走 /checkin 拍照。
   const [manualCheckinOpen, setManualCheckinOpen] = useState(false);
   const toast = useToast();
+  // 試用 / 試用過期時，「新書入庫」走升級彈窗而非真實流程。
+  const { locked } = useAdminOrgInfo();
+  const { openUpgradeModal } = useUpgradeModal();
+
+  const handleDesktopCheckin = () => {
+    if (locked) {
+      openUpgradeModal("new_book_desktop");
+      return;
+    }
+    setManualCheckinOpen(true);
+  };
+
+  const handleMobileCheckin = (e: React.MouseEvent) => {
+    if (locked) {
+      e.preventDefault();
+      openUpgradeModal("new_book_mobile");
+    }
+  };
 
   const categoryOptions = useMemo(
     () => categories.map((c) => ({ value: c.id, label: c.name })),
@@ -98,6 +118,20 @@ export default function AdminPage() {
     }
   }, [toast]);
 
+  // 如果是被 /checkin server-side redirect 過來的（trial 過期等），自動彈出升級窗。
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const upgrade = params.get("upgrade");
+    if (!upgrade) return;
+    openUpgradeModal(upgrade);
+    params.delete("upgrade");
+    const qs = params.toString();
+    const next = qs ? `?${qs}` : window.location.pathname;
+    window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+    void next;
+  }, [openUpgradeModal]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return books.filter((b) => {
@@ -134,7 +168,7 @@ export default function AdminPage() {
         topbarRight={
           <button
             type="button"
-            onClick={() => setManualCheckinOpen(true)}
+            onClick={handleDesktopCheckin}
             className="press-feedback hidden md:inline-flex items-center gap-1 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 px-3 h-9 rounded-full"
           >
             <svg
@@ -412,6 +446,7 @@ export default function AdminPage() {
         >
           <Link
             href="/checkin"
+            onClick={handleMobileCheckin}
             className="press-feedback pointer-events-auto inline-flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 text-white text-base font-medium px-7 py-4 rounded-full shadow-lg shadow-neutral-900/20"
           >
             <svg

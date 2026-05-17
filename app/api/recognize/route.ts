@@ -1,22 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  effectivePlan,
-  getOrgPeriod,
-  loadPlanConfigs,
-} from "@/lib/plans";
-import { isQuotaEnforced } from "@/lib/billing/flags";
+import { isOrgLocked } from "@/lib/billing/lock";
 import { loadOrgBillingState } from "@/lib/billing/state";
 
 export const runtime = "nodejs";
-
-/**
- * Free riders / generous slack for users who hit the cap right as they're
- * scanning a stack. Lets a single shelf-scan complete instead of hard-stopping
- * mid-batch.
- */
-const QUOTA_GRACE = 3;
 
 type RecognizeBody = {
   imageBase64?: string;
@@ -50,34 +38,22 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
   const organizationId = profile?.organization_id ?? null;
 
+  // Lock guard: external UI already prevents trial / expired-trial orgs from
+  // reaching the camera, but we double-check server-side so anyone hitting
+  // the endpoint directly gets a clean 403 instead of consuming Claude credit.
   if (organizationId) {
     const { org, subscription } = await loadOrgBillingState(
       organizationId,
       admin,
     );
-    if (org && isQuotaEnforced(org)) {
-      const plan = effectivePlan(org, subscription);
-      const { quotas } = await loadPlanConfigs(admin);
-      const limit = quotas[plan].ai;
-      const { start } = getOrgPeriod(org, subscription);
-      const { count } = await admin
-        .from("ai_usage_logs")
-        .select("*", { count: "exact", head: true })
-        .eq("organization_id", org.id)
-        .gte("created_at", start.toISOString());
-      const used = count ?? 0;
-      if (used >= limit + QUOTA_GRACE) {
-        return NextResponse.json(
-          {
-            error: "ai_quota_exceeded",
-            limit,
-            used,
-            plan,
-            message: "本月智能辨識次數已用完，請升級方案後再試。",
-          },
-          { status: 402 },
-        );
-      }
+    if (org && isOrgLocked(org, subscription)) {
+      return NextResponse.json(
+        {
+          error: "locked",
+          message: "升級後即可使用智能辨識。",
+        },
+        { status: 403 },
+      );
     }
   }
 

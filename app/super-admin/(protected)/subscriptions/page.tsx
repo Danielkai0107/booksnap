@@ -10,7 +10,9 @@ import type {
 
 type StatusFilter = SubscriptionStatus | "all";
 
-type Search = Promise<{ status?: string }>;
+// 用 `?tab=` 而非 `?status=`，避免跟 AuthStatusToast 監聽的 `?status=` 撞名
+// （撞名會導致一點 tab 就被 router.replace 踢回 homePath）。
+type Search = Promise<{ tab?: string }>;
 
 const STATUS_TABS: { key: StatusFilter; label: string }[] = [
   { key: "active", label: "進行中" },
@@ -61,7 +63,7 @@ export default async function SubscriptionsPage({
   searchParams: Search;
 }) {
   const sp = await searchParams;
-  const tab = (sp.status as StatusFilter) ?? "active";
+  const tab = (sp.tab as StatusFilter) ?? "active";
 
   const admin = createAdminClient();
   let query = admin
@@ -94,7 +96,10 @@ export default async function SubscriptionsPage({
   ]);
   const orgsById = new Map<
     string,
-    Pick<OrganizationRow, "id" | "name" | "contact_email" | "plan" | "bypass_quota">
+    Pick<
+      OrganizationRow,
+      "id" | "name" | "contact_email" | "plan" | "bypass_quota"
+    >
   >();
   (orgRows ?? []).forEach((o) => {
     orgsById.set(
@@ -131,7 +136,7 @@ export default async function SubscriptionsPage({
           return (
             <Link
               key={t.key}
-              href={`/super-admin/subscriptions?status=${t.key}`}
+              href={`/super-admin/subscriptions?tab=${t.key}`}
               className={`shrink-0 px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px ${
                 active
                   ? "text-neutral-900 border-neutral-900"
@@ -181,12 +186,12 @@ export default async function SubscriptionsPage({
                       </span>
                       {sub.cancel_at_period_end && sub.status === "active" && (
                         <span className="inline-flex items-center h-[22px] text-[11px] px-2 rounded-full border font-medium bg-amber-50 text-amber-700 border-amber-100">
-                          期末取消
+                          到期取消
                         </span>
                       )}
                       {org?.bypass_quota && (
                         <span className="inline-flex items-center h-[22px] text-[11px] px-2 rounded-full border font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
-                          免配額
+                          免鎖
                         </span>
                       )}
                     </div>

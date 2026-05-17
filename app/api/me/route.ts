@@ -4,18 +4,26 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   effectivePlan,
   getOrgPeriod,
-  loadPlanConfigs,
   type OrgPlan,
 } from "@/lib/plans";
-import { isQuotaEnforced } from "@/lib/billing/flags";
+import {
+  isOrgLocked,
+  trialDaysRemaining,
+  trialState,
+  type TrialState,
+} from "@/lib/billing/lock";
 import { maybeExpireSubscription } from "@/lib/billing/expire";
 import type { SubscriptionRow } from "@/lib/supabase/types";
 
 export const runtime = "nodejs";
 
+/**
+ * "Usage" here is purely informational — no plan cap, no progress bar.
+ * The settings page renders "本月已辨識 X 次 · 館藏 Y 冊" as a record card.
+ */
 type UsagePayload = {
-  ai: { used: number; limit: number; periodEnd: string };
-  books: { count: number; limit: number };
+  ai: { used: number; periodEnd: string };
+  books: { count: number };
 };
 
 type SubscriptionPayload = {
@@ -42,18 +50,21 @@ export async function GET() {
   let usage: UsagePayload | null = null;
   let plan: OrgPlan | null = storedPlan;
   let subscription: SubscriptionRow | null = null;
+  let locked = false;
+  let daysRemaining: number | null = null;
+  let trialEndsAt: string | null = null;
+  let state: TrialState | null = null;
 
   if (org) {
     const admin = createAdminClient();
-    // maybeExpireSubscription is idempotent and cheap (one indexed lookup + at
-    // most one update). We do it here so any stale `past_due` / `cancelled`
-    // row is normalised before the dashboard reads its plan.
     subscription = await maybeExpireSubscription(org.id, admin);
     plan = effectivePlan(org, subscription);
+    locked = isOrgLocked(org, subscription);
+    daysRemaining = trialDaysRemaining(org);
+    trialEndsAt = org.trial_ends_at;
+    state = trialState(org, subscription);
 
     const { start, end } = getOrgPeriod(org, subscription);
-    const { quotas: allQuotas } = await loadPlanConfigs(admin);
-    const quotas = allQuotas[plan];
 
     const [aiRes, booksRes] = await Promise.all([
       admin
@@ -70,12 +81,10 @@ export async function GET() {
     usage = {
       ai: {
         used: aiRes.count ?? 0,
-        limit: quotas.ai,
         periodEnd: end.toISOString(),
       },
       books: {
         count: booksRes.count ?? 0,
-        limit: quotas.books,
       },
     };
   }
@@ -104,6 +113,9 @@ export async function GET() {
     storedPlan,
     subscription: subscriptionPayload,
     usage,
-    quotaEnforced: isQuotaEnforced(org ?? undefined),
+    locked,
+    trialDaysRemaining: daysRemaining,
+    trialEndsAt,
+    trialState: state,
   });
 }

@@ -11,8 +11,8 @@ import { useToast } from "@/components/ToastProvider";
 import { PLAN_META, type OrgPlan } from "@/lib/plans";
 
 type UsageInfo = {
-  ai: { used: number; limit: number };
-  books: { count: number; limit: number };
+  ai: { used: number; periodEnd: string };
+  books: { count: number };
 } | null;
 
 type MeInfo = {
@@ -89,24 +89,36 @@ export default function SettingsHubPage() {
 
 function UsageCard({ usage }: { usage: UsageInfo }) {
   if (!usage) return null;
+  // 配額移除後，這張卡單純呈現「本月辨識了幾次／館藏總冊數」，沒有上限、沒有警告色。
+  const periodEndLabel = (() => {
+    try {
+      return new Date(usage.ai.periodEnd).toLocaleDateString("zh-TW", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch {
+      return null;
+    }
+  })();
   return (
     <section className="rounded-2xl p-3 mb-12">
-      <h2 className="text-base font-semibold text-neutral-900">方案用量</h2>
+      <h2 className="text-base font-semibold text-neutral-900">使用紀錄</h2>
       <p className="mt-1 text-xs text-neutral-500">
-        當期方案的智能辨識次數與館藏使用狀況。
+        本期的智能辨識次數與目前館藏總冊數，純資訊參考。
       </p>
       <div className="mt-5 space-y-4">
         <UsageRow
           label="智能辨識"
-          used={usage.ai.used}
-          limit={usage.ai.limit}
+          value={usage.ai.used}
           unit="次"
+          hint={periodEndLabel ? `本期至 ${periodEndLabel}` : null}
         />
         <UsageRow
           label="館藏"
-          used={usage.books.count}
-          limit={usage.books.limit}
+          value={usage.books.count}
           unit="冊"
+          hint={null}
         />
       </div>
     </section>
@@ -115,42 +127,26 @@ function UsageCard({ usage }: { usage: UsageInfo }) {
 
 function UsageRow({
   label,
-  used,
-  limit,
+  value,
   unit,
+  hint,
 }: {
   label: string;
-  used: number;
-  limit: number;
+  value: number;
   unit: string;
+  hint: string | null;
 }) {
-  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
-  const overshooting = used >= limit;
-  const nearing = used / Math.max(1, limit) >= 0.8;
-  const barClass = overshooting
-    ? "bg-red-500"
-    : nearing
-      ? "bg-amber-500"
-      : "bg-neutral-900";
-  const numberClass = overshooting
-    ? "text-red-600"
-    : nearing
-      ? "text-amber-700"
-      : "text-neutral-700";
   return (
     <div>
       <div className="flex items-baseline justify-between text-sm">
         <span className="text-neutral-700">{label}</span>
-        <span className={`tabular-nums ${numberClass}`}>
-          {used.toLocaleString()} / {limit.toLocaleString()} {unit}
+        <span className="tabular-nums text-neutral-900 font-medium">
+          {value.toLocaleString()} {unit}
         </span>
       </div>
-      <div className="mt-2 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
-        <div
-          className={`h-full rounded-full ${barClass}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      {hint && (
+        <p className="mt-1 text-[11px] text-neutral-400">{hint}</p>
+      )}
     </div>
   );
 }
@@ -167,7 +163,7 @@ function MenuList({ plan }: { plan: OrgPlan | null }) {
       <MenuRow
         href="/billing"
         label="訂閱管理"
-        hint="升級／降級方案、查看帳單記錄"
+        hint="查看試用倒數、升級 Pro、帳單記錄"
         right={
           meta ? (
             <span

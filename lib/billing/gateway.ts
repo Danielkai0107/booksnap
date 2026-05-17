@@ -1,4 +1,4 @@
-import type { OrgPlan } from "@/lib/supabase/types";
+import type { PaidPlan } from "@/lib/supabase/types";
 
 /**
  * Domain event emitted by a payment gateway. Both InstantGateway (first-party
@@ -6,13 +6,17 @@ import type { OrgPlan } from "@/lib/supabase/types";
  * these events. `applyGatewayEvent` (in `lib/billing/apply.ts`) is the *only*
  * function that mutates the subscriptions/payments/audit_logs trio, so every
  * code path that bumps a subscription's state goes through the same place.
+ *
+ * After the 2026-05 simplification there is only one paid tier (`pro`); the
+ * `plan` field is kept (typed as `PaidPlan`) for forward compatibility in
+ * case we re-introduce tiers.
  */
 export type GatewayEvent =
   | {
       kind: "activated";
       gatewaySubId: string;
       orgId: string;
-      plan: Exclude<OrgPlan, "free">;
+      plan: PaidPlan;
       periodStart: string;
       periodEnd: string;
       payment: { gatewayPaymentId: string; amount: number };
@@ -41,7 +45,7 @@ export type GatewayEvent =
 
 export type CreateSubscriptionInput = {
   orgId: string;
-  plan: Exclude<OrgPlan, "free">;
+  plan: PaidPlan;
   orgName: string;
   contactEmail: string;
   /** Absolute URL the gateway should bounce back to after a successful checkout. */
@@ -63,6 +67,10 @@ export type CreateSubscriptionResult = {
 /**
  * Provider-agnostic surface. Add new gateways by implementing this interface
  * and wiring them into `lib/billing/index.ts` (the factory).
+ *
+ * The 2026-05 simplification removed `schedulePlanChange` (there is only one
+ * paid tier, so plan switching is no longer a concept). Cancel-and-resume
+ * remain because users can still pause/restore their subscription.
  */
 export interface PaymentGateway {
   readonly name: string;
@@ -74,17 +82,6 @@ export interface PaymentGateway {
   cancelAtPeriodEnd(gatewaySubId: string): Promise<void>;
 
   resume(gatewaySubId: string): Promise<void>;
-
-  /**
-   * Pre-arranges a plan switch that takes effect at the next period end.
-   * Pass `null` to clear any pending change (= "keep current plan").
-   * For "schedule a downgrade to free", callers should use `cancelAtPeriodEnd`
-   * so both `cancel_at_period_end` and `scheduled_plan='free'` stay in sync.
-   */
-  schedulePlanChange(
-    gatewaySubId: string,
-    targetPlan: Exclude<OrgPlan, "free"> | null,
-  ): Promise<void>;
 
   /**
    * Validate and parse an incoming webhook. Returns `null` if the request

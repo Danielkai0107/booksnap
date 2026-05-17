@@ -63,7 +63,19 @@ export type BorrowRecordRow = {
 
 export type OrgStatus = "pending" | "approved" | "rejected" | "suspended";
 
-export type OrgPlan = "free" | "pro" | "plus";
+/**
+ * Two-state plan model after the 2026-05 simplification:
+ *  - `trial`  → 30-day free trial (countdown stored in `trial_ends_at`).
+ *               After the trial expires the row stays on `trial` and the lock
+ *               in `lib/billing/lock.ts` engages.
+ *  - `pro`    → paid subscription (single tier, NT$ 990/month, full access).
+ *
+ * The DB enum (text + check) was migrated in `billing_simplify_trial_pro`.
+ */
+export type OrgPlan = "trial" | "pro";
+
+/** Paid tier only — used by `subscriptions.plan` and the billing gateway. */
+export type PaidPlan = "pro";
 
 export type OrganizationRow = {
   id: string;
@@ -80,12 +92,18 @@ export type OrganizationRow = {
   public_slug: string;
   public_borrow_enabled: boolean;
   public_catalog_enabled: boolean;
-  /** Subscription plan tier. Quotas live in `lib/plans.ts`. */
+  /** Plan tier — see `OrgPlan`. */
   plan: OrgPlan;
   /**
-   * Super-admin granted exemption from quota enforcement. When `true`, the org
-   * is never blocked by recognize/book quotas regardless of the global
-   * `BILLING_QUOTA_ENFORCED` env flag. See `lib/billing/flags.ts`.
+   * Free-trial expiration timestamp. `null` once the org is on `pro` or has
+   * never started a trial. The lock in `isOrgLocked()` (see `lib/billing/lock.ts`)
+   * compares this to `now()`.
+   */
+  trial_ends_at: string | null;
+  /**
+   * Super-admin granted exemption from the lock. When `true`, the org is
+   * never blocked by the upgrade gate regardless of its plan / trial state.
+   * Kept under the original column name for migration simplicity.
    */
   bypass_quota: boolean;
 };
@@ -105,7 +123,8 @@ export type SubscriptionStatus =
 export type SubscriptionRow = {
   id: string;
   organization_id: string;
-  plan: Exclude<OrgPlan, "free">;
+  /** Single-tier model: always `'pro'`. */
+  plan: PaidPlan;
   status: SubscriptionStatus;
   gateway: string;
   gateway_sub_id: string;
@@ -116,13 +135,12 @@ export type SubscriptionRow = {
   cancel_at_period_end: boolean;
   cancelled_at: string | null;
   /**
-   * Plan the subscription will switch to at `current_period_end`.
-   *  - `null` → no scheduled change; the same plan renews.
-   *  - `'free'` → will end (kept in sync with `cancel_at_period_end=true`).
-   *  - `'plus' | 'pro'` → will switch to that paid tier next period.
+   * What the subscription becomes at `current_period_end`.
+   *  - `null`    → renews on the same `pro` plan.
+   *  - `'trial'` → cancel at period end; org reverts to trial-expired lock.
+   *  - `'pro'`   → kept for forward compatibility (e.g. future re-activation).
    *
-   * Lets a user "pre-arrange" upgrades/downgrades without having to cancel
-   * first; the UI flips between 升級／降級／變更方案 based on this column.
+   * In the single-tier world only `null` and `'trial'` are written by the app.
    */
   scheduled_plan: OrgPlan | null;
   created_at: string;

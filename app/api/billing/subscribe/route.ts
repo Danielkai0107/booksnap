@@ -1,34 +1,32 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getGateway } from "@/lib/billing";
-import type { OrgPlan, SubscriptionRow } from "@/lib/supabase/types";
+import type { SubscriptionRow } from "@/lib/supabase/types";
 
 export const runtime = "nodejs";
-
-type SubscribeBody = { plan?: OrgPlan };
 
 const BILLING_RETURN_URL =
   process.env.NEXT_PUBLIC_BILLING_RETURN_URL ?? "/billing";
 
 /**
- * Starts a paid subscription **or** pre-arranges a plan switch on an
- * existing one. Behaviour by state:
+ * Activates the single paid plan (`pro`, NT$ 990/月) for the calling org.
  *
- *  - No live subscription (Free org): hand off to the gateway to activate
- *    immediately. InstantGateway flips the row to `active` inline and
- *    returns `successUrl`. Real gateways return their hosted checkout URL.
+ * After the 2026-05 simplification there is no plan parameter (one tier only)
+ * and no "schedule a switch" path:
  *
- *  - Live subscription (`active` / `past_due`):
- *      target === current plan → clear any pending change ("keep current").
- *      target !== current plan → schedule the switch at `current_period_end`
- *                                 (no immediate billing, just a pre-arrange).
+ *  - Org has no live subscription → gateway creates one inline. InstantGateway
+ *    flips it to `active` and returns `successUrl`. Real gateways return their
+ *    hosted checkout URL.
+ *  - Org already has an active/past_due subscription with `cancel_at_period_end`
+ *    pending → treat as a resume (clear the scheduled cancel).
+ *  - Org already has an active/past_due subscription without a pending cancel →
+ *    409 "already_subscribed".
  *
- * "Downgrade to Free" goes through `/api/billing/cancel` instead, which is
- * just `schedulePlanChange('free')` semantically but kept separate so we
- * have a clear audit trail.
+ * "Cancel" goes through `/api/billing/cancel` (period-end), "resume" through
+ * `/api/billing/resume`.
  */
-export async function POST(req: NextRequest) {
+export async function POST() {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -44,21 +42,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "org not approved" }, { status: 403 });
   }
 
-  let body: SubscribeBody;
-  try {
-    body = (await req.json()) as SubscribeBody;
-  } catch {
-    return NextResponse.json({ error: "invalid json" }, { status: 400 });
-  }
-
-  const plan = body.plan;
-  if (plan !== "pro" && plan !== "plus") {
-    return NextResponse.json(
-      { error: "plan must be 'pro' or 'plus'" },
-      { status: 400 },
-    );
-  }
-
   const admin = createAdminClient();
   const { data: existing } = await admin
     .from("subscriptions")
@@ -70,25 +53,27 @@ export async function POST(req: NextRequest) {
     current !== null &&
     (current.status === "active" || current.status === "past_due");
 
-  // Paid → paid: pre-arrange a switch (or clear it if target = current).
   if (hasLivePaid && current) {
-    try {
-      await getGateway().schedulePlanChange(
-        current.gateway_sub_id,
-        plan === current.plan ? null : plan,
-      );
-      return NextResponse.json({
-        ok: true,
-        scheduledPlan: plan === current.plan ? null : plan,
-        periodEnd: current.current_period_end,
-      });
-    } catch (err) {
-      console.error("[billing/subscribe] schedule error", err);
-      return NextResponse.json(
-        { error: err instanceof Error ? err.message : "schedule_error" },
-        { status: 500 },
-      );
+    if (current.cancel_at_period_end) {
+      try {
+        await getGateway().resume(current.gateway_sub_id);
+        return NextResponse.json({
+          ok: true,
+          resumed: true,
+          periodEnd: current.current_period_end,
+        });
+      } catch (err) {
+        console.error("[billing/subscribe] resume error", err);
+        return NextResponse.json(
+          { error: err instanceof Error ? err.message : "resume_error" },
+          { status: 500 },
+        );
+      }
     }
+    return NextResponse.json(
+      { error: "already_subscribed", periodEnd: current.current_period_end },
+      { status: 409 },
+    );
   }
 
   const successUrl = `${BILLING_RETURN_URL}?welcome=1`;
@@ -97,7 +82,7 @@ export async function POST(req: NextRequest) {
   try {
     const result = await getGateway().createSubscription({
       orgId: org.id,
-      plan,
+      plan: "pro",
       orgName: org.name,
       contactEmail: org.contact_email,
       successUrl,
