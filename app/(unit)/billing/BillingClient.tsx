@@ -357,12 +357,12 @@ function CurrentSubscriptionCard({
   const scheduledPlan = subscription?.scheduledPlan ?? null;
 
   return (
-    <section className="rounded-2xl border border-neutral-200 bg-white">
-      <div className="p-5 sm:p-6">
+    <section className="rounded-2xl bg-white">
+      <div className="">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0">
             <p className="text-xs text-neutral-500">{headerLabel}</p>
-            <div className="mt-1 flex items-center gap-2.5 flex-wrap">
+            <div className="mt-3 flex items-center gap-2.5 flex-wrap">
               <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
                 {planMeta.label}
               </h1>
@@ -372,7 +372,7 @@ function CurrentSubscriptionCard({
                 {plan === "free" ? "免費" : "付費中"}
               </span>
             </div>
-            <p className="mt-1.5 text-sm text-neutral-700">{planPrice.label}</p>
+            <p className="mt-3 text-sm text-neutral-700">{planPrice.label}</p>
             {isPaid && subscription && (
               <div className="mt-4 space-y-1 text-sm text-neutral-700">
                 {scheduledPlan === null ? (
@@ -404,7 +404,7 @@ function CurrentSubscriptionCard({
                     方案。
                   </p>
                 )}
-                <p className="text-xs text-neutral-500">
+                <p className="text-xs text-neutral-500 mt-2">
                   自 {formatDateTW(subscription.startedAt)} 起訂閱 ·{" "}
                   {subscription.gateway === "instant"
                     ? "內部測試金流"
