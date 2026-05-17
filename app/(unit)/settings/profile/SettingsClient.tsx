@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { TW_CITIES } from "@/lib/cities";
+import { refreshAdminOrgInfo } from "@/lib/admin-org-info";
 import { useToast } from "@/components/ToastProvider";
 
 type BasicInfo = {
@@ -78,6 +79,7 @@ export default function SettingsClient({ basic }: Props) {
       setContactEmail(next.contactEmail);
       setContactPhone(next.contactPhone);
       setBaseline(next);
+      await refreshAdminOrgInfo();
       toast.success("已更新單位資料");
     } catch (err) {
       console.error("[settings] basic info save failed", err);

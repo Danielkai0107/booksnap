@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, type ComponentType, type SVGProps } from "react";
+import { useEffect, type ComponentType, type SVGProps } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PLAN_META, type OrgPlan } from "@/lib/plans";
+import { useAdminOrgInfo } from "@/lib/admin-org-info";
+import { PLAN_META } from "@/lib/plans";
 
 type IconProps = SVGProps<SVGSVGElement>;
 type NavItem = {
@@ -34,54 +35,6 @@ const items: readonly NavItem[] = [
 const bottomItemClass =
   "flex items-center gap-2.5 w-full text-left px-3 py-2.5 rounded-lg text-sm bg-neutral-100 text-neutral-700 hover:bg-neutral-200 hover:text-neutral-900 transition";
 
-type CachedMe = {
-  orgName: string | null;
-  publicSlug: string | null;
-  plan: OrgPlan | null;
-};
-
-let cachedMe: CachedMe | undefined = undefined;
-
-function useOrgInfo() {
-  const [info, setInfo] = useState<CachedMe>(
-    cachedMe ?? {
-      orgName: null,
-      publicSlug: null,
-      plan: null,
-    },
-  );
-
-  useEffect(() => {
-    if (cachedMe !== undefined) return;
-    let alive = true;
-    (async () => {
-      try {
-        const res = await fetch("/api/me", { cache: "no-store" });
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          orgName?: string | null;
-          publicSlug?: string | null;
-          plan?: OrgPlan | null;
-        };
-        if (!alive) return;
-        cachedMe = {
-          orgName: data.orgName ?? null,
-          publicSlug: data.publicSlug ?? null,
-          plan: data.plan ?? null,
-        };
-        setInfo(cachedMe);
-      } catch {
-        // ignore
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  return info;
-}
-
 function BrandHeader({
   onClick,
   className = "",
@@ -89,7 +42,7 @@ function BrandHeader({
   onClick?: () => void;
   className?: string;
 }) {
-  const { orgName, plan } = useOrgInfo();
+  const { orgName, plan } = useAdminOrgInfo();
   const meta = plan ? PLAN_META[plan] : null;
   // pro 已是頂層方案，不再顯示升級按鈕。
   const showUpgrade = plan !== null && plan !== "pro";
@@ -132,7 +85,7 @@ function BrandHeader({
 }
 
 function PublicLinkButton({ onClick }: { onClick?: () => void }) {
-  const { publicSlug } = useOrgInfo();
+  const { publicSlug } = useAdminOrgInfo();
   if (!publicSlug) {
     return (
       <span className={`${bottomItemClass} opacity-60 cursor-not-allowed`}>
