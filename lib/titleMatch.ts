@@ -4,9 +4,21 @@ export function normalizeTitle(s: string): string {
   return s.toLowerCase().replace(/\s+/g, "").trim();
 }
 
-/** 去除「(N)」副本後綴 */
+/**
+ * 去除副本序號標記。
+ *
+ * 同時容忍前綴 `(N) 書名` 與後綴 `書名 (N)` 兩種格式：
+ *  - 2026-05 之前產生的資料是後綴；
+ *  - 之後改成前綴（避免清單列表 truncate 時看不到序號）。
+ *
+ * 兩種格式都會被 strip，下游的 coreTitle / isSameBookTitle 等比對函式
+ * 因此能在新舊資料間正確判定「同一本」。
+ */
 export function stripCopySuffix(s: string): string {
-  return s.replace(/\s*\(\d+\)\s*$/, "").trim();
+  return s
+    .replace(/^\s*\(\d+\)\s*/, "")
+    .replace(/\s*\(\d+\)\s*$/, "")
+    .trim();
 }
 
 /**

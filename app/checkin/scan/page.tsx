@@ -578,12 +578,14 @@ export default function CheckinScanPage() {
 
   const handleDuplicateNewCopy = useCallback(() => {
     const nextNum = duplicateMatches.length + duplicateInList.length + 1;
-    const suffixed = `${duplicateBase} (${nextNum})`;
+    // 序號改放前面，避免在書籍清單裡書名被 truncate 時序號就跟著被截掉。
+    // 既有的後綴格式由 stripCopySuffix 同時 strip，向後相容。
+    const numbered = `(${nextNum}) ${duplicateBase}`;
     setDuplicateOpen(false);
     setDuplicateMatches([]);
     setDuplicateInList([]);
     setDuplicateBase("");
-    addBookAndNext(suffixed);
+    addBookAndNext(numbered);
   }, [
     duplicateBase,
     duplicateMatches.length,
