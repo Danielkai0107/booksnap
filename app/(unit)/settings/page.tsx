@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import AdminShell from "@/components/AdminShell";
 import BottomSheet from "@/components/BottomSheet";
+import IssueReportSheet from "@/components/IssueReportSheet";
 import { deleteAccountAction } from "@/app/(unit)/settings/actions";
 import { useToast } from "@/components/ToastProvider";
 import { PLAN_META, type OrgPlan } from "@/lib/plans";
@@ -174,26 +175,40 @@ function MenuList({
   trialState: TrialState | null;
   trialDaysRemaining: number | null;
 }) {
+  // 問題回報原本在側邊欄，會佔導覽列空間又跟業務操作混在一起；
+  // 移到設定頁的 MenuList 第三列，跟「單位資料 / 訂閱管理」並列。
+  const [issueOpen, setIssueOpen] = useState(false);
   return (
-    <section className="border border-neutral-200 rounded-2xl overflow-hidden divide-y divide-neutral-100">
-      <MenuRow
-        href="/settings/profile"
-        label="單位資料"
-        hint="編輯單位名稱、所在縣市、聯絡資訊"
+    <>
+      <section className="border border-neutral-200 rounded-2xl overflow-hidden divide-y divide-neutral-100">
+        <MenuRow
+          href="/settings/profile"
+          label="單位資料"
+          hint="編輯單位名稱、所在縣市、聯絡資訊"
+        />
+        <MenuRow
+          href="/billing"
+          label="訂閱管理"
+          hint="查看體驗倒數、升級 Pro、帳單記錄"
+          right={
+            <SubscriptionPill
+              plan={plan}
+              trialState={trialState}
+              trialDaysRemaining={trialDaysRemaining}
+            />
+          }
+        />
+        <MenuRow
+          onClick={() => setIssueOpen(true)}
+          label="問題回報"
+          hint="遇到問題、想要的功能、Bug 都歡迎告訴我們"
+        />
+      </section>
+      <IssueReportSheet
+        open={issueOpen}
+        onClose={() => setIssueOpen(false)}
       />
-      <MenuRow
-        href="/billing"
-        label="訂閱管理"
-        hint="查看體驗倒數、升級 Pro、帳單記錄"
-        right={
-          <SubscriptionPill
-            plan={plan}
-            trialState={trialState}
-            trialDaysRemaining={trialDaysRemaining}
-          />
-        }
-      />
-    </section>
+    </>
   );
 }
 
@@ -245,22 +260,25 @@ function SubscriptionPill({
   );
 }
 
+/**
+ * 設定頁的選單列。同時支援 Link（`href`）和按鈕（`onClick`）兩種；
+ * 後者給「問題回報」這類會打開 BottomSheet 而非跳頁的入口使用。
+ */
 function MenuRow({
   href,
+  onClick,
   label,
   hint,
   right,
 }: {
-  href: string;
+  href?: string;
+  onClick?: () => void;
   label: string;
   hint?: string;
   right?: React.ReactNode;
 }) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 px-5 py-4 hover:bg-neutral-50 transition"
-    >
+  const inner = (
+    <>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-neutral-900">{label}</p>
         {hint && (
@@ -282,7 +300,21 @@ function MenuRow({
       >
         <path d="M9 18l6-6-6-6" />
       </svg>
-    </Link>
+    </>
+  );
+  const className =
+    "flex items-center gap-3 px-5 py-4 hover:bg-neutral-50 transition w-full text-left";
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {inner}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {inner}
+    </button>
   );
 }
 
