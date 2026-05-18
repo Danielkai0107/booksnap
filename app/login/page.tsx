@@ -30,6 +30,8 @@ export default async function LoginPage({
     <AuthFlowPage
       title="booksnap"
       subtitle="教育圖書資產管理系統"
+      logoSrc="/logo.png"
+      logoAlt="booksnap"
     >
       <LoginForm initialNotice={notice} />
     </AuthFlowPage>
