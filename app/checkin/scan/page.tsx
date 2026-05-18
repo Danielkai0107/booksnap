@@ -604,6 +604,9 @@ export default function CheckinScanPage() {
                   <p className="text-xs text-white/70 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
                     對準書封拍照辨識 · {adminName || "—"}
                   </p>
+                  <p className="text-[11px] text-white/65 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full">
+                    請確保背景乾淨，邊緣才好辨識
+                  </p>
                   {!scannerReady && !scannerFailed && (
                     <p className="text-[11px] text-white/60 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full">
                       智慧校正準備中…

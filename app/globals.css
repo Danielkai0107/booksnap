@@ -272,6 +272,38 @@ textarea {
   opacity: 0.25;
 }
 
+/* DocumentCornerAdjuster 拖曳放大鏡。size 跟元件內 LOUPE_SIZE 常數一致。
+   2× 放大相對於「畫面上看到的圖片尺寸」，能在小書名 / 細邊緣上拉出精準位置。 */
+.adjust-loupe {
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 4px 18px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(0, 0, 0, 0.25);
+  background-color: rgba(0, 0, 0, 0.85);
+  overflow: hidden;
+}
+.adjust-loupe-crosshair-h,
+.adjust-loupe-crosshair-v {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: rgba(34, 197, 94, 0.95);
+  pointer-events: none;
+}
+.adjust-loupe-crosshair-h {
+  width: 20px;
+  height: 1.5px;
+  transform: translate(-50%, -50%);
+}
+.adjust-loupe-crosshair-v {
+  width: 1.5px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+}
+
 
 @keyframes scan-sweep {
   0% {

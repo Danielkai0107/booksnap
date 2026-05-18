@@ -23,6 +23,9 @@ const CORNER_ORDER: CornerKey[] = [
   "bottomLeftCorner",
 ];
 
+/** 放大鏡直徑（px）。CSS 也用這個常數，保持兩邊同步。 */
+const LOUPE_SIZE = 128;
+
 type Props = {
   /** 原始拍下的圖（dataURL 或 blob URL）。 */
   imageDataUrl: string;
@@ -87,6 +90,22 @@ export default function DocumentCornerAdjuster({
       setRenderBox(box);
     }
   }, [imageWidth, imageHeight]);
+
+  // 阻擋 iOS Safari 的邊緣 swipe-back（很容易在拉左/右側四角時誤觸返回上一頁）。
+  // 對左右各 24px 邊緣內起手的 touchstart 直接 preventDefault；中央區域不受
+  // 影響，pointer-events 流程照舊。listener 必須 non-passive 才能 preventDefault。
+  useEffect(() => {
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      const x = t.clientX;
+      if (x < 24 || x > window.innerWidth - 24) {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener("touchstart", onTouchStart, { passive: false });
+    return () => document.removeEventListener("touchstart", onTouchStart);
+  }, []);
 
   /** 把容器內的 client 座標映到原圖 pixel。 */
   const clientToImage = useCallback(
@@ -168,6 +187,12 @@ export default function DocumentCornerAdjuster({
 
   const convex = useMemo(() => isConvex(orderedImagePts), [orderedImagePts]);
 
+  // 拖曳中的那一角在「目前畫面上顯示的圖片」內的像素位置。給放大鏡用。
+  const draggingCornerImagePoint = draggingKey ? corners[draggingKey] : null;
+  // 拖上面兩角時把放大鏡放下面、拖下面兩角時放上面，避免被手蓋住。
+  const loupeAtBottom =
+    draggingKey === "topLeftCorner" || draggingKey === "topRightCorner";
+
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       <div
@@ -224,6 +249,43 @@ export default function DocumentCornerAdjuster({
               );
             })}
           </svg>
+        )}
+
+        {/* 局部放大鏡：以「螢幕顯示尺寸」為基準的 2× 放大，置中對齊
+            目前拖曳的那一角。CSS background-position 算式：
+              - bgScale = renderBox.width / imageWidth × 2
+              - bgSize = imageWidth × bgScale (= renderBox.width × 2)
+              - bgPos.x = LOUPE_SIZE/2 − corner.x × bgScale
+            這樣 corner 在原圖座標的點剛好落在放大鏡正中央。 */}
+        {renderBox && draggingCornerImagePoint && imageWidth > 0 && (
+          <div
+            className="absolute z-10 pointer-events-none adjust-loupe"
+            style={{
+              top: loupeAtBottom ? undefined : 16,
+              bottom: loupeAtBottom ? 16 : undefined,
+              left: "50%",
+              transform: "translateX(-50%)",
+              backgroundImage: `url(${imageDataUrl})`,
+              backgroundRepeat: "no-repeat",
+              backgroundSize: `${renderBox.width * 2}px ${renderBox.height * 2}px`,
+              backgroundPosition: `${
+                LOUPE_SIZE / 2 -
+                (draggingCornerImagePoint.x / imageWidth) *
+                  renderBox.width *
+                  2
+              }px ${
+                LOUPE_SIZE / 2 -
+                (draggingCornerImagePoint.y / imageHeight) *
+                  renderBox.height *
+                  2
+              }px`,
+            }}
+            aria-hidden
+          >
+            {/* 中央十字準星 */}
+            <span className="adjust-loupe-crosshair-h" />
+            <span className="adjust-loupe-crosshair-v" />
+          </div>
         )}
 
         <div className="absolute top-4 inset-x-0 flex justify-center px-6 pointer-events-none">
