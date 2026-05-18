@@ -13,6 +13,7 @@ const TITLE_BY_PATH: { prefix: string; title: string; exact?: boolean }[] = [
   { prefix: "/super-admin/organizations/", title: "單位詳情" },
   { prefix: "/super-admin/organizations", title: "單位管理", exact: true },
   { prefix: "/super-admin/subscriptions", title: "訂閱" },
+  { prefix: "/super-admin/tokens", title: "Token 用量" },
   { prefix: "/super-admin/plans", title: "方案設定" },
   { prefix: "/super-admin", title: "總覽", exact: true },
 ];

@@ -38,7 +38,7 @@ export default function PublicLinkClient({
   const router = useRouter();
   const { locked } = useAdminOrgInfo();
   // 鎖定狀態下所有 CTA 一律導去 /billing，讓使用者看到完整升級情境
-  // （試用狀態、金流主開關等），而不是被半路彈窗打斷。
+  // （體驗狀態、金流主開關等），而不是被半路彈窗打斷。
   const goToBilling = () => router.push("/billing");
 
   useEffect(() => {

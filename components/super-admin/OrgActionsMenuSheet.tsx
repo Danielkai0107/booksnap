@@ -17,7 +17,11 @@ export type OrgMenuActionId =
   | "bypass"
   | "reset"
   | "suspend"
-  | "delete";
+  | "delete"
+  // 「快速狀態切換」一組：不檢查當前狀態、總是可用，常見的測試／支援情境用。
+  | "forceFresh"
+  | "forcePro"
+  | "forceExpired";
 
 export type OrgMenuAction = {
   id: OrgMenuActionId;
@@ -277,7 +281,33 @@ export function buildOrgMenuSections(input: {
           label: bypassQuota ? "取消免鎖" : "設為免鎖",
           description: bypassQuota
             ? "恢復一般鎖定規則"
-            : "不受試用／付費狀態限制",
+            : "不受體驗／付費狀態限制",
+        },
+      ],
+    });
+
+    // 一組「總是可用」的狀態快捷鍵，不檢查當前狀態。給測試／QA／支援情境用：
+    // 不必走「先取消 → 再重置 → 再啟用」的多步驟流程，一鍵直達目標狀態。
+    // 對應 actions.ts 的 forceOrgState()。
+    sections.push({
+      title: "快速狀態切換（測試／支援用）",
+      items: [
+        {
+          id: "forceFresh",
+          label: "重置為剛核准的體驗",
+          description: "刪除訂閱、體驗截止 = 今天 + 預設體驗天數",
+        },
+        {
+          id: "forcePro",
+          label: "強制變成 Pro",
+          description: "若已 Pro 會重新啟用一次（本期 OCR 用量歸零）",
+          tone: "primary",
+        },
+        {
+          id: "forceExpired",
+          label: "強制變成體驗已結束",
+          description: "刪除訂閱、體驗截止 = 現在；下一次請求即被鎖",
+          tone: "danger",
         },
       ],
     });

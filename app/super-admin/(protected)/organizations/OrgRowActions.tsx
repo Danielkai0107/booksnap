@@ -21,6 +21,7 @@ import {
   endOrganizationTrial,
   resetOrganizationTrial,
   deleteOrganization,
+  forceOrgState,
 } from "../../actions";
 import type { OrgPlan, OrgStatus } from "@/lib/supabase/types";
 import type { TrialState } from "@/lib/billing/lock";
@@ -335,9 +336,130 @@ export default function OrgRowActions({
           />
         </Modal>
       )}
+      {dialog === "forceFresh" && (
+        <Modal title={`「${orgName}」→ 剛核准的體驗`} onClose={close}>
+          <ForceStateDialog
+            orgId={orgId}
+            target="fresh_trial"
+            onDone={close}
+            onError={reportError}
+          />
+        </Modal>
+      )}
+      {dialog === "forcePro" && (
+        <Modal title={`「${orgName}」→ Pro`} onClose={close}>
+          <ForceStateDialog
+            orgId={orgId}
+            target="pro"
+            onDone={close}
+            onError={reportError}
+          />
+        </Modal>
+      )}
+      {dialog === "forceExpired" && (
+        <Modal title={`「${orgName}」→ 體驗已結束`} onClose={close}>
+          <ForceStateDialog
+            orgId={orgId}
+            target="expired_trial"
+            onDone={close}
+            onError={reportError}
+          />
+        </Modal>
+      )}
     </>
   );
 }
+
+function ForceStateDialog({
+  orgId,
+  target,
+  onDone,
+  onError,
+}: {
+  orgId: string;
+  target: "fresh_trial" | "pro" | "expired_trial";
+  onDone: () => void;
+  onError: (m: string) => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const copy = FORCE_COPY[target];
+  return (
+    <>
+      <p className="text-sm text-neutral-600 leading-relaxed">{copy.intro}</p>
+      <ul className="mt-2 text-xs text-neutral-600 leading-relaxed space-y-0.5 list-disc list-inside">
+        {copy.bullets.map((b) => (
+          <li key={b}>{b}</li>
+        ))}
+      </ul>
+      <div className="mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-800 leading-relaxed">
+        ⚠ 不檢查當前狀態，會直接清掉舊訂閱列。常用於測試／QA／客服救援，
+        正式扣款請改用「啟用付費」「取消付費」走真實金流路徑。
+      </div>
+      <div className="mt-5 flex gap-2 justify-end">
+        <SecondaryBtn onClick={onDone} disabled={pending}>
+          取消
+        </SecondaryBtn>
+        {target === "expired_trial" ? (
+          <DangerBtn
+            onClick={() => {
+              startTransition(async () => {
+                const res = await forceOrgState(orgId, target);
+                if (res.ok) onDone();
+                else onError(res.error);
+              });
+            }}
+            disabled={pending}
+          >
+            {pending ? "切換中…" : copy.cta}
+          </DangerBtn>
+        ) : (
+          <PrimaryBtn
+            onClick={() => {
+              startTransition(async () => {
+                const res = await forceOrgState(orgId, target);
+                if (res.ok) onDone();
+                else onError(res.error);
+              });
+            }}
+            disabled={pending}
+          >
+            {pending ? "切換中…" : copy.cta}
+          </PrimaryBtn>
+        )}
+      </div>
+    </>
+  );
+}
+
+const FORCE_COPY = {
+  fresh_trial: {
+    intro: "把單位推回「剛核准」的乾淨狀態：",
+    bullets: [
+      "刪除目前的訂閱列（付款歷史保留作為稽核）",
+      "方案重設為 trial",
+      "體驗截止 = 今天 + 預設體驗天數（覆寫舊值，不會疊加）",
+    ],
+    cta: "重置為剛核准",
+  },
+  pro: {
+    intro: "把單位切到「Pro 已訂閱」狀態：",
+    bullets: [
+      "刪除目前的訂閱列再走 InstantGateway 重新啟用一次",
+      "本期起算日 = 現在；AI 智能辨識本期用量自動歸零",
+      "走內部金流接口、不會真的扣款，會寫入 audit log",
+    ],
+    cta: "強制變成 Pro",
+  },
+  expired_trial: {
+    intro: "把單位切到「體驗已結束、未訂閱」狀態：",
+    bullets: [
+      "刪除目前的訂閱列",
+      "體驗截止 = 現在；下一次請求 isOrgLocked 即回 true",
+      "新書入庫／公開借閱連結會被擋下，可預覽其他頁",
+    ],
+    cta: "強制變成已結束",
+  },
+} as const;
 
 function GrantDialog({
   orgId,

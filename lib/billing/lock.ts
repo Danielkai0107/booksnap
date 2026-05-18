@@ -43,7 +43,7 @@ export function isOrgLocked(
   const plan = effectivePlan(org, subscription, now);
   if (plan === "pro") return false;
 
-  // 試用期內完整解鎖 — "30 天試用" 的承諾必須兌現，否則使用者沒辦法真的
+  // 體驗期內完整解鎖 — "30 天體驗" 的承諾必須兌現，否則使用者沒辦法真的
   // 評估產品就被催升級。倒數天數仍會在側欄與 BillingClient 上顯示作為
   // 友善提醒；到期當天起 isOrgLocked 才會回 true 並擋下兩個入口。
   const ends = org.trial_ends_at ? new Date(org.trial_ends_at).getTime() : 0;

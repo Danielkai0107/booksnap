@@ -34,8 +34,8 @@ export default function AdminPage() {
   // 桌機沒有相機，按「新書入庫」走手動表單彈窗。手機 FAB 仍走 /checkin 拍照。
   const [manualCheckinOpen, setManualCheckinOpen] = useState(false);
   const toast = useToast();
-  // 試用過期 / 未付費時，「新書入庫」一律導去 /billing 讓使用者看到完整
-  // 升級情境（試用狀態、金流主開關等），不用半路再彈窗。
+  // 體驗過期 / 未付費時，「新書入庫」一律導去 /billing 讓使用者看到完整
+  // 升級情境（體驗狀態、金流主開關等），不用半路再彈窗。
   const { locked } = useAdminOrgInfo();
 
   const handleDesktopCheckin = () => {

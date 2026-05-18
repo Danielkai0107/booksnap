@@ -40,6 +40,12 @@ const mainItems: readonly NavItem[] = [
     Icon: CreditCardIcon,
   },
   {
+    href: "/super-admin/tokens",
+    label: "Token 用量",
+    matchExact: false,
+    Icon: GaugeIcon,
+  },
+  {
     href: "/super-admin/plans",
     label: "方案設定",
     matchExact: false,
@@ -265,6 +271,16 @@ function SlidersIcon(props: IconProps) {
       <path d="M2 14h4" />
       <path d="M10 8h4" />
       <path d="M18 16h4" />
+    </svg>
+  );
+}
+
+function GaugeIcon(props: IconProps) {
+  return (
+    <svg {...svgProps(props)}>
+      <path d="M12 14l4-4" />
+      <path d="M3.05 11a9 9 0 1 1 17.9 0" />
+      <circle cx="12" cy="14" r="1" />
     </svg>
   );
 }

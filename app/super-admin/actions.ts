@@ -897,3 +897,126 @@ export async function superAdminSignOut(): Promise<void> {
   await signOutLocal(supabase);
   redirect("/super-admin/login");
 }
+
+/**
+ * 「快速狀態切換」：把單位強制推到 3 個常見狀態之一，方便 super-admin
+ * 在測試／支援情境下不需要走「先取消 → 再重置 → 再啟用」這種多步驟流程。
+ *
+ * 與既有的 `resetOrganizationTrial` / `grantPaidSubscription` /
+ * `endOrganizationTrial` 不同：這些 force action 故意不檢查當前狀態，
+ * 任何起點都能直達目的地。實作上仍重用既有 helper，只是先做必要清理：
+ *
+ *  - **fresh_trial**：等同 `resetOrganizationTrial`（刪除訂閱列、plan=trial、
+ *    trial_ends_at = now + 預設體驗天數）。
+ *  - **pro**：先重置（保證 grant 不會被「已有訂閱」擋掉），再走 InstantGateway
+ *    建立新訂閱。`current_period_start = 訂閱當下`，因此 /api/recognize 的
+ *    本期 OCR 用量自動歸零（見 `getOrgPeriod`）。
+ *  - **expired_trial**：刪除任何訂閱列、plan=trial、trial_ends_at = now − 1s
+ *    （留一點 slack 避免時鐘誤差讓 isOrgLocked 仍判活躍）。
+ *
+ * 呼叫端負責 confirm UI；這裡只做幂等操作 + audit log。
+ */
+export async function forceOrgState(
+  orgId: string,
+  target: "fresh_trial" | "pro" | "expired_trial",
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { userId } = await assertSuperAdmin();
+  const admin = createAdminClient();
+
+  const { data: org } = await admin
+    .from("organizations")
+    .select("id, name, plan, trial_ends_at, contact_email, status")
+    .eq("id", orgId)
+    .maybeSingle();
+  if (!org) return { ok: false, error: "找不到單位" };
+  if (org.status !== "approved") {
+    return { ok: false, error: "僅核准中的單位可切換狀態" };
+  }
+
+  // 共同的清理：把所有訂閱列移除。`payments.subscription_id` 是 ON DELETE SET NULL，
+  // 付款歷史會保留，只是失去 FK，符合稽核需求。
+  async function clearSubscriptions(): Promise<void> {
+    const { error } = await admin
+      .from("subscriptions")
+      .delete()
+      .eq("organization_id", orgId);
+    if (error) throw error;
+  }
+
+  try {
+    if (target === "fresh_trial") {
+      const { trialDays } = await loadAppSettings(admin);
+      const next = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
+      await clearSubscriptions();
+      const { error } = await admin
+        .from("organizations")
+        .update({ plan: "trial", trial_ends_at: next.toISOString() })
+        .eq("id", orgId);
+      if (error) throw error;
+      await writeAuditLog(admin, {
+        actor_id: userId,
+        actor_role: "super_admin",
+        action: "force.fresh_trial",
+        target_org_id: orgId,
+        meta: { trial_ends_at: next.toISOString() },
+      });
+    } else if (target === "expired_trial") {
+      // -1s 確保 isOrgLocked 立即把 org 視為 expired_trial（trial_ends_at < now）。
+      const expired = new Date(Date.now() - 1000);
+      await clearSubscriptions();
+      const { error } = await admin
+        .from("organizations")
+        .update({ plan: "trial", trial_ends_at: expired.toISOString() })
+        .eq("id", orgId);
+      if (error) throw error;
+      await writeAuditLog(admin, {
+        actor_id: userId,
+        actor_role: "super_admin",
+        action: "force.expired_trial",
+        target_org_id: orgId,
+        meta: { trial_ends_at: expired.toISOString() },
+      });
+    } else if (target === "pro") {
+      // 先清掉舊訂閱與 trial deadline，再走 InstantGateway 重新啟用，
+      // 這樣 current_period_start 會是訂閱「當下」→ AI 本期用量歸零。
+      await clearSubscriptions();
+      // 不必設 trial_ends_at = null：grantPaidSubscription 的 effectivePlan 看的是
+      // subscription，不是 org.plan / trial_ends_at；保留原值反而方便日後切回 trial。
+      try {
+        await getGateway().createSubscription({
+          orgId: org.id,
+          plan: "pro",
+          orgName: org.name,
+          contactEmail: org.contact_email,
+          successUrl: "/billing?welcome=1",
+          cancelUrl: "/billing",
+        });
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : "啟用付費失敗",
+        };
+      }
+      await writeAuditLog(admin, {
+        actor_id: userId,
+        actor_role: "super_admin",
+        action: "force.pro",
+        target_org_id: orgId,
+        meta: { mode: "force" },
+      });
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      error: toUserMessage(err, "切換狀態失敗"),
+    };
+  }
+
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/organizations");
+  revalidatePath(`/super-admin/organizations/${orgId}`);
+  revalidatePath("/super-admin/subscriptions");
+  revalidatePath("/super-admin/tokens");
+  revalidatePath("/billing");
+  return { ok: true };
+}

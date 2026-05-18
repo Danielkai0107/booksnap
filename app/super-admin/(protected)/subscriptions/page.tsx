@@ -1,7 +1,13 @@
 import Link from "next/link";
 import SuperAdminShell from "@/components/SuperAdminShell";
+import ForceStateButtons from "@/components/super-admin/ForceStateButtons";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PLAN_META, loadPlanConfigs } from "@/lib/plans";
+import {
+  EXPERIENCE_TAG_CLASS,
+  PLAN_META,
+  loadPlanConfigs,
+} from "@/lib/plans";
+import { trialState } from "@/lib/billing/lock";
 import type {
   OrganizationRow,
   PaymentRow,
@@ -122,13 +128,46 @@ export default async function SubscriptionsPage({
 
   const { prices } = await loadPlanConfigs(admin);
 
+  // 把「沒有訂閱列、但已核准」的單位另外列出來，這樣三類狀態（付費／體驗中／
+  // 體驗已結束）在同一頁就能一鍵切換，不必跳到單位列表再開選單。
+  // 「all」分頁時才顯示，避免特定 status filter 下拉出無關卡片。
+  const showUnsubscribed = tab === "all";
+  let unsubscribedOrgs: Array<
+    Pick<
+      OrganizationRow,
+      | "id"
+      | "name"
+      | "contact_email"
+      | "plan"
+      | "trial_ends_at"
+      | "bypass_quota"
+    >
+  > = [];
+  if (showUnsubscribed) {
+    const subbedOrgIds = new Set(subs.map((s) => s.organization_id));
+    let query = admin
+      .from("organizations")
+      .select(
+        "id, name, contact_email, plan, trial_ends_at, bypass_quota, status",
+      )
+      .eq("status", "approved")
+      .order("name", { ascending: true });
+    if (subbedOrgIds.size > 0) {
+      // PostgREST 的 .not("id", "in", "(uuid1,uuid2,...)") 語法
+      const list = Array.from(subbedOrgIds).join(",");
+      query = query.not("id", "in", `(${list})`);
+    }
+    const { data } = await query;
+    unsubscribedOrgs = (data ?? []) as typeof unsubscribedOrgs;
+  }
+
   return (
     <SuperAdminShell>
       <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
         訂閱列表
       </h1>
       <p className="mt-2 text-sm text-neutral-500">
-        所有單位的訂閱狀態與最近一筆扣款。
+        所有單位的訂閱狀態、最近一筆扣款，與「快速狀態切換」測試入口。
       </p>
 
       <div className="mt-6 flex gap-1 border-b border-neutral-200 overflow-x-auto">
@@ -219,10 +258,83 @@ export default async function SubscriptionsPage({
                     </dl>
                   </div>
                 </div>
+                {org && (
+                  <div className="mt-4 pt-4 border-t border-neutral-100">
+                    <p className="text-xs text-neutral-400 mb-2">
+                      快速狀態切換（測試／支援用）
+                    </p>
+                    <ForceStateButtons orgId={org.id} orgName={org.name} />
+                  </div>
+                )}
               </li>
             );
           })}
         </ul>
+      )}
+
+      {showUnsubscribed && unsubscribedOrgs.length > 0 && (
+        <section className="mt-10">
+          <div className="flex items-baseline justify-between gap-2 flex-wrap">
+            <h2 className="text-lg font-semibold tracking-tight text-neutral-900">
+              未訂閱單位（{unsubscribedOrgs.length}）
+            </h2>
+            <p className="text-xs text-neutral-500">
+              核准中、目前沒有訂閱列的單位。包含體驗中與體驗已結束。
+            </p>
+          </div>
+          <ul className="mt-4 space-y-3">
+            {unsubscribedOrgs.map((o) => {
+              const state = trialState(
+                { plan: o.plan, trial_ends_at: o.trial_ends_at },
+                null,
+              );
+              const stateLabel =
+                state === "active_trial" ? "體驗中" : "體驗已結束";
+              return (
+                <li
+                  key={o.id}
+                  className="bg-white border border-neutral-200 rounded-2xl p-5"
+                >
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link
+                          href={`/super-admin/organizations/${o.id}`}
+                          className="text-base font-semibold text-neutral-900 hover:underline"
+                        >
+                          {o.name}
+                        </Link>
+                        <span
+                          className={`inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium ${EXPERIENCE_TAG_CLASS}`}
+                        >
+                          {stateLabel}
+                        </span>
+                        {o.bypass_quota && (
+                          <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
+                            免鎖
+                          </span>
+                        )}
+                      </div>
+                      <dl className="mt-3 text-sm text-neutral-600 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
+                        <Pair k="聯絡 Email" v={o.contact_email || "—"} />
+                        <Pair
+                          k="體驗截止"
+                          v={o.trial_ends_at ? fmt(o.trial_ends_at) : "—"}
+                        />
+                      </dl>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-neutral-100">
+                    <p className="text-xs text-neutral-400 mb-2">
+                      快速狀態切換（測試／支援用）
+                    </p>
+                    <ForceStateButtons orgId={o.id} orgName={o.name} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )}
     </SuperAdminShell>
   );

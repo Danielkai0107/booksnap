@@ -176,6 +176,16 @@ export async function POST(req: NextRequest) {
     }
     if (org) {
       quotaApplies = true;
+      // 重要：`getOrgPeriod` 在「有 active/past_due/cancelled 訂閱」時會回 subscription
+      // 的 current_period_start/end；體驗中則退回 org.approved_at 月翻。所以——
+      //
+      //  - 體驗 → 訂閱：訂閱當下 `current_period_start = now`，下面這個 `gte`
+      //    會自動排除訂閱前的紀錄，使用量歸零。
+      //  - 訂閱續期：webhook 的 `renewed` 事件把 period 推到下一期，counter 歸零。
+      //  - 體驗中跨月：approved_at 月翻時 start 跳到新月份，counter 歸零。
+      //
+      // 因此這裡用「count(`created_at >= start`)」就同時覆蓋三種週期切換場景，
+      // 不需要額外的「上次重置時間」欄位或排程任務。
       const { start } = getOrgPeriod(org, subscription);
       const { count } = await admin
         .from("ai_usage_logs")

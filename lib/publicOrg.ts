@@ -16,7 +16,7 @@ import type { OrganizationRow } from "@/lib/supabase/types";
  *  - non-approved orgs (so suspended / pending units can't run a public flow)
  *
  * 🔒 Lock enforcement: also loads the subscription and runs `isOrgLocked`.
- * When the org is locked (試用結束 / 從未付費 / 訂閱過期), we force-flip
+ * When the org is locked (體驗結束 / 從未付費 / 訂閱過期), we force-flip
  * both `public_borrow_enabled` and `public_catalog_enabled` to `false`
  * on the returned object. Every public page / API already short-circuits
  * on those flags with a friendly "暫停服務" message, so no per-route patch

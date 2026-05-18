@@ -147,6 +147,14 @@ export default async function OrganizationDetailPage({
           bookCount={usage.bookCount}
           borrowerCount={usage.borrowerCount}
           reportCount={reports.length}
+          periodSource={
+            subscription &&
+            (subscription.status === "active" ||
+              subscription.status === "past_due" ||
+              subscription.status === "cancelled")
+              ? "subscription"
+              : "trial"
+          }
         />
 
         <section className="bg-white border border-neutral-200 rounded-2xl p-5 md:p-6 w-full">
