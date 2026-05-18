@@ -175,6 +175,39 @@ export type AuditLogRow = {
   created_at: string;
 };
 
+export type IssueReportStatus = "open" | "in_progress" | "resolved";
+
+export type IssueReportRow = {
+  id: string;
+  organization_id: string;
+  category: string;
+  reason: string;
+  reporter_email: string | null;
+  page_url: string | null;
+  status: IssueReportStatus;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  admin_note: string | null;
+  created_at: string;
+};
+
+export type IssueReportReplyEmailStatus =
+  | "pending"
+  | "sent"
+  | "failed"
+  | "skipped";
+
+export type IssueReportReplyRow = {
+  id: string;
+  issue_report_id: string;
+  admin_id: string | null;
+  body: string;
+  email_status: IssueReportReplyEmailStatus;
+  email_error: string | null;
+  resend_id: string | null;
+  created_at: string;
+};
+
 export type ProfileRole = "unit" | "super_admin";
 
 export type ProfileRow = {

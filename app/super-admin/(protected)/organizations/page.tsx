@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SuperAdminShell from "@/components/SuperAdminShell";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   OrganizationRow,
@@ -115,7 +116,7 @@ export default async function OrganizationsPage({
   });
 
   return (
-    <div>
+    <SuperAdminShell>
       <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
         單位管理
       </h1>
@@ -245,6 +246,12 @@ export default async function OrganizationsPage({
                         v={`${(bookCountByOrg.get(o.id) ?? 0).toLocaleString()} 冊`}
                       />
                     </dl>
+                    <Link
+                      href={`/super-admin/organizations/${o.id}`}
+                      className="mt-3 inline-flex text-sm font-medium text-neutral-700 hover:text-neutral-900 underline-offset-2 hover:underline"
+                    >
+                      查看單位詳情 →
+                    </Link>
                   </div>
                   <OrgRowActions
                     orgId={o.id}
@@ -264,7 +271,7 @@ export default async function OrganizationsPage({
           })}
         </ul>
       )}
-    </div>
+    </SuperAdminShell>
   );
 }
 

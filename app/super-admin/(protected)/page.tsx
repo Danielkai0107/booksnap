@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SuperAdminShell from "@/components/SuperAdminShell";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   PLAN_META,
@@ -82,7 +83,7 @@ export default async function SuperAdminDashboard() {
   }
 
   return (
-    <div>
+    <SuperAdminShell>
       <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
         總覽
       </h1>
@@ -191,7 +192,7 @@ export default async function SuperAdminDashboard() {
       <p className="mt-6 text-xs text-neutral-400">
         登入單位數：{usersCount ?? 0}
       </p>
-    </div>
+    </SuperAdminShell>
   );
 }
 

@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
+import OrgActionsMenuSheet, {
+  buildOrgMenuSections,
+  type OrgMenuActionId,
+} from "@/components/super-admin/OrgActionsMenuSheet";
 import {
   approveOrganization,
   rejectOrganization,
@@ -32,21 +36,12 @@ type Props = {
   contactEmail: string;
   contactPhone: string;
   bypassQuota: boolean;
+  /** compact：列表列用；expanded：詳情頁全寬按鈕 */
+  variant?: "compact" | "expanded";
 };
 
-type DialogKind =
-  | "reject"
-  | "suspend"
-  | "reset"
-  | "edit"
-  | "grant"
-  | "cancel"
-  | "extend"
-  | "endTrial"
-  | "resetTrial"
-  | "bypass"
-  | "delete"
-  | null;
+type DialogKind = Exclude<OrgMenuActionId, "approve" | "reactivate"> | null;
+type ConfirmKind = "approve" | "reactivate" | null;
 
 const CITIES = [
   "台北市",
@@ -84,11 +79,44 @@ export default function OrgRowActions({
   contactEmail,
   contactPhone,
   bypassQuota,
+  variant = "compact",
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [menuOpen, setMenuOpen] = useState(false);
   const [dialog, setDialog] = useState<DialogKind>(null);
+  const [confirm, setConfirm] = useState<ConfirmKind>(null);
   const toast = useToast();
+
+  const { sections, dangerSection } = useMemo(
+    () =>
+      buildOrgMenuSections({
+        status,
+        trialState,
+        plan,
+        bypassQuota,
+      }),
+    [status, trialState, plan, bypassQuota],
+  );
+
+  function openMenu() {
+    if (pending) return;
+    setMenuOpen(true);
+  }
+
+  function handleMenuSelect(id: OrgMenuActionId) {
+    setMenuOpen(false);
+    if (id === "approve" || id === "reactivate") {
+      setConfirm(id);
+      return;
+    }
+    setDialog(id);
+  }
+
+  function closeConfirm() {
+    setConfirm(null);
+    router.refresh();
+  }
 
   // 關閉 dialog 並強制 client 重新拉伺服器 tree。Server action 雖然有
   // revalidatePath，但仍偶有 client tree 沒即時更新的情況（看到舊的體驗狀態、
@@ -125,85 +153,95 @@ export default function OrgRowActions({
     });
   }
 
-  const isPaid = trialState === "paid" || trialState === "cancelled_in_period";
-  const isTrial = plan === "trial";
+  function confirmReactivate() {
+    startTransition(async () => {
+      try {
+        await reactivateOrganization(orgId);
+        setConfirm(null);
+        router.refresh();
+      } catch (e) {
+        reportError(e);
+      }
+    });
+  }
+
+  function confirmApprove() {
+    startTransition(async () => {
+      try {
+        await approveOrganization(orgId);
+        setConfirm(null);
+        router.refresh();
+      } catch (e) {
+        reportError(e);
+      }
+    });
+  }
 
   return (
-    <div className="flex flex-wrap gap-2 shrink-0">
-      {status === "pending" && (
-        <>
-          <PrimaryBtn onClick={approve} disabled={pending}>
-            核准
-          </PrimaryBtn>
-          <SecondaryBtn onClick={() => setDialog("reject")} disabled={pending}>
-            退回
-          </SecondaryBtn>
-        </>
+    <>
+      {variant === "expanded" ? (
+        <button
+          type="button"
+          onClick={openMenu}
+          disabled={pending}
+          className="w-full flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-300 text-white text-sm font-medium py-3 rounded-xl transition press-feedback"
+        >
+          {pending ? "處理中…" : "管理此單位"}
+          <MenuDotsIcon />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={openMenu}
+          disabled={pending}
+          aria-label={`管理 ${orgName}`}
+          className="inline-flex items-center gap-1.5 shrink-0 bg-white border border-neutral-200 hover:border-neutral-400 disabled:opacity-50 text-neutral-900 text-sm font-medium px-3.5 py-2 rounded-lg transition press-feedback"
+        >
+          {pending ? "…" : "操作"}
+          <ChevronDownIcon />
+        </button>
       )}
-      {status === "approved" && (
-        <>
-          <SecondaryBtn onClick={() => setDialog("edit")} disabled={pending}>
-            編輯
-          </SecondaryBtn>
-          {isTrial && !isPaid && (
-            <PrimaryBtn onClick={() => setDialog("grant")} disabled={pending}>
-              啟用付費
-            </PrimaryBtn>
-          )}
-          {isTrial && (
-            <SecondaryBtn
-              onClick={() => setDialog("extend")}
-              disabled={pending}
-            >
-              延長體驗
-            </SecondaryBtn>
-          )}
-          {isTrial && (
-            <SecondaryBtn
-              onClick={() => setDialog("resetTrial")}
-              disabled={pending}
-            >
-              重置體驗
-            </SecondaryBtn>
-          )}
-          {isTrial && trialState === "active_trial" && (
-            <DangerBtn onClick={() => setDialog("endTrial")} disabled={pending}>
-              結束體驗
-            </DangerBtn>
-          )}
-          {isPaid && (
-            <SecondaryBtn
-              onClick={() => setDialog("cancel")}
-              disabled={pending}
-            >
-              取消付費
-            </SecondaryBtn>
-          )}
-          <SecondaryBtn onClick={() => setDialog("bypass")} disabled={pending}>
-            {bypassQuota ? "取消免鎖" : "設為免鎖"}
-          </SecondaryBtn>
-          <SecondaryBtn onClick={() => setDialog("reset")} disabled={pending}>
-            重設密碼
-          </SecondaryBtn>
-          <DangerBtn onClick={() => setDialog("suspend")} disabled={pending}>
-            停用
-          </DangerBtn>
-        </>
-      )}
-      {(status === "rejected" || status === "suspended") && (
-        <PrimaryBtn onClick={reactivate} disabled={pending}>
-          重新啟用
-        </PrimaryBtn>
-      )}
-      {/* 註銷適用所有狀態；pending 也可註銷（不留爛 row）。
-          按鈕一律最後一顆，分隔線製造視覺距離避免誤觸。 */}
-      <span
-        aria-hidden
-        className="self-stretch w-px bg-neutral-200 mx-1"
+
+      <OrgActionsMenuSheet
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        orgName={orgName}
+        status={status}
+        sections={sections}
+        dangerSection={dangerSection}
+        onSelect={handleMenuSelect}
       />
-      <DangerBtn onClick={() => setDialog("delete")} disabled={pending}>
-        註銷
-      </DangerBtn>
+
+      {confirm === "approve" && (
+        <Modal title={`核准「${orgName}」？`} onClose={closeConfirm}>
+          <p className="text-sm text-neutral-600 leading-relaxed">
+            核准後單位負責人即可登入後台，並依方案開始使用各項功能。
+          </p>
+          <div className="mt-5 flex gap-3 justify-end">
+            <SecondaryBtn onClick={closeConfirm} disabled={pending}>
+              取消
+            </SecondaryBtn>
+            <PrimaryBtn onClick={confirmApprove} disabled={pending}>
+              {pending ? "處理中…" : "確認核准"}
+            </PrimaryBtn>
+          </div>
+        </Modal>
+      )}
+      {confirm === "reactivate" && (
+        <Modal title={`重新啟用「${orgName}」？`} onClose={closeConfirm}>
+          <p className="text-sm text-neutral-600 leading-relaxed">
+            啟用後單位可再次登入，原有館藏與紀錄將保留。
+          </p>
+          <div className="mt-5 flex gap-3 justify-end">
+            <SecondaryBtn onClick={closeConfirm} disabled={pending}>
+              取消
+            </SecondaryBtn>
+            <PrimaryBtn onClick={confirmReactivate} disabled={pending}>
+              {pending ? "處理中…" : "確認啟用"}
+            </PrimaryBtn>
+          </div>
+        </Modal>
+      )}
 
       {dialog === "reject" && (
         <Modal title={`退回「${orgName}」？`} onClose={close}>
@@ -297,7 +335,7 @@ export default function OrgRowActions({
           />
         </Modal>
       )}
-    </div>
+    </>
   );
 }
 
@@ -991,6 +1029,35 @@ function ResetDialog({
   );
 }
 
+
+function MenuDotsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <circle cx="5" cy="12" r="1.5" />
+      <circle cx="12" cy="12" r="1.5" />
+      <circle cx="19" cy="12" r="1.5" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
 function Modal({
   title,
   children,
@@ -1000,16 +1067,39 @@ function Modal({
   children: React.ReactNode;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-4 sm:p-6">
       <button
         type="button"
         aria-label="關閉"
         onClick={onClose}
-        className="absolute inset-0 bg-neutral-900/40"
+        className="absolute inset-0 bg-neutral-900/40 backdrop-blur-[2px]"
       />
-      <div className="relative w-full max-w-md bg-white rounded-2xl border border-neutral-200 shadow-xl p-6">
-        <h3 className="text-base font-semibold text-neutral-900">{title}</h3>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="org-action-modal-title"
+        className="relative w-full max-w-md bg-white rounded-2xl border border-neutral-200 shadow-xl p-6 max-h-[min(90vh,640px)] overflow-y-auto"
+      >
+        <h3
+          id="org-action-modal-title"
+          className="text-base font-semibold text-neutral-900"
+        >
+          {title}
+        </h3>
         <div className="mt-3">{children}</div>
       </div>
     </div>

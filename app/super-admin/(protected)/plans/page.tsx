@@ -1,3 +1,4 @@
+import SuperAdminShell from "@/components/SuperAdminShell";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadPlanConfigs } from "@/lib/plans";
 import PlansEditorClient from "./PlansEditorClient";
@@ -17,22 +18,24 @@ export default async function SuperAdminPlansPage() {
     .maybeSingle();
 
   return (
-    <div className="space-y-10">
-      <header>
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
-          方案設定
-        </h1>
-        <p className="mt-2 text-sm text-neutral-500 leading-relaxed">
-          目前只有一個付費方案（Pro）。調整月費後立即套用，所有單位下次請求都會看到新的數字。
-        </p>
-      </header>
+    <SuperAdminShell>
+      <div className="space-y-10">
+        <header>
+          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
+            方案設定
+          </h1>
+          <p className="mt-2 text-sm text-neutral-500 leading-relaxed">
+            目前只有一個付費方案（Pro）。調整月費後立即套用，所有單位下次請求都會看到新的數字。
+          </p>
+        </header>
 
-      <PlansEditorClient
-        initial={{
-          monthlyPrice: row?.monthly_price ?? prices.pro.monthly,
-          updatedAt: row?.updated_at ?? null,
-        }}
-      />
-    </div>
+        <PlansEditorClient
+          initial={{
+            monthlyPrice: row?.monthly_price ?? prices.pro.monthly,
+            updatedAt: row?.updated_at ?? null,
+          }}
+        />
+      </div>
+    </SuperAdminShell>
   );
 }

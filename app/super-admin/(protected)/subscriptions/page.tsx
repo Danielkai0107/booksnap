@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SuperAdminShell from "@/components/SuperAdminShell";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PLAN_META, loadPlanConfigs } from "@/lib/plans";
 import type {
@@ -122,7 +123,7 @@ export default async function SubscriptionsPage({
   const { prices } = await loadPlanConfigs(admin);
 
   return (
-    <div>
+    <SuperAdminShell>
       <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-neutral-900">
         訂閱列表
       </h1>
@@ -223,7 +224,7 @@ export default async function SubscriptionsPage({
           })}
         </ul>
       )}
-    </div>
+    </SuperAdminShell>
   );
 }
 

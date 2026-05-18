@@ -28,6 +28,12 @@ const mainItems: readonly NavItem[] = [
     Icon: BuildingIcon,
   },
   {
+    href: "/super-admin/issue-reports",
+    label: "問題回報",
+    matchExact: false,
+    Icon: MessageIcon,
+  },
+  {
     href: "/super-admin/subscriptions",
     label: "訂閱",
     matchExact: false,
@@ -212,6 +218,14 @@ function LayoutIcon(props: IconProps) {
       <rect x="14" y="3" width="7" height="5" rx="1" />
       <rect x="14" y="12" width="7" height="9" rx="1" />
       <rect x="3" y="16" width="7" height="5" rx="1" />
+    </svg>
+  );
+}
+
+function MessageIcon(props: IconProps) {
+  return (
+    <svg {...svgProps(props)}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   );
 }

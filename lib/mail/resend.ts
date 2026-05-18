@@ -155,6 +155,36 @@ function userMessageFor(code: SendEmailErrorCode): string {
   return "暫時無法送出，請稍後再試";
 }
 
+export function buildIssueReplyEmailHtml(fields: {
+  orgName: string;
+  categoryLabel: string;
+  originalReason: string;
+  originalSubmittedAt: string;
+  replyBody: string;
+  replyAt: string;
+}): string {
+  return `<!DOCTYPE html>
+<html lang="zh-Hant">
+<body style="margin:0;padding:24px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,'Noto Sans TC',sans-serif;background:#f5f5f5;color:#171717">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:24px">
+    <p style="margin:0 0 8px;font-size:18px;font-weight:600">booksnap 回覆您的問題回報</p>
+    <p style="margin:0 0 20px;font-size:13px;color:#737373">${escapeHtml(fields.orgName)} · ${escapeHtml(fields.categoryLabel)}</p>
+
+    <p style="margin:0 0 8px;font-size:12px;font-weight:600;color:#525252">營運團隊回覆</p>
+    <pre style="margin:0 0 20px;padding:14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word;font-family:inherit;color:#0c4a6e">${escapeHtml(fields.replyBody)}</pre>
+    <p style="margin:0 0 24px;font-size:12px;color:#a3a3a3">${escapeHtml(fields.replyAt)}</p>
+
+    <hr style="border:none;border-top:1px solid #e5e5e5;margin:0 0 20px" />
+    <p style="margin:0 0 8px;font-size:12px;font-weight:600;color:#a3a3a3">您原本的回報內容</p>
+    <p style="margin:0 0 8px;font-size:12px;color:#a3a3a3">${escapeHtml(fields.originalSubmittedAt)}</p>
+    <pre style="margin:0;padding:12px;background:#fafafa;border:1px solid #e5e5e5;border-radius:8px;font-size:13px;line-height:1.55;white-space:pre-wrap;word-break:break-word;font-family:inherit;color:#525252">${escapeHtml(fields.originalReason)}</pre>
+
+    <p style="margin:24px 0 0;font-size:11px;color:#a3a3a3;line-height:1.5">如需追問請直接回信，營運團隊會看到內容。</p>
+  </div>
+</body>
+</html>`;
+}
+
 export function buildIssueReportEmailHtml(fields: {
   categoryLabel: string;
   reason: string;

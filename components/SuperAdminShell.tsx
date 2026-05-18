@@ -9,7 +9,9 @@ import ScrollToTopButton from "@/components/ScrollToTopButton";
 
 const TITLE_BY_PATH: { prefix: string; title: string; exact?: boolean }[] = [
   { prefix: "/super-admin/settings", title: "設定" },
-  { prefix: "/super-admin/organizations", title: "單位管理" },
+  { prefix: "/super-admin/issue-reports", title: "問題回報" },
+  { prefix: "/super-admin/organizations/", title: "單位詳情" },
+  { prefix: "/super-admin/organizations", title: "單位管理", exact: true },
   { prefix: "/super-admin/subscriptions", title: "訂閱" },
   { prefix: "/super-admin/plans", title: "方案設定" },
   { prefix: "/super-admin", title: "總覽", exact: true },
@@ -31,6 +33,7 @@ type Props = {
   backHref?: string;
   onBack?: () => void;
   scrollLifted?: boolean;
+  contentWidth?: "default" | "wide";
 };
 
 /** 營運後台 shell：與單位後台 AdminShell 同款側欄 + topbar 佈局 */
@@ -41,8 +44,13 @@ export default function SuperAdminShell({
   backHref,
   onBack,
   scrollLifted = false,
+  contentWidth = "default",
 }: Props) {
   const pathname = usePathname();
+  const contentMaxClass =
+    contentWidth === "wide"
+      ? "w-full max-w-6xl"
+      : "w-full max-w-2xl md:max-w-5xl";
   const [menuOpen, setMenuOpen] = useState(false);
   const [navigating, setNavigating] = useState(false);
   const router = useRouter();
@@ -62,7 +70,9 @@ export default function SuperAdminShell({
   return (
     <div className="min-h-screen bg-white">
       <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-neutral-100 md:ml-60">
-        <div className="relative flex items-center h-14 px-3 md:px-10 max-w-2xl md:max-w-5xl mx-auto">
+        <div
+          className={`relative flex items-center h-14 px-3 md:px-10 ${contentMaxClass} mx-auto`}
+        >
           {hasBack ? (
             <button
               type="button"
@@ -112,10 +122,13 @@ export default function SuperAdminShell({
       </header>
 
       <SuperAdminSidebar />
-      <SuperAdminMobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <SuperAdminMobileMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+      />
 
       <main className="md:ml-60">
-        <div className="max-w-2xl md:max-w-5xl mx-auto px-5 md:px-10 pt-6 pb-10 md:py-10">
+        <div className={`${contentMaxClass} mx-auto px-5 pt-6 pb-10 md:py-10`}>
           {children}
         </div>
       </main>
