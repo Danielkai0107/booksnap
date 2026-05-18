@@ -441,6 +441,8 @@ function enhanceCoverCanvas(canvas: HTMLCanvasElement): void {
   const LIFT = 0.18;
   const SAT = 1.22;
   const CONTRAST = 0.1;
+  // 整體亮度提一點（全頻段平移），手機原圖偏暗時整張會更通透。
+  const BRIGHTNESS = 0.05;
   try {
     const img = ctx.getImageData(0, 0, W, H);
     const d = img.data;
@@ -461,9 +463,9 @@ function enhanceCoverCanvas(canvas: HTMLCanvasElement): void {
       g += LIFT * lg * lg;
       b += LIFT * lb * lb;
 
-      r = (r - 0.5) * (1 + CONTRAST) + 0.5;
-      g = (g - 0.5) * (1 + CONTRAST) + 0.5;
-      b = (b - 0.5) * (1 + CONTRAST) + 0.5;
+      r = (r - 0.5) * (1 + CONTRAST) + 0.5 + BRIGHTNESS;
+      g = (g - 0.5) * (1 + CONTRAST) + 0.5 + BRIGHTNESS;
+      b = (b - 0.5) * (1 + CONTRAST) + 0.5 + BRIGHTNESS;
 
       d[i] = Math.round(clamp01(r) * 255);
       d[i + 1] = Math.round(clamp01(g) * 255);
