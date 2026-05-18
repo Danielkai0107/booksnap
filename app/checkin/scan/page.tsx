@@ -102,9 +102,6 @@ export default function CheckinScanPage() {
   // Google 候選清單（debounce）。永遠顯示在 confirming 下半段。
   const [candidates, setCandidates] = useState<LookupCandidate[]>([]);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
-  const [candidatesError, setCandidatesError] = useState<
-    "rate_limited" | "failed" | null
-  >(null);
   // 使用者點選的那一張卡片（含完整 metadata）；可被「再點另一張」覆寫。
   const [pickedCandidate, setPickedCandidate] =
     useState<LookupCandidate | null>(null);
@@ -222,7 +219,6 @@ export default function CheckinScanPage() {
     const query = normalizeForGoogleSearch(rawTitle);
     if (query.length < 2) {
       setCandidates([]);
-      setCandidatesError(null);
       setCandidatesLoading(false);
       return;
     }
@@ -234,22 +230,18 @@ export default function CheckinScanPage() {
       );
       if (!res.ok) {
         setCandidates([]);
-        setCandidatesError("failed");
         return;
       }
       const data = (await res.json()) as {
         candidates?: LookupCandidate[];
-        error?: "rate_limited" | "failed" | null;
       };
       setCandidates(data.candidates?.slice(0, 5) ?? []);
-      setCandidatesError(data.error ?? null);
-      // 所有 lookup 失敗（含 rate_limited / failed）一律不彈 toast：
-      // 對使用者來說是不可操作的事件，只在 sheet 內顯示灰色提示即可，
-      // 避免干擾入庫節奏。quota 監控請看 server log 或 GCP console。
+      // 所有 lookup 失敗（rate_limited / 5xx / 網路）一律不彈 toast，
+      // sheet 內固定顯示「暫無搜尋結果，可直接入庫」就好。對使用者來說
+      // 都是不可操作事件，quota 監控請看 server log 或 GCP console。
     } catch (err) {
       console.warn("[checkin] lookup failed", err);
       setCandidates([]);
-      setCandidatesError("failed");
     } finally {
       setCandidatesLoading(false);
     }
@@ -268,7 +260,6 @@ export default function CheckinScanPage() {
       });
       setMode("processing");
       setCandidates([]);
-      setCandidatesError(null);
       setPickedCandidate(null);
       setEditedIsbn("");
       setCurrentCapture({
@@ -435,7 +426,6 @@ export default function CheckinScanPage() {
       setEditedCategoryId("");
       setEditedIsbn("");
       setCandidates([]);
-      setCandidatesError(null);
       setPickedCandidate(null);
       toast.success(`已加入：${title}`);
       startCamera();
@@ -503,7 +493,6 @@ export default function CheckinScanPage() {
     setEditedCategoryId("");
     setEditedIsbn("");
     setCandidates([]);
-    setCandidatesError(null);
     setPickedCandidate(null);
     startCamera();
   }, [startCamera]);
@@ -519,7 +508,6 @@ export default function CheckinScanPage() {
     setEditedCategoryId("");
     setEditedIsbn("");
     setCandidates([]);
-    setCandidatesError(null);
     setPickedCandidate(null);
     startCamera();
   }, [startCamera]);
@@ -822,11 +810,7 @@ export default function CheckinScanPage() {
                   <p className="text-[11px] text-neutral-400 px-1 py-2">
                     {candidatesLoading
                       ? "搜尋中…"
-                      : candidatesError === "rate_limited"
-                        ? "Google Books 今日配額已用完，請手動輸入 ISBN 或直接入庫"
-                        : candidatesError === "failed"
-                          ? "比對服務暫時無回應，可直接入庫"
-                          : "查無對應書目，可直接入庫（ISBN 留空或手動輸入）"}
+                      : "暫無搜尋結果，可直接入庫"}
                   </p>
                 )}
               </div>
