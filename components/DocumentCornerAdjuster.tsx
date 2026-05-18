@@ -193,60 +193,66 @@ export default function DocumentCornerAdjuster({
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       <div
-        ref={containerRef}
-        className="relative flex-1 overflow-hidden select-none touch-none"
+        className="relative flex-1 overflow-hidden select-none touch-none p-5"
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
-        <img
-          src={imageDataUrl}
-          alt="captured"
-          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-        />
-        {renderBox && (
-          // 不指定 viewBox：SVG 內部座標直接是 CSS px，跟容器尺寸 1:1，
-          // 也就是 renderBox 已經提供的座標系統。免去碰 ref.current。
-          <svg className="absolute inset-0 w-full h-full">
-            <polygon
-              points={orderedView
-                .map((p) => `${p.x},${p.y}`)
-                .join(" ")}
-              fill={
-                convex ? "rgba(34, 197, 94, 0.18)" : "rgba(239, 68, 68, 0.18)"
-              }
-              stroke={convex ? "#22c55e" : "#ef4444"}
-              strokeWidth={2}
-              strokeLinejoin="round"
-            />
-            {orderedView.map((p, i) => {
-              const key = CORNER_ORDER[i];
-              const active = draggingKey === key;
-              return (
-                <g key={key}>
-                  <circle
-                    cx={p.x}
-                    cy={p.y}
-                    r={active ? 12 : 10}
-                    fill="white"
-                    stroke={convex ? "#22c55e" : "#ef4444"}
-                    strokeWidth={2}
-                    style={{ pointerEvents: "none" }}
-                  />
-                  {/* 透明大圓接收觸控（44px hit-area）。 */}
-                  <circle
-                    cx={p.x}
-                    cy={p.y}
-                    r={22}
-                    fill="transparent"
-                    onPointerDown={handlePointerDown(key)}
-                    style={{ cursor: "grab", touchAction: "none" }}
-                  />
-                </g>
-              );
-            })}
-          </svg>
-        )}
+        {/* 內縮 20px 的可繪製區。containerRef / renderBox 都以此為基準，
+            handle 拖到最邊緣時也不會壓到螢幕外緣，loupe 與提示 pill 留在
+            外層維持原視覺位置。 */}
+        <div ref={containerRef} className="relative w-full h-full">
+          <img
+            src={imageDataUrl}
+            alt="captured"
+            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+          />
+          {renderBox && (
+            // 不指定 viewBox：SVG 內部座標直接是 CSS px，跟容器尺寸 1:1，
+            // 也就是 renderBox 已經提供的座標系統。免去碰 ref.current。
+            <svg className="absolute inset-0 w-full h-full">
+              <polygon
+                points={orderedView
+                  .map((p) => `${p.x},${p.y}`)
+                  .join(" ")}
+                fill={
+                  convex
+                    ? "rgba(34, 197, 94, 0.18)"
+                    : "rgba(239, 68, 68, 0.18)"
+                }
+                stroke={convex ? "#22c55e" : "#ef4444"}
+                strokeWidth={2}
+                strokeLinejoin="round"
+              />
+              {orderedView.map((p, i) => {
+                const key = CORNER_ORDER[i];
+                const active = draggingKey === key;
+                return (
+                  <g key={key}>
+                    <circle
+                      cx={p.x}
+                      cy={p.y}
+                      r={active ? 12 : 10}
+                      fill="white"
+                      stroke={convex ? "#22c55e" : "#ef4444"}
+                      strokeWidth={2}
+                      style={{ pointerEvents: "none" }}
+                    />
+                    {/* 透明大圓接收觸控（44px hit-area）。 */}
+                    <circle
+                      cx={p.x}
+                      cy={p.y}
+                      r={22}
+                      fill="transparent"
+                      onPointerDown={handlePointerDown(key)}
+                      style={{ cursor: "grab", touchAction: "none" }}
+                    />
+                  </g>
+                );
+              })}
+            </svg>
+          )}
+        </div>
 
         {/* 局部放大鏡：以「螢幕顯示尺寸」為基準的 2× 放大，置中對齊
             目前拖曳的那一角。CSS background-position 算式：
