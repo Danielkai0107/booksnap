@@ -283,8 +283,8 @@ export default function DocumentCornerAdjuster({
           </div>
         )}
 
-        {/* 提示 pill 放左上，跟右上角的 loupe 錯開不打架 */}
-        <div className="absolute top-4 left-4 pointer-events-none">
+        {/* 提示 pill 放置中靠上，視覺風格跟相機頁一致。z-0 確保被 loupe 蓋住。 */}
+        <div className="absolute top-4 inset-x-0 z-0 flex justify-center px-6 pointer-events-none">
           <p className="text-xs text-white/85 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full">
             拖曳四個點對準書封邊緣
           </p>
