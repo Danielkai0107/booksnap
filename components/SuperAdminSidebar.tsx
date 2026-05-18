@@ -61,10 +61,10 @@ const settingsItem: NavItem = {
 };
 
 function navLinkClass(active: boolean) {
-  return `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition mb-5 ${
+  return `flex items-center gap-2.5 rounded-full text-sm transition mb-5 ${
     active
-      ? "bg-neutral-900 text-white"
-      : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+      ? "bg-neutral-900 text-white px-6 py-2.5"
+      : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 px-3 py-2.5"
   }`;
 }
 

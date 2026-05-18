@@ -45,10 +45,10 @@ const settingsItem: NavItem = {
 };
 
 function navLinkClass(active: boolean) {
-  return `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition mb-5 ${
+  return `flex items-center gap-2.5  rounded-full text-sm transition mb-5 ${
     active
-      ? "bg-brand text-white font-semibold"
-      : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+      ? "bg-neutral-900 text-white px-6 py-2.5"
+      : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 px-3 py-2.5"
   }`;
 }
 
@@ -73,8 +73,7 @@ function BrandHeader({
         : meta?.label;
   const pillClass = isExperienceState
     ? EXPERIENCE_TAG_CLASS
-    : (meta?.pillClass ??
-      "bg-neutral-100 text-neutral-700 border-neutral-200");
+    : (meta?.pillClass ?? "bg-neutral-100 text-neutral-700 border-neutral-200");
   return (
     <div
       className={`relative mb-6 border-b border-neutral-100 pb-4 ${className}`}
@@ -419,4 +418,3 @@ function LogOutIcon(props: IconProps) {
     </svg>
   );
 }
-
