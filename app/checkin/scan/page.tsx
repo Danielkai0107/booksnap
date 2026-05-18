@@ -343,7 +343,7 @@ export default function CheckinScanPage() {
     // 用全解析度 frame 偵測一次，只當作 adjuster 的初始 hint；
     // 不再做信心判斷 / 自動 extract（會讓使用者覺得「沒得選」），
     // 一律進手動調整流程。
-    const detected = detectCornersFromCanvas(canvas, j.scanner, j.cv);
+    const detected = detectCornersFromCanvas(canvas, j.cv);
     setPendingCapture({
       rawDataUrl,
       width: canvas.width,
