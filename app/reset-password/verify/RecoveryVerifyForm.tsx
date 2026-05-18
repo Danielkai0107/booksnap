@@ -101,7 +101,7 @@ export default function RecoveryVerifyForm({ email, variant }: Props) {
             <button
               type="submit"
               disabled={pending}
-              className="flex-1 h-[46px] bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium rounded-lg transition"
+              className="flex-1 h-[46px] bg-brand hover:bg-brand-hover disabled:bg-neutral-400 text-white text-sm font-medium rounded-lg transition"
             >
               {pending ? "驗證中…" : "下一步"}
             </button>
