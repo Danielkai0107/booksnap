@@ -12,6 +12,7 @@ import CategorySelect from "@/components/CategorySelect";
 import CategoryTag from "@/components/CategoryTag";
 import EditBookSheet from "@/components/EditBookSheet";
 import ManualCheckinSheet from "@/components/ManualCheckinSheet";
+import { ListPagerBar } from "@/components/Pagination";
 import SearchInput from "@/components/SearchInput";
 import { useToast } from "@/components/ToastProvider";
 import { useAdminOrgInfo } from "@/lib/admin-org-info";
@@ -263,7 +264,7 @@ export default function AdminPage() {
           <StatusFilterChip
             active={statusFilter === "borrowed"}
             onClick={() => setStatusFilter("borrowed")}
-            dotColor="bg-neutral-400"
+            dotColor="bg-rose-500"
           >
             已借出
           </StatusFilterChip>
@@ -356,33 +357,31 @@ export default function AdminPage() {
             </div>
 
             {/* 桌機表格 */}
-            <div className="hidden md:block overflow-x-auto border border-neutral-100 rounded-xl">
+            <div className="hidden md:block overflow-x-auto border border-neutral-200 rounded-2xl">
               {/* `table-fixed` + 明確欄寬：書名、持有人才會真的 truncate；
                 沒這層 auto-layout 會讓長內容把整個 table 撐爛。
-                `min-w-[820px]` 在 md 起點（1200px）扣掉側欄 240 + padding 後
-                約剩 920px 仍夠塞，且更窄視窗會優雅地觸發水平捲動。 */}
-              <table className="w-full min-w-[820px] table-fixed text-sm">
+                `min-w-[920px]` 在 md 起點（1200px）扣掉側欄 240 + padding 後
+                仍夠塞，且更窄視窗會優雅地觸發水平捲動。 */}
+              <table className="w-full min-w-[920px] table-fixed text-sm">
                 <colgroup>
-                  <col style={{ width: "112px" }} />
+                  <col style={{ width: "104px" }} />
                   <col />
-                  <col style={{ width: "100px" }} />
+                  <col style={{ width: "110px" }} />
                   <col style={{ width: "140px" }} />
                   <col style={{ width: "110px" }} />
                   <col style={{ width: "140px" }} />
                   <col style={{ width: "52px" }} />
                 </colgroup>
-                <thead className="bg-neutral-50/60 text-neutral-500 text-xs uppercase tracking-wider">
-                  <tr>
-                    <th className="text-left px-5 py-3 font-medium">編號</th>
-                    <th className="text-left px-5 py-3 font-medium">書名</th>
-                    <th className="text-left px-5 py-3 font-medium">
-                      入庫人員
-                    </th>
-                    <th className="text-left px-5 py-3 font-medium">
+                <thead className="text-neutral-400 text-xs">
+                  <tr className="border-b border-neutral-100">
+                    <th className="text-left px-5 py-3 font-normal">編號</th>
+                    <th className="text-left px-5 py-3 font-normal">書名</th>
+                    <th className="text-left px-5 py-3 font-normal">分類</th>
+                    <th className="text-left px-5 py-3 font-normal">
                       入庫時間
                     </th>
-                    <th className="text-left px-5 py-3 font-medium">狀態</th>
-                    <th className="text-left px-5 py-3 font-medium">持有人</th>
+                    <th className="text-left px-5 py-3 font-normal">狀態</th>
+                    <th className="text-left px-5 py-3 font-normal">持有人</th>
                     <th className="px-3 py-3" />
                   </tr>
                 </thead>
@@ -395,38 +394,35 @@ export default function AdminPage() {
                       }
                       className="hover:bg-neutral-50/60 transition cursor-pointer"
                     >
-                      <td className="px-5 py-3.5 font-mono text-xs text-neutral-500 truncate">
+                      <td className="px-5 py-4 font-mono text-xs text-neutral-500 truncate">
                         {b.book_id}
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-4">
                         <div className="flex items-center gap-3 min-w-0">
                           {b.image_url ? (
                             <img
                               src={b.image_url}
                               alt={b.title}
-                              className="w-9 h-12 object-cover rounded border border-neutral-200 shrink-0"
+                              className="w-8 h-10 object-cover rounded shrink-0"
                             />
                           ) : (
-                            <div className="w-9 h-12 bg-neutral-100 rounded shrink-0" />
+                            <div className="w-8 h-10 bg-neutral-100 rounded shrink-0" />
                           )}
-                          <div className="flex flex-col min-w-0 flex-1">
-                            <span className="block text-neutral-900 truncate">
-                              {b.title}
-                            </span>
-                            {b.category_id && (
-                              <span className="mt-1.5 max-w-full">
-                                <CategoryTag
-                                  name={categoryNameById.get(b.category_id)}
-                                />
-                              </span>
-                            )}
-                          </div>
+                          <span className="block text-neutral-900 truncate min-w-0">
+                            {b.title}
+                          </span>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-neutral-700 truncate">
-                        {b.admin_name}
+                      <td className="px-5 py-4">
+                        {b.category_id ? (
+                          <CategoryTag
+                            name={categoryNameById.get(b.category_id)}
+                          />
+                        ) : (
+                          <span className="text-neutral-300">—</span>
+                        )}
                       </td>
-                      <td className="px-5 py-3.5 text-neutral-500 tabular-nums whitespace-nowrap">
+                      <td className="px-5 py-4 text-neutral-500 tabular-nums whitespace-nowrap">
                         {/* 兩行：日期上、時間下。原本連著一行 `2026/05/17 上午12:05`
                           會超出 140px 欄寬擠到狀態欄；切兩行後最寬只到日期
                           (`2026/05/17`)，乾淨地落在欄寬內。 */}
@@ -451,13 +447,13 @@ export default function AdminPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-4">
                         <StatusPill status={b.status} />
                       </td>
-                      <td className="px-5 py-3.5 text-neutral-700 truncate">
+                      <td className="px-5 py-4 text-neutral-700 truncate">
                         {b.current_holder ?? "—"}
                       </td>
-                      <td className="px-3 py-3.5 text-right">
+                      <td className="px-3 py-4 text-right">
                         <div
                           onClick={(e) => e.stopPropagation()}
                           className="inline-flex"
@@ -474,42 +470,18 @@ export default function AdminPage() {
               </table>
             </div>
 
-            {/* 桌機分頁器：每頁筆數切換 + 上/下頁 + 頁碼。
-              `tabular-nums` 讓頁碼按鈕在頁數變化時不會位移。 */}
-            <div className="hidden md:flex mt-4 items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm text-neutral-500">
-                <span>
-                  顯示 {filtered.length === 0 ? 0 : desktopPageStart + 1}–
-                  {desktopPageEnd}，共 {filtered.length} 本
-                </span>
-                <span className="text-neutral-300">·</span>
-                <label className="flex items-center gap-1.5">
-                  <span>每頁</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) =>
-                      setPageSize(
-                        Number(e.target.value) as DesktopPageSize,
-                      )
-                    }
-                    className="h-8 rounded-md border border-neutral-200 bg-white px-2 text-sm text-neutral-700 focus:outline-none focus:border-neutral-900"
-                  >
-                    {DESKTOP_PAGE_SIZE_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
-                  <span>筆</span>
-                </label>
-              </div>
-
-              <Pagination
-                page={safePage}
-                totalPages={totalPages}
-                onChange={setCurrentPage}
-              />
-            </div>
+            <ListPagerBar
+              total={filtered.length}
+              pageStart={desktopPageStart}
+              pageEnd={desktopPageEnd}
+              pageSize={pageSize}
+              pageSizeOptions={DESKTOP_PAGE_SIZE_OPTIONS}
+              onPageSizeChange={(n) => setPageSize(n as DesktopPageSize)}
+              page={safePage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              unit="本"
+            />
           </>
         )}
 
@@ -629,17 +601,18 @@ function Stat({ label, value }: { label: string; value: number }) {
 function StatusPill({ status }: { status: string }) {
   // `whitespace-nowrap` 是關鍵：沒有它，table cell 寬度不足時中文字會逐字
   // 換行，再加上 h-[26px] 固定高 → pill 被內容撐爆變成直立膠囊。
+  // 桌機改成「色點 + 色字」無底色的輕量樣式（mobile pill 仍保留外框感）。
   if (status === "available") {
     return (
-      <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-medium whitespace-nowrap">
+      <span className="inline-flex items-center gap-1.5 h-[26px] text-xs text-emerald-600 font-medium whitespace-nowrap">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
         可借
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 h-[26px] text-xs px-2.5 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200 font-medium whitespace-nowrap">
-      <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
+    <span className="inline-flex items-center gap-1.5 h-[26px] text-xs text-rose-600 font-medium whitespace-nowrap">
+      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
       已借出
     </span>
   );
@@ -672,138 +645,3 @@ function StatusFilterChip({
   );
 }
 
-// 產生像 [1, '…', 4, 5, 6, '…', 12] 的頁碼序列。
-// `siblings` 控制目前頁兩側顯示幾個頁碼；首尾固定顯示，避免頁數很多時
-// 整列頁碼把分頁器撐爆。
-function buildPageRange(
-  page: number,
-  totalPages: number,
-  siblings = 1,
-): Array<number | "ellipsis"> {
-  if (totalPages <= 7) {
-    return Array.from({ length: totalPages }, (_, i) => i + 1);
-  }
-  const first = 1;
-  const last = totalPages;
-  const left = Math.max(page - siblings, first + 1);
-  const right = Math.min(page + siblings, last - 1);
-
-  const items: Array<number | "ellipsis"> = [first];
-  if (left > first + 1) items.push("ellipsis");
-  for (let i = left; i <= right; i++) items.push(i);
-  if (right < last - 1) items.push("ellipsis");
-  items.push(last);
-  return items;
-}
-
-function Pagination({
-  page,
-  totalPages,
-  onChange,
-}: {
-  page: number;
-  totalPages: number;
-  onChange: (next: number) => void;
-}) {
-  if (totalPages <= 1) {
-    return <div className="h-9" aria-hidden />;
-  }
-  const items = buildPageRange(page, totalPages);
-  const prevDisabled = page <= 1;
-  const nextDisabled = page >= totalPages;
-
-  return (
-    <nav className="flex items-center gap-1" aria-label="分頁">
-      <PaginationButton
-        onClick={() => onChange(page - 1)}
-        disabled={prevDisabled}
-        ariaLabel="上一頁"
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
-      </PaginationButton>
-
-      {items.map((item, idx) =>
-        item === "ellipsis" ? (
-          <span
-            key={`ellipsis-${idx}`}
-            className="inline-flex h-9 min-w-9 items-center justify-center text-sm text-neutral-400"
-          >
-            …
-          </span>
-        ) : (
-          <PaginationButton
-            key={item}
-            onClick={() => onChange(item)}
-            active={item === page}
-            ariaLabel={`第 ${item} 頁`}
-          >
-            <span className="tabular-nums">{item}</span>
-          </PaginationButton>
-        ),
-      )}
-
-      <PaginationButton
-        onClick={() => onChange(page + 1)}
-        disabled={nextDisabled}
-        ariaLabel="下一頁"
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="M9 6l6 6-6 6" />
-        </svg>
-      </PaginationButton>
-    </nav>
-  );
-}
-
-function PaginationButton({
-  children,
-  onClick,
-  disabled,
-  active,
-  ariaLabel,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-  active?: boolean;
-  ariaLabel?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={ariaLabel}
-      aria-current={active ? "page" : undefined}
-      className={`inline-flex h-9 min-w-9 items-center justify-center px-2.5 text-sm font-medium rounded-md border transition ${
-        active
-          ? "bg-neutral-900 text-white border-neutral-900"
-          : "bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400"
-      } disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-neutral-200`}
-    >
-      {children}
-    </button>
-  );
-}

@@ -17,13 +17,22 @@ import {
 } from "@/lib/labelSizes";
 import { buildLabelsZplBatch, downloadTextFile } from "@/lib/labelZpl";
 import { useLabelPrintPageSize } from "@/lib/useLabelPrintPageSize";
+import CategoryTag from "@/components/CategoryTag";
+import { ListPagerBar } from "@/components/Pagination";
 import SearchInput from "@/components/SearchInput";
 import { useToast } from "@/components/ToastProvider";
 import ZoomableImage from "@/components/ZoomableImage";
-import { supabase, BookRow } from "@/lib/supabase";
+import { supabase, BookRow, type CategoryRow } from "@/lib/supabase";
+
+const DESKTOP_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+type DesktopPageSize = (typeof DESKTOP_PAGE_SIZE_OPTIONS)[number];
+const DEFAULT_DESKTOP_PAGE_SIZE: DesktopPageSize = 25;
+const MOBILE_INITIAL_COUNT = 20;
+const MOBILE_LOAD_STEP = 20;
 
 export default function LabelsPage() {
   const [books, setBooks] = useState<BookRow[]>([]);
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [showLabels, setShowLabels] = useState(false);
@@ -32,6 +41,13 @@ export default function LabelsPage() {
   const [orgName, setOrgName] = useState<string | null>(null);
   const [labelSize, setLabelSize] = useState<LabelSizeId>("40x30");
   const [printMode, setPrintMode] = useState<LabelPrintMode>("thermal");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<DesktopPageSize>(
+    DEFAULT_DESKTOP_PAGE_SIZE,
+  );
+  const [mobileVisibleCount, setMobileVisibleCount] = useState(
+    MOBILE_INITIAL_COUNT,
+  );
   const toast = useToast();
 
   useEffect(() => {
@@ -66,7 +82,7 @@ export default function LabelsPage() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [{ data, error }, meRes] = await Promise.all([
+      const [{ data, error }, meRes, catRes] = await Promise.all([
         supabase
           .from("books")
           .select("*")
@@ -74,6 +90,9 @@ export default function LabelsPage() {
         fetch("/api/me", { cache: "no-store" })
           .then((r) => r.json())
           .catch(() => null),
+        fetch("/api/categories", { cache: "no-store" })
+          .then((r) => r.json())
+          .catch(() => ({ categories: [] })),
       ]);
       if (!alive) return;
       if (error) {
@@ -88,12 +107,19 @@ export default function LabelsPage() {
       if (meRes && typeof meRes.orgName === "string") {
         setOrgName(meRes.orgName as string);
       }
+      setCategories((catRes?.categories ?? []) as CategoryRow[]);
       setLoading(false);
     })();
     return () => {
       alive = false;
     };
   }, [toast]);
+
+  const categoryNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    categories.forEach((c) => m.set(c.id, c.name));
+    return m;
+  }, [categories]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -104,6 +130,28 @@ export default function LabelsPage() {
         b.book_id.toLowerCase().includes(q),
     );
   }, [books, query]);
+
+  // 搜尋條件變動時，桌機回到第一頁、手機重置已載入數，避免使用者卡在空白頁。
+  useEffect(() => {
+    setCurrentPage(1);
+    setMobileVisibleCount(MOBILE_INITIAL_COUNT);
+  }, [query, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const desktopPageStart = (safePage - 1) * pageSize;
+  const desktopPageEnd = Math.min(desktopPageStart + pageSize, filtered.length);
+  const desktopPaged = useMemo(
+    () => filtered.slice(desktopPageStart, desktopPageEnd),
+    [filtered, desktopPageStart, desktopPageEnd],
+  );
+
+  const mobileVisible = Math.min(mobileVisibleCount, filtered.length);
+  const mobilePaged = useMemo(
+    () => filtered.slice(0, mobileVisible),
+    [filtered, mobileVisible],
+  );
+  const mobileHasMore = mobileVisible < filtered.length;
 
   const selectedBooks = useMemo(
     () => books.filter((b) => selected.has(b.book_id)),
@@ -313,40 +361,175 @@ export default function LabelsPage() {
           {books.length === 0 ? "尚無書籍" : "沒有符合的書"}
         </p>
       ) : (
-        <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
-          {filtered.map((b) => {
-            const checked = selected.has(b.book_id);
-            return (
-              <li key={b.book_id}>
-                <label className="py-3.5 flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggle(b.book_id)}
-                    className="w-4 h-4 accent-neutral-900"
-                  />
-                  {b.image_url ? (
-                    <ZoomableImage
-                      src={b.image_url}
-                      alt={b.title}
-                      className="w-10 h-14 object-cover rounded border border-neutral-200"
+        <>
+          {/* 手機卡片列表 */}
+          <ul className="md:hidden divide-y divide-neutral-100 border-y border-neutral-100">
+            {mobilePaged.map((b) => {
+              const checked = selected.has(b.book_id);
+              return (
+                <li key={b.book_id}>
+                  <label className="py-3.5 flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggle(b.book_id)}
+                      className="w-4 h-4 accent-neutral-900 shrink-0"
                     />
-                  ) : (
-                    <div className="w-10 h-14 bg-neutral-100 rounded" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-neutral-900 truncate">
-                      {b.title}
-                    </p>
-                    <p className="text-xs text-neutral-500 mt-0.5 font-mono">
-                      {b.book_id}
-                    </p>
-                  </div>
-                </label>
-              </li>
-            );
-          })}
-        </ul>
+                    {b.image_url ? (
+                      <ZoomableImage
+                        src={b.image_url}
+                        alt={b.title}
+                        className="w-10 h-14 object-cover rounded border border-neutral-200 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-14 bg-neutral-100 rounded shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-neutral-900 truncate">
+                        {b.title}
+                      </p>
+                      <p className="text-xs text-neutral-500 mt-0.5 font-mono">
+                        {b.book_id}
+                      </p>
+                    </div>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* 手機分批載入 */}
+          <div className="md:hidden mt-4 flex flex-col items-center gap-2">
+            <p className="text-xs text-neutral-500 tabular-nums">
+              已顯示 {mobileVisible} / {filtered.length} 本
+            </p>
+            {mobileHasMore && (
+              <button
+                type="button"
+                onClick={() =>
+                  setMobileVisibleCount((n) => n + MOBILE_LOAD_STEP)
+                }
+                className="press-feedback inline-flex items-center justify-center text-sm font-medium text-neutral-800 hover:text-neutral-900 px-4 h-10 rounded-full bg-white border border-neutral-200 hover:border-neutral-400"
+              >
+                載入更多
+              </button>
+            )}
+          </div>
+
+          {/* 桌機表格：跟書籍管理一致的表頭 + 分頁樣式 */}
+          <div className="hidden md:block overflow-x-auto border border-neutral-200 rounded-2xl">
+            <table className="w-full min-w-[720px] table-fixed text-sm">
+              <colgroup>
+                <col style={{ width: "56px" }} />
+                <col style={{ width: "60px" }} />
+                <col />
+                <col style={{ width: "140px" }} />
+                <col style={{ width: "120px" }} />
+              </colgroup>
+              <thead className="text-neutral-400 text-xs">
+                <tr className="border-b border-neutral-100">
+                  <th className="text-left px-5 py-3 font-normal">
+                    {/* 表頭 checkbox：當頁全選 / 取消當頁全選 */}
+                    <input
+                      type="checkbox"
+                      aria-label="當頁全選"
+                      className="w-4 h-4 accent-neutral-900 align-middle"
+                      checked={
+                        desktopPaged.length > 0 &&
+                        desktopPaged.every((b) => selected.has(b.book_id))
+                      }
+                      ref={(el) => {
+                        if (!el) return;
+                        const some = desktopPaged.some((b) =>
+                          selected.has(b.book_id),
+                        );
+                        const all = desktopPaged.every((b) =>
+                          selected.has(b.book_id),
+                        );
+                        el.indeterminate = some && !all;
+                      }}
+                      onChange={(e) => {
+                        const next = new Set(selected);
+                        if (e.target.checked) {
+                          desktopPaged.forEach((b) => next.add(b.book_id));
+                        } else {
+                          desktopPaged.forEach((b) => next.delete(b.book_id));
+                        }
+                        setSelected(next);
+                      }}
+                    />
+                  </th>
+                  <th className="text-left px-2 py-3 font-normal">封面</th>
+                  <th className="text-left px-5 py-3 font-normal">書名</th>
+                  <th className="text-left px-5 py-3 font-normal">分類</th>
+                  <th className="text-left px-5 py-3 font-normal">編號</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {desktopPaged.map((b) => {
+                  const checked = selected.has(b.book_id);
+                  return (
+                    <tr
+                      key={b.book_id}
+                      onClick={() => toggle(b.book_id)}
+                      className="hover:bg-neutral-50/60 transition cursor-pointer"
+                    >
+                      <td className="px-5 py-4">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggle(b.book_id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 accent-neutral-900 align-middle"
+                          aria-label={`選擇 ${b.title}`}
+                        />
+                      </td>
+                      <td className="px-2 py-4">
+                        {b.image_url ? (
+                          <img
+                            src={b.image_url}
+                            alt={b.title}
+                            className="w-8 h-10 object-cover rounded"
+                          />
+                        ) : (
+                          <div className="w-8 h-10 bg-neutral-100 rounded" />
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-neutral-900 truncate">
+                        {b.title}
+                      </td>
+                      <td className="px-5 py-4">
+                        {b.category_id ? (
+                          <CategoryTag
+                            name={categoryNameById.get(b.category_id)}
+                          />
+                        ) : (
+                          <span className="text-neutral-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 font-mono text-xs text-neutral-500 truncate">
+                        {b.book_id}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <ListPagerBar
+            total={filtered.length}
+            pageStart={desktopPageStart}
+            pageEnd={desktopPageEnd}
+            pageSize={pageSize}
+            pageSizeOptions={DESKTOP_PAGE_SIZE_OPTIONS}
+            onPageSizeChange={(n) => setPageSize(n as DesktopPageSize)}
+            page={safePage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            unit="本"
+          />
+        </>
       )}
 
       <div className="md:hidden h-24" aria-hidden />

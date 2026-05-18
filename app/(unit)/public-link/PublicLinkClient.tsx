@@ -125,163 +125,138 @@ export default function PublicLinkClient({
     }
   }
 
+  // 桌機改成左右雙欄：QR 卡在左，動作按鈕＋toggle 卡在右，避免大片留白。
+  // 手機 / 鎖定時仍維持單欄堆疊。
+  const actionButtons = !locked && (
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        onClick={shareLink}
+        className="press-feedback inline-flex items-center justify-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium h-10 px-5 rounded-full transition"
+      >
+        <span>分享</span>
+      </button>
+      <button
+        type="button"
+        onClick={goToPublic}
+        className="press-feedback inline-flex items-center justify-center gap-1.5 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium h-10 px-5 rounded-full transition"
+      >
+        <span>前往</span>
+      </button>
+      <a
+        href={qrUrl || undefined}
+        download={qrUrl ? `booksnap-${publicSlug}.png` : undefined}
+        aria-disabled={!qrUrl}
+        onClick={(e) => {
+          if (!qrUrl) e.preventDefault();
+        }}
+        className={`press-feedback inline-flex items-center justify-center gap-1.5 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium h-10 px-5 rounded-full transition ${
+          qrUrl ? "" : "opacity-50 cursor-not-allowed"
+        }`}
+      >
+        <span>下載</span>
+      </a>
+    </div>
+  );
+
+  const qrCard = !locked && (
+    <div className="border border-neutral-200 rounded-2xl p-4 md:p-5 flex flex-col items-center">
+      {qrUrl ? (
+        <img
+          src={qrUrl}
+          alt="借還 QR"
+          className="w-44 h-44 md:w-52 md:h-52 rounded-lg"
+        />
+      ) : (
+        <div className="w-44 h-44 md:w-52 md:h-52 bg-neutral-50 rounded-lg" />
+      )}
+      <p className="mt-3 text-xs text-neutral-500">給讀者的借還連結</p>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       {/* 鎖定時整個 QR / 分享卡都不渲染——QR 也好、分享按鈕也好，沒升級
           前都沒實際用途，顯示反而讓使用者誤會。直接讓畫面從說明 banner +
           toggle 開始即可。 */}
       {!locked && (
-        <section className="rounded-2xl p-5 md:p-7 text-center">
-          <div className="mb-5 flex justify-center">
-            {qrUrl ? (
-              <img
-                src={qrUrl}
-                alt="借還 QR"
-                className="w-48 h-48 md:w-56 md:h-56 border border-neutral-200 rounded-lg"
+        <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] md:items-start gap-6">
+          {qrCard}
+          <div className="space-y-5">
+            {actionButtons}
+            <section className="border border-neutral-200 rounded-2xl p-5 md:p-6 divide-y divide-neutral-100">
+              <ToggleRow
+                label="讓讀者可以掃碼借還"
+                description="關閉後，讀者畫面會顯示暫停服務。"
+                checked={borrowEnabled}
+                disabled={savingFor === "borrow"}
+                locked={locked}
+                onLockedClick={goToBilling}
+                onChange={(v) => {
+                  setBorrowEnabled(v);
+                  void patchToggle({ public_borrow_enabled: v }, "borrow");
+                }}
               />
-            ) : (
-              <div className="w-48 h-48 md:w-56 md:h-56 bg-neutral-50 rounded-lg" />
-            )}
+              <ToggleRow
+                label="讓讀者可以查書"
+                description="關閉後，只能透過書上 QR 直達借還。"
+                checked={catalogEnabled}
+                disabled={savingFor === "catalog"}
+                locked={locked}
+                onLockedClick={goToBilling}
+                onChange={(v) => {
+                  setCatalogEnabled(v);
+                  void patchToggle({ public_catalog_enabled: v }, "catalog");
+                }}
+              />
+            </section>
           </div>
-          <p className="text-sm font-light text-neutral-500">給讀者的借還連結</p>
-
-          <div className="mt-6 flex flex-wrap gap-3 md:justify-center">
-            <button
-              type="button"
-              onClick={shareLink}
-              className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition"
-            >
-              <ShareIcon />
-              <span>分享</span>
-            </button>
-            <button
-              type="button"
-              onClick={goToPublic}
-              className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2.5 rounded-lg transition"
-            >
-              <ExternalLinkIcon />
-              <span>前往</span>
-            </button>
-            <a
-              href={qrUrl || undefined}
-              download={qrUrl ? `booksnap-${publicSlug}.png` : undefined}
-              aria-disabled={!qrUrl}
-              onClick={(e) => {
-                if (!qrUrl) e.preventDefault();
-              }}
-              className={`flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-sm font-medium px-4 py-2.5 rounded-lg transition ${
-                qrUrl ? "" : "opacity-50 cursor-not-allowed"
-              }`}
-            >
-              <DownloadIcon />
-              <span>下載</span>
-            </a>
-          </div>
-        </section>
-      )}
-
-      {locked && (
-        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 flex items-center gap-3">
-          <p className="flex-1 text-sm text-neutral-700 leading-relaxed">
-            借閱連結為付費功能，升級後即可啟用兩個開關並對外分享。
-          </p>
-          <button
-            type="button"
-            onClick={goToBilling}
-            className="shrink-0 inline-flex items-center h-[26px] px-2.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium transition"
-          >
-            升級
-          </button>
         </div>
       )}
 
-      <section className="border border-neutral-200 rounded-2xl p-5 md:p-7 space-y-4">
-        <ToggleRow
-          label="讓讀者可以掃碼借還"
-          description="開啟後，讀者掃 QR 或開連結即可借還。關閉後，讀者畫面會顯示暫停服務。"
-          checked={borrowEnabled}
-          disabled={savingFor === "borrow"}
-          locked={locked}
-          onLockedClick={goToBilling}
-          onChange={(v) => {
-            setBorrowEnabled(v);
-            void patchToggle({ public_borrow_enabled: v }, "borrow");
-          }}
-        />
-        <ToggleRow
-          label="讓讀者可以查書"
-          description="關閉後，讀者無法瀏覽館藏列表，只能透過書上 QR 直達借還。"
-          checked={catalogEnabled}
-          disabled={savingFor === "catalog"}
-          locked={locked}
-          onLockedClick={goToBilling}
-          onChange={(v) => {
-            setCatalogEnabled(v);
-            void patchToggle({ public_catalog_enabled: v }, "catalog");
-          }}
-        />
-      </section>
+      {locked && (
+        <>
+          <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 flex items-center gap-3">
+            <p className="flex-1 text-sm text-neutral-700 leading-relaxed">
+              借閱連結為付費功能，升級後即可啟用兩個開關並對外分享。
+            </p>
+            <button
+              type="button"
+              onClick={goToBilling}
+              className="shrink-0 inline-flex items-center h-[26px] px-2.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium transition"
+            >
+              升級
+            </button>
+          </div>
+          <section className="border border-neutral-200 rounded-2xl p-5 md:p-6 divide-y divide-neutral-100">
+            <ToggleRow
+              label="讓讀者可以掃碼借還"
+              description="關閉後，讀者畫面會顯示暫停服務。"
+              checked={borrowEnabled}
+              disabled={savingFor === "borrow"}
+              locked={locked}
+              onLockedClick={goToBilling}
+              onChange={(v) => {
+                setBorrowEnabled(v);
+                void patchToggle({ public_borrow_enabled: v }, "borrow");
+              }}
+            />
+            <ToggleRow
+              label="讓讀者可以查書"
+              description="關閉後，只能透過書上 QR 直達借還。"
+              checked={catalogEnabled}
+              disabled={savingFor === "catalog"}
+              locked={locked}
+              onLockedClick={goToBilling}
+              onChange={(v) => {
+                setCatalogEnabled(v);
+                void patchToggle({ public_catalog_enabled: v }, "catalog");
+              }}
+            />
+          </section>
+        </>
+      )}
     </div>
-  );
-}
-
-function ShareIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-      <polyline points="16 6 12 2 8 6" />
-      <line x1="12" y1="2" x2="12" y2="15" />
-    </svg>
-  );
-}
-
-function ExternalLinkIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      <polyline points="15 3 21 3 21 9" />
-      <line x1="10" y1="14" x2="21" y2="3" />
-    </svg>
-  );
-}
-
-function DownloadIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
   );
 }
 
@@ -309,10 +284,10 @@ function ToggleRow({
       <button
         type="button"
         onClick={onLockedClick}
-        className="w-full flex items-start justify-between gap-4 text-left"
+        className="w-full flex items-start justify-between gap-4 text-left py-4 first:pt-0 last:pb-0"
       >
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-neutral-900">{label}</p>
+          <p className="text-sm font-semibold text-neutral-900">{label}</p>
           <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
             {description}
           </p>
@@ -337,9 +312,9 @@ function ToggleRow({
     );
   }
   return (
-    <label className="flex items-start justify-between gap-4 cursor-pointer">
+    <label className="flex items-start justify-between gap-4 cursor-pointer py-4 first:pt-0 last:pb-0">
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-neutral-900">{label}</p>
+        <p className="text-sm font-semibold text-neutral-900">{label}</p>
         <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
           {description}
         </p>
