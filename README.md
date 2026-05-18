@@ -38,15 +38,14 @@ npm run dev
 商業模式很簡單：**核准後免費體驗 N 天（預設 30 天），到期後鎖定升級**。
 
 - **方案只有一個**：Pro，月費 `NT$ 990`（可在 Super Admin → 方案設定線上改）。體驗天數可在 Super Admin → 營運設定改。
-- **鎖定邏輯**集中在 [`lib/billing/lock.ts`](lib/billing/lock.ts) 的 `isOrgLocked(org, sub)`：付費中或 `bypass_quota=true` → 不鎖；其他（體驗中、體驗過期、取消後）→ 全鎖。
+- **鎖定邏輯**集中在 [`lib/billing/lock.ts`](lib/billing/lock.ts) 的 `isOrgLocked(org, sub)`：付費中或體驗中 → 不鎖；體驗過期、從未付費、取消後 → 全鎖。
 - **鎖時擋兩個入口**：新書入庫（首頁按鈕 + 手機 FAB + `/checkin` server redirect）、借閱連結 toggle / 分享按鈕。其他頁仍可預覽。
 - **API 防呆**：`/api/recognize`、`/api/books` 在 lock 時回 `403 { error: "locked" }`，外層 UI 已先擋下，這層僅防呆。
 - **訂閱管理頁** `/billing`：體驗中（倒數）／付費中（下個帳單日 + 取消）／已取消但期內（恢復）三狀態。
 - **Super Admin** 控制：
-  - 核准單位時自動寫入 `trial_ends_at`（用全域 `trial_days`）。
+  - 新單位註冊時自動寫入 `trial_ends_at`（用全域 `trial_days`）。
   - 單位列：「啟用付費」「取消付費（期末／立即）」「延長體驗 N 天」。
   - 「快速狀態切換」：一鍵把單位切成「剛核准的體驗 / Pro / 體驗已結束」三狀態，測試／支援用。
-  - 「免鎖單位」可豁免任何鎖定（內部測試／合作夥伴用）。
 - **金流抽象**：[`lib/billing/gateway.ts`](lib/billing/gateway.ts) interface，所有 DB 變更走 [`lib/billing/apply.ts`](lib/billing/apply.ts) → `applyGatewayEvent`，instant 與真實 webhook 共用。
 
 要接真實金流：

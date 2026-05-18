@@ -15,36 +15,33 @@ import {
 import { trialDaysRemaining, trialState } from "@/lib/billing/lock";
 import OrgRowActions from "./OrgRowActions";
 
-type TabKey = "pending" | "approved" | "rejected" | "suspended" | "all";
+type TabKey = "approved" | "rejected" | "suspended" | "all";
 
 type Search = Promise<{ tab?: string }>;
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "全部" },
-  { key: "pending", label: "待審核" },
   { key: "approved", label: "已通過" },
   { key: "rejected", label: "已退回" },
   { key: "suspended", label: "已停用" },
 ];
 
 function statusLabel(s: OrgStatus): string {
-  return s === "pending"
-    ? "待審核"
-    : s === "approved"
-      ? "已通過"
-      : s === "rejected"
-        ? "已退回"
-        : "已停用";
+  return s === "approved"
+    ? "已通過"
+    : s === "rejected"
+      ? "已退回"
+      : s === "suspended"
+        ? "已停用"
+        : s;
 }
 
 function statusPillClass(s: OrgStatus): string {
-  return s === "pending"
-    ? "bg-amber-50 text-amber-700 border-amber-100"
-    : s === "approved"
-      ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-      : s === "rejected"
-        ? "bg-red-50 text-red-700 border-red-100"
-        : "bg-neutral-100 text-neutral-600 border-neutral-200";
+  return s === "approved"
+    ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+    : s === "rejected"
+      ? "bg-red-50 text-red-700 border-red-100"
+      : "bg-neutral-100 text-neutral-600 border-neutral-200";
 }
 
 function subscriptionStatusPillClass(s: SubscriptionStatus): string {
@@ -121,7 +118,7 @@ export default async function OrganizationsPage({
         單位管理
       </h1>
       <p className="mt-2 text-sm text-neutral-500">
-        審核、停用、重設單位密碼、啟用付費、延長體驗。
+        停用、重設單位密碼、啟用付費、延長體驗。
       </p>
 
       <div className="mt-6 flex gap-1 border-b border-neutral-200">
@@ -206,11 +203,6 @@ export default async function OrganizationsPage({
                           到期取消
                         </span>
                       )}
-                      {o.bypass_quota && (
-                        <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
-                          免鎖
-                        </span>
-                      )}
                     </div>
                     <dl className="mt-3 text-sm text-neutral-600 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
                       <Pair k="縣市" v={o.city} />
@@ -263,7 +255,6 @@ export default async function OrganizationsPage({
                     city={o.city}
                     contactEmail={o.contact_email}
                     contactPhone={o.contact_phone}
-                    bypassQuota={o.bypass_quota}
                   />
                 </div>
               </li>

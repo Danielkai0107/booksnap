@@ -3,7 +3,6 @@ import SuperAdminShell from "@/components/SuperAdminShell";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadAppSettings } from "@/lib/plans";
 import { fetchVisionModels } from "@/lib/anthropic-models";
-import type { OrganizationRow } from "@/lib/supabase/types";
 import TrialDaysForm from "./TrialDaysForm";
 import BillingEnabledForm from "./BillingEnabledForm";
 import AiModelsForm from "./AiModelsForm";
@@ -28,16 +27,6 @@ export default async function SuperAdminSettingsPage() {
     fetchVisionModels(),
   ]);
 
-  const { data: bypassRows } = await admin
-    .from("organizations")
-    .select("id, name, contact_email, plan, bypass_quota")
-    .eq("bypass_quota", true)
-    .order("name", { ascending: true });
-  const bypassOrgs = (bypassRows ?? []) as Pick<
-    OrganizationRow,
-    "id" | "name" | "contact_email" | "plan" | "bypass_quota"
-  >[];
-
   return (
     <SuperAdminShell>
       <div className="space-y-10">
@@ -53,8 +42,8 @@ export default async function SuperAdminSettingsPage() {
         <section className="rounded-2xl border border-neutral-200 bg-white p-5">
           <h2 className="text-sm font-medium text-neutral-900">預設體驗天數</h2>
           <p className="mt-1.5 text-xs text-neutral-500 leading-relaxed">
-            新單位通過審核時，會自動設定體驗截止日為「核准日 + N 天」。
-            只影響「之後新核准的單位」；既有單位請改用單位列表上的「延長體驗」。
+            新單位註冊時，會自動設定體驗截止日為「註冊日 + N 天」。
+            只影響「之後新註冊的單位」；既有單位請改用單位列表上的「延長體驗」。
           </p>
           <div className="mt-4">
             <TrialDaysForm initialDays={trialDays} />
@@ -106,42 +95,6 @@ export default async function SuperAdminSettingsPage() {
           <div className="mt-4">
             <BillingEnabledForm initialEnabled={billingEnabled} />
           </div>
-        </section>
-
-        <section className="rounded-2xl border border-neutral-200 bg-white p-5">
-          <h2 className="text-sm font-medium text-neutral-900">
-            免鎖單位（{bypassOrgs.length}）
-          </h2>
-          <p className="mt-1.5 text-xs text-neutral-500 leading-relaxed">
-            這些單位不受升級鎖影響，即使體驗結束也能無限使用全部功能。請至「單位管理」逐筆切換。
-          </p>
-          {bypassOrgs.length === 0 ? (
-            <p className="mt-4 text-sm text-neutral-400">目前沒有免鎖單位。</p>
-          ) : (
-            <ul className="mt-4 space-y-2">
-              {bypassOrgs.map((o) => (
-                <li
-                  key={o.id}
-                  className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl border border-neutral-100 bg-neutral-50"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-neutral-900 truncate">
-                      {o.name}
-                    </p>
-                    <p className="text-xs text-neutral-500 truncate">
-                      {o.contact_email}
-                    </p>
-                  </div>
-                  <Link
-                    href="/super-admin/organizations?tab=approved"
-                    className="text-xs text-neutral-500 hover:text-neutral-900 transition shrink-0"
-                  >
-                    管理 →
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
         </section>
       </div>
     </SuperAdminShell>

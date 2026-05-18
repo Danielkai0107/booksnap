@@ -8,12 +8,9 @@ import OrgActionsMenuSheet, {
   type OrgMenuActionId,
 } from "@/components/super-admin/OrgActionsMenuSheet";
 import {
-  approveOrganization,
-  rejectOrganization,
   suspendOrganization,
   reactivateOrganization,
   resetOrganizationPassword,
-  setOrganizationBypassQuota,
   updateOrganization,
   grantPaidSubscription,
   cancelOrganizationSubscription,
@@ -36,13 +33,12 @@ type Props = {
   city: string;
   contactEmail: string;
   contactPhone: string;
-  bypassQuota: boolean;
   /** compact：列表列用；expanded：詳情頁全寬按鈕 */
   variant?: "compact" | "expanded";
 };
 
-type DialogKind = Exclude<OrgMenuActionId, "approve" | "reactivate"> | null;
-type ConfirmKind = "approve" | "reactivate" | null;
+type DialogKind = Exclude<OrgMenuActionId, "reactivate"> | null;
+type ConfirmKind = "reactivate" | null;
 
 const CITIES = [
   "台北市",
@@ -79,7 +75,6 @@ export default function OrgRowActions({
   city,
   contactEmail,
   contactPhone,
-  bypassQuota,
   variant = "compact",
 }: Props) {
   const router = useRouter();
@@ -95,9 +90,8 @@ export default function OrgRowActions({
         status,
         trialState,
         plan,
-        bypassQuota,
       }),
-    [status, trialState, plan, bypassQuota],
+    [status, trialState, plan],
   );
 
   function openMenu() {
@@ -107,7 +101,7 @@ export default function OrgRowActions({
 
   function handleMenuSelect(id: OrgMenuActionId) {
     setMenuOpen(false);
-    if (id === "approve" || id === "reactivate") {
+    if (id === "reactivate") {
       setConfirm(id);
       return;
     }
@@ -132,44 +126,10 @@ export default function OrgRowActions({
     toast.error(e instanceof Error ? e.message : String(e));
   }
 
-  function approve() {
-    startTransition(async () => {
-      try {
-        await approveOrganization(orgId);
-        router.refresh();
-      } catch (e) {
-        reportError(e);
-      }
-    });
-  }
-
-  function reactivate() {
-    startTransition(async () => {
-      try {
-        await reactivateOrganization(orgId);
-        router.refresh();
-      } catch (e) {
-        reportError(e);
-      }
-    });
-  }
-
   function confirmReactivate() {
     startTransition(async () => {
       try {
         await reactivateOrganization(orgId);
-        setConfirm(null);
-        router.refresh();
-      } catch (e) {
-        reportError(e);
-      }
-    });
-  }
-
-  function confirmApprove() {
-    startTransition(async () => {
-      try {
-        await approveOrganization(orgId);
         setConfirm(null);
         router.refresh();
       } catch (e) {
@@ -213,21 +173,6 @@ export default function OrgRowActions({
         onSelect={handleMenuSelect}
       />
 
-      {confirm === "approve" && (
-        <Modal title={`核准「${orgName}」？`} onClose={closeConfirm}>
-          <p className="text-sm text-neutral-600 leading-relaxed">
-            核准後單位負責人即可登入後台，並依方案開始使用各項功能。
-          </p>
-          <div className="mt-5 flex gap-3 justify-end">
-            <SecondaryBtn onClick={closeConfirm} disabled={pending}>
-              取消
-            </SecondaryBtn>
-            <PrimaryBtn onClick={confirmApprove} disabled={pending}>
-              {pending ? "處理中…" : "確認核准"}
-            </PrimaryBtn>
-          </div>
-        </Modal>
-      )}
       {confirm === "reactivate" && (
         <Modal title={`重新啟用「${orgName}」？`} onClose={closeConfirm}>
           <p className="text-sm text-neutral-600 leading-relaxed">
@@ -244,11 +189,6 @@ export default function OrgRowActions({
         </Modal>
       )}
 
-      {dialog === "reject" && (
-        <Modal title={`退回「${orgName}」？`} onClose={close}>
-          <RejectDialog orgId={orgId} onDone={close} onError={reportError} />
-        </Modal>
-      )}
       {dialog === "suspend" && (
         <Modal title={`停用「${orgName}」？`} onClose={close}>
           <SuspendDialog orgId={orgId} onDone={close} onError={reportError} />
@@ -304,23 +244,6 @@ export default function OrgRowActions({
           <ResetTrialDialog
             orgId={orgId}
             trialEndsAt={trialEndsAt}
-            onDone={close}
-            onError={reportError}
-          />
-        </Modal>
-      )}
-      {dialog === "bypass" && (
-        <Modal
-          title={
-            bypassQuota
-              ? `取消「${orgName}」的免鎖？`
-              : `將「${orgName}」設為免鎖？`
-          }
-          onClose={close}
-        >
-          <BypassDialog
-            orgId={orgId}
-            current={bypassQuota}
             onDone={close}
             onError={reportError}
           />
@@ -741,51 +664,6 @@ function ResetTrialDialog({
   );
 }
 
-function BypassDialog({
-  orgId,
-  current,
-  onDone,
-  onError,
-}: {
-  orgId: string;
-  current: boolean;
-  onDone: () => void;
-  onError: (m: string) => void;
-}) {
-  const [pending, startTransition] = useTransition();
-  const next = !current;
-  return (
-    <>
-      <p className="text-sm text-neutral-600 leading-relaxed">
-        {next
-          ? "此單位將不受升級鎖影響，即使體驗結束也能無限使用全部功能。常用於 VIP／合作夥伴。"
-          : "取消後此單位回到一般體驗／付費邏輯，體驗結束後會被鎖住。"}
-        操作會記入 audit log。
-      </p>
-      <div className="mt-5 flex gap-2 justify-end">
-        <SecondaryBtn onClick={onDone} disabled={pending}>
-          取消
-        </SecondaryBtn>
-        <PrimaryBtn
-          onClick={() => {
-            startTransition(async () => {
-              const res = await setOrganizationBypassQuota(orgId, next);
-              if (res.ok) {
-                onDone();
-              } else {
-                onError(res.error);
-              }
-            });
-          }}
-          disabled={pending}
-        >
-          {pending ? "儲存中…" : next ? "設為免鎖" : "取消免鎖"}
-        </PrimaryBtn>
-      </div>
-    </>
-  );
-}
-
 function DeleteDialog({
   orgId,
   orgName,
@@ -996,53 +874,6 @@ function EditField({
       </label>
       {children}
     </div>
-  );
-}
-
-function RejectDialog({
-  orgId,
-  onDone,
-  onError,
-}: {
-  orgId: string;
-  onDone: () => void;
-  onError: (m: string) => void;
-}) {
-  const [reason, setReason] = useState("");
-  const [pending, startTransition] = useTransition();
-  return (
-    <>
-      <p className="text-sm text-neutral-600">
-        退回後，該單位無法登入；可填寫退回原因供日後查核。
-      </p>
-      <textarea
-        rows={3}
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-        placeholder="（選填）"
-        className="mt-4 w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm focus:outline-none focus:border-neutral-900 transition"
-      />
-      <div className="mt-5 flex gap-2 justify-end">
-        <SecondaryBtn onClick={onDone} disabled={pending}>
-          取消
-        </SecondaryBtn>
-        <DangerBtn
-          onClick={() => {
-            startTransition(async () => {
-              try {
-                await rejectOrganization(orgId, reason.trim());
-                onDone();
-              } catch (e) {
-                onError(e instanceof Error ? e.message : String(e));
-              }
-            });
-          }}
-          disabled={pending}
-        >
-          {pending ? "處理中…" : "確認退回"}
-        </DangerBtn>
-      </div>
-    </>
   );
 }
 

@@ -25,60 +25,6 @@ async function assertSuperAdmin(): Promise<{ userId: string }> {
   return { userId: data.user!.id };
 }
 
-/**
- * Approving an org also stamps the trial window (now + global trial_days from
- * `app_settings`). Re-approving an already-approved org refreshes the trial
- * only when `trial_ends_at` is null (so VIP / paid orgs never lose state).
- */
-export async function approveOrganization(orgId: string): Promise<void> {
-  await assertSuperAdmin();
-  const admin = createAdminClient();
-  const { trialDays } = await loadAppSettings(admin);
-  const now = new Date();
-  const trialEnds = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
-
-  const { data: existing } = await admin
-    .from("organizations")
-    .select("trial_ends_at, plan")
-    .eq("id", orgId)
-    .maybeSingle();
-
-  const updates: Record<string, unknown> = {
-    status: "approved",
-    approved_at: now.toISOString(),
-    rejected_reason: null,
-  };
-  if (!existing?.trial_ends_at && existing?.plan !== "pro") {
-    updates.trial_ends_at = trialEnds.toISOString();
-  }
-
-  const { error } = await admin
-    .from("organizations")
-    .update(updates)
-    .eq("id", orgId);
-  if (error) throw error;
-  revalidatePath("/super-admin");
-  revalidatePath("/super-admin/organizations");
-}
-
-export async function rejectOrganization(
-  orgId: string,
-  reason: string,
-): Promise<void> {
-  await assertSuperAdmin();
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("organizations")
-    .update({
-      status: "rejected",
-      rejected_reason: reason || null,
-    })
-    .eq("id", orgId);
-  if (error) throw error;
-  revalidatePath("/super-admin");
-  revalidatePath("/super-admin/organizations");
-}
-
 export async function suspendOrganization(orgId: string): Promise<void> {
   await assertSuperAdmin();
   const admin = createAdminClient();
@@ -547,8 +493,8 @@ export async function resetOrganizationTrial(
 }
 
 /**
- * Update the global default trial length used by `approveOrganization`. Does
- * not retroactively change existing trials.
+ * Update the global default trial length used when a new org is registered.
+ * Does not retroactively change existing trials.
  */
 export async function setTrialDays(
   days: number,
@@ -698,32 +644,6 @@ export async function setAiRecognizeModels(
     target_org_id: null,
     meta: { primary: primaryTrim, fallback: fallbackTrim || null },
   });
-  revalidatePath("/super-admin/settings");
-  return { ok: true };
-}
-
-export async function setOrganizationBypassQuota(
-  orgId: string,
-  bypass: boolean,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { userId } = await assertSuperAdmin();
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("organizations")
-    .update({ bypass_quota: bypass })
-    .eq("id", orgId);
-  if (error) {
-    return { ok: false, error: toUserMessage(error, "更新失敗") };
-  }
-  await writeAuditLog(admin, {
-    actor_id: userId,
-    actor_role: "super_admin",
-    action: bypass ? "org.bypass_quota.granted" : "org.bypass_quota.revoked",
-    target_org_id: orgId,
-    meta: null,
-  });
-  revalidatePath("/super-admin");
-  revalidatePath("/super-admin/organizations");
   revalidatePath("/super-admin/settings");
   return { ok: true };
 }

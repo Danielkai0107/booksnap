@@ -6,7 +6,6 @@
  *  - Every new org starts in `trial` with a 30-day countdown (see
  *    `organizations.trial_ends_at`).
  *  - Paid orgs (`pro` + an active/grace subscription) are never locked.
- *  - Orgs flagged `bypass_quota = true` (super-admin VIP) are never locked.
  *  - **Active trial** orgs (trial_ends_at in the future) are NOT locked —
  *    they get the full product to evaluate.
  *  - Only **expired trial / never-paid / post-cancellation** orgs are locked.
@@ -33,12 +32,11 @@ export type TrialState =
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export function isOrgLocked(
-  org: Pick<OrganizationRow, "plan" | "trial_ends_at" | "bypass_quota"> | null,
+  org: Pick<OrganizationRow, "plan" | "trial_ends_at"> | null,
   subscription: SubscriptionRow | null,
   now: Date = new Date(),
 ): boolean {
   if (!org) return false; // no org context = nothing to lock
-  if (org.bypass_quota) return false;
 
   const plan = effectivePlan(org, subscription, now);
   if (plan === "pro") return false;

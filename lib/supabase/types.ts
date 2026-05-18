@@ -101,9 +101,10 @@ export type OrganizationRow = {
    */
   trial_ends_at: string | null;
   /**
-   * Super-admin granted exemption from the lock. When `true`, the org is
-   * never blocked by the upgrade gate regardless of its plan / trial state.
-   * Kept under the original column name for migration simplicity.
+   * Legacy super-admin lock-bypass flag. **No longer consulted** by any
+   * UI or server action after the 2026-05 cleanup that removed the
+   * "免鎖" feature. Kept as a column for backward compatibility and
+   * potential historical analysis only; treat as effectively unused.
    */
   bypass_quota: boolean;
 };

@@ -91,7 +91,7 @@ export default async function SubscriptionsPage({
       ? Promise.resolve({ data: [] })
       : admin
           .from("organizations")
-          .select("id, name, contact_email, plan, bypass_quota")
+          .select("id, name, contact_email, plan")
           .in("id", orgIds),
     subIds.length === 0
       ? Promise.resolve({ data: [] })
@@ -103,18 +103,12 @@ export default async function SubscriptionsPage({
   ]);
   const orgsById = new Map<
     string,
-    Pick<
-      OrganizationRow,
-      "id" | "name" | "contact_email" | "plan" | "bypass_quota"
-    >
+    Pick<OrganizationRow, "id" | "name" | "contact_email" | "plan">
   >();
   (orgRows ?? []).forEach((o) => {
     orgsById.set(
       o.id,
-      o as Pick<
-        OrganizationRow,
-        "id" | "name" | "contact_email" | "plan" | "bypass_quota"
-      >,
+      o as Pick<OrganizationRow, "id" | "name" | "contact_email" | "plan">,
     );
   });
 
@@ -135,21 +129,14 @@ export default async function SubscriptionsPage({
   let unsubscribedOrgs: Array<
     Pick<
       OrganizationRow,
-      | "id"
-      | "name"
-      | "contact_email"
-      | "plan"
-      | "trial_ends_at"
-      | "bypass_quota"
+      "id" | "name" | "contact_email" | "plan" | "trial_ends_at"
     >
   > = [];
   if (showUnsubscribed) {
     const subbedOrgIds = new Set(subs.map((s) => s.organization_id));
     let query = admin
       .from("organizations")
-      .select(
-        "id, name, contact_email, plan, trial_ends_at, bypass_quota, status",
-      )
+      .select("id, name, contact_email, plan, trial_ends_at, status")
       .eq("status", "approved")
       .order("name", { ascending: true });
     if (subbedOrgIds.size > 0) {
@@ -229,11 +216,6 @@ export default async function SubscriptionsPage({
                           到期取消
                         </span>
                       )}
-                      {org?.bypass_quota && (
-                        <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
-                          免鎖
-                        </span>
-                      )}
                     </div>
                     <dl className="mt-3 text-sm text-neutral-600 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
                       <Pair k="月費" v={price.label} />
@@ -309,11 +291,6 @@ export default async function SubscriptionsPage({
                         >
                           {stateLabel}
                         </span>
-                        {o.bypass_quota && (
-                          <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
-                            免鎖
-                          </span>
-                        )}
                       </div>
                       <dl className="mt-3 text-sm text-neutral-600 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
                         <Pair k="聯絡 Email" v={o.contact_email || "—"} />

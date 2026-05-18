@@ -120,10 +120,7 @@ type AiUsageLogRow = {
 };
 
 export type OrgUsageRow = {
-  org: Pick<
-    OrganizationRow,
-    "id" | "name" | "contact_email" | "plan" | "bypass_quota"
-  >;
+  org: Pick<OrganizationRow, "id" | "name" | "contact_email" | "plan">;
   calls: number;
   inputTokens: number;
   outputTokens: number;
@@ -224,20 +221,17 @@ export async function loadTokenUsage(
   const orgIds = Array.from(buckets.keys());
   const orgMap = new Map<
     string,
-    Pick<
-      OrganizationRow,
-      "id" | "name" | "contact_email" | "plan" | "bypass_quota"
-    >
+    Pick<OrganizationRow, "id" | "name" | "contact_email" | "plan">
   >();
   if (orgIds.length > 0) {
     const { data: orgRows } = await admin
       .from("organizations")
-      .select("id, name, contact_email, plan, bypass_quota")
+      .select("id, name, contact_email, plan")
       .in("id", orgIds);
     for (const row of orgRows ?? []) {
       const o = row as Pick<
         OrganizationRow,
-        "id" | "name" | "contact_email" | "plan" | "bypass_quota"
+        "id" | "name" | "contact_email" | "plan"
       >;
       orgMap.set(o.id, o);
     }
@@ -250,7 +244,6 @@ export async function loadTokenUsage(
       name: "（已刪除單位）",
       contact_email: "",
       plan: "trial" as OrgPlan,
-      bypass_quota: false,
     };
     byOrg.push({
       org,

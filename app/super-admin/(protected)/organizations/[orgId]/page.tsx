@@ -20,23 +20,21 @@ import OrgRowActions from "../OrgRowActions";
 type Search = Promise<{ tab?: string }>;
 
 function statusLabel(s: OrgStatus): string {
-  return s === "pending"
-    ? "待審核"
-    : s === "approved"
-      ? "已通過"
-      : s === "rejected"
-        ? "已退回"
-        : "已停用";
+  return s === "approved"
+    ? "已通過"
+    : s === "rejected"
+      ? "已退回"
+      : s === "suspended"
+        ? "已停用"
+        : s;
 }
 
 function statusPillClass(s: OrgStatus): string {
-  return s === "pending"
-    ? "bg-amber-50 text-amber-700 border-amber-100"
-    : s === "approved"
-      ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-      : s === "rejected"
-        ? "bg-red-50 text-red-700 border-red-100"
-        : "bg-neutral-100 text-neutral-600 border-neutral-200";
+  return s === "approved"
+    ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+    : s === "rejected"
+      ? "bg-red-50 text-red-700 border-red-100"
+      : "bg-neutral-100 text-neutral-600 border-neutral-200";
 }
 
 export default async function OrganizationDetailPage({
@@ -100,11 +98,6 @@ export default async function OrganizationDetailPage({
             >
               {planPillLabel}
             </span>
-            {org.bypass_quota && (
-              <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
-                免鎖
-              </span>
-            )}
             {ctx.locked && (
               <span className="inline-flex items-center h-[26px] text-xs px-2.5 rounded-full border font-medium bg-amber-50 text-amber-700 border-amber-100">
                 已鎖定
@@ -134,7 +127,6 @@ export default async function OrganizationDetailPage({
               city={org.city}
               contactEmail={org.contact_email}
               contactPhone={org.contact_phone}
-              bypassQuota={org.bypass_quota}
               variant="expanded"
             />
           </div>

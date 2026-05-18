@@ -5,16 +5,13 @@ import type { OrgStatus } from "@/lib/supabase/types";
 import type { TrialState } from "@/lib/billing/lock";
 
 export type OrgMenuActionId =
-  | "approve"
   | "reactivate"
-  | "reject"
   | "edit"
   | "grant"
   | "extend"
   | "resetTrial"
   | "endTrial"
   | "cancel"
-  | "bypass"
   | "reset"
   | "suspend"
   | "delete"
@@ -46,13 +43,13 @@ type Props = {
 };
 
 function statusSubtitle(status: OrgStatus): string {
-  return status === "pending"
-    ? "待審核"
-    : status === "approved"
-      ? "已通過"
-      : status === "rejected"
-        ? "已退回"
-        : "已停用";
+  return status === "approved"
+    ? "已通過"
+    : status === "rejected"
+      ? "已退回"
+      : status === "suspended"
+        ? "已停用"
+        : status;
 }
 
 export default function OrgActionsMenuSheet({
@@ -184,35 +181,14 @@ export function buildOrgMenuSections(input: {
   status: OrgStatus;
   trialState: TrialState;
   plan: "trial" | "pro";
-  bypassQuota: boolean;
 }): { sections: OrgMenuSection[]; dangerSection: OrgMenuSection } {
-  const { status, trialState, plan, bypassQuota } = input;
+  const { status, trialState, plan } = input;
   const isPaid =
     trialState === "paid" || trialState === "cancelled_in_period";
   const isTrial = plan === "trial";
 
   const sections: OrgMenuSection[] = [];
   const dangerItems: OrgMenuAction[] = [];
-
-  if (status === "pending") {
-    sections.push({
-      title: "審核",
-      items: [
-        {
-          id: "approve",
-          label: "核准申請",
-          description: "通過後單位可登入並開始使用",
-          tone: "primary",
-        },
-        {
-          id: "reject",
-          label: "退回申請",
-          description: "需填寫退回原因",
-          tone: "danger",
-        },
-      ],
-    });
-  }
 
   if (status === "approved") {
     sections.push({
@@ -272,19 +248,6 @@ export function buildOrgMenuSections(input: {
     if (billingItems.length > 0) {
       sections.push({ title: "方案與體驗", items: billingItems });
     }
-
-    sections.push({
-      title: "權限",
-      items: [
-        {
-          id: "bypass",
-          label: bypassQuota ? "取消免鎖" : "設為免鎖",
-          description: bypassQuota
-            ? "恢復一般鎖定規則"
-            : "不受體驗／付費狀態限制",
-        },
-      ],
-    });
 
     // 一組「總是可用」的狀態快捷鍵，不檢查當前狀態。給測試／QA／支援情境用：
     // 不必走「先取消 → 再重置 → 再啟用」的多步驟流程，一鍵直達目標狀態。

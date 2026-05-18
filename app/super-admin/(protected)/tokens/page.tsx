@@ -260,11 +260,6 @@ function OrgUsageDesktopRow({ row }: { row: OrgUsageRow }) {
         >
           {meta.label}
         </span>
-        {row.org.bypass_quota ? (
-          <span className="ml-1 inline-flex items-center h-[24px] px-2 rounded-full border text-[11px] font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
-            免鎖
-          </span>
-        ) : null}
       </td>
       <td className="px-3 py-3.5 align-top text-right tabular-nums">
         <span
@@ -312,11 +307,6 @@ function OrgUsageMobileItem({ row }: { row: OrgUsageRow }) {
             >
               {meta.label}
             </span>
-            {row.org.bypass_quota ? (
-              <span className="inline-flex items-center h-[22px] px-2 rounded-full border text-[11px] font-medium bg-indigo-50 text-indigo-700 border-indigo-100">
-                免鎖
-              </span>
-            ) : null}
           </div>
         </div>
         <div className="text-right shrink-0">
