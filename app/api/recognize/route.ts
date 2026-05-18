@@ -140,7 +140,10 @@ export async function POST(req: NextRequest) {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        // Opus 4.7 對中文藝術字 / 毛筆字辨識力比 Sonnet 4 強，但每張貴 ~5x。
+        // 童書 / 設計感封面常見 OCR 失敗，先用 Opus 觀察效果；若可接受
+        // 再考慮做「Sonnet 失敗才 fallback Opus」的 adaptive retry。
+        model: "claude-opus-4-7",
         // JSON 答案非常短（書名 + 可選分類）。80 tokens 對中文書名綽綽有餘。
         max_tokens: categories.length > 0 ? 120 : 80,
         system: systemPrompt,
