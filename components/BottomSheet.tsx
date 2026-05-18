@@ -164,7 +164,7 @@ export default function BottomSheet({
 
   const sheet = (
     <div
-      className="fixed inset-0 z-[100] flex items-end justify-center md:items-center"
+      className="fixed inset-0 z-[100] flex items-end justify-center sheet:items-center"
       style={{
         paddingBottom: keyboardInset,
         transition: isDragging
@@ -184,9 +184,9 @@ export default function BottomSheet({
         aria-hidden
       />
       <div
-        className={`relative w-full sm:max-w-md mx-auto bg-white text-neutral-900 rounded-t-3xl md:rounded-3xl md:my-8 shadow-2xl max-md:animate-slide-up md:animate-fade-in flex flex-col touch-pan-y ${
+        className={`relative w-full sm:max-w-md sheet:max-w-lg mx-auto bg-white text-neutral-900 rounded-t-3xl sheet:rounded-3xl sheet:my-8 shadow-2xl max-sheet:animate-slide-up sheet:animate-fade-in flex flex-col touch-pan-y ${
           shrinkPanel ? "shrink-0" : ""
-        } ${closing && shrinkPanel ? "opacity-0 md:scale-[0.98]" : ""}`}
+        } ${closing && shrinkPanel ? "opacity-0 sheet:scale-[0.98]" : ""}`}
         style={{
           maxHeight: shrinkPanel ? undefined : maxHeight,
           transform: panelTransform,
@@ -199,12 +199,12 @@ export default function BottomSheet({
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
       >
-        <div className="pt-2 pb-1 flex justify-center shrink-0 md:hidden cursor-grab active:cursor-grabbing">
+        <div className="pt-2 pb-1 flex justify-center shrink-0 sheet:hidden cursor-grab active:cursor-grabbing">
           <span className="w-10 h-1 bg-neutral-200 rounded-full" />
         </div>
         {(title || subtitle) && (
           <header
-            className={`px-6 pt-4 md:pt-6 shrink-0 ${compact ? "pb-2" : "pb-3"}`}
+            className={`px-6 pt-4 sheet:pt-6 shrink-0 ${compact ? "pb-2" : "pb-3"}`}
           >
             {title && (
               <h2 className="text-lg font-semibold tracking-tight text-neutral-900">

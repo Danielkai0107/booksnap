@@ -12,6 +12,8 @@
      ⚠ lg/xl/2xl 為 Tailwind 預設值（1024/1280/1536），目前 codebase
      完全沒用到；若未來要加，請記得它們會 < md，順序會不直覺。 */
   --breakpoint-md: 75rem;
+  /* BottomSheet：768px 以上改置中對話框。與 layout md (1200px) 分開，避免平板仍顯示手機底部 sheet。 */
+  --breakpoint-sheet: 48rem;
 }
 
 :root {
