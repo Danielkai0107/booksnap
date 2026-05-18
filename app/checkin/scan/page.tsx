@@ -116,6 +116,16 @@ export default function CheckinScanPage() {
 
   const [listOpen, setListOpen] = useState(false);
   const [navigating, setNavigating] = useState(false);
+
+  // 相機開啟進度（0–100）。配合 mode === "loading" 的「準備中 NN%」顯示，
+  // 純為 UX 感官，並不是真的精準進度——基線會隨時間自己 ease 上去 70%，
+  // 各個 milestone 會把上限往上頂；給使用者「在動」的感覺。
+  const [prepPercent, setPrepPercent] = useState(0);
+  const prepTargetRef = useRef(0);
+  const bumpPrep = useCallback((target: number) => {
+    const clamped = Math.max(0, Math.min(100, target));
+    if (clamped > prepTargetRef.current) prepTargetRef.current = clamped;
+  }, []);
   // 鍵盤打開時把 confirming sheet 往上推（避開 iOS 上的 fixed inset-0 鍵盤遮擋問題）
   const keyboardInset = useKeyboardInset(mode === "confirming");
 
@@ -158,24 +168,35 @@ export default function CheckinScanPage() {
 
   const startCamera = useCallback(async () => {
     setCameraError(false);
-    setMode("camera");
+    // 重置進度後切回 "loading"，讓「準備中 NN%」從 0 開始播。
+    // 對「重拍」這種已有授權的情境，整段 loading 很短，但保留動畫一致性。
+    setPrepPercent(0);
+    prepTargetRef.current = 0;
+    setMode("loading");
+    bumpPrep(25);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" } },
         audio: false,
       });
       streamRef.current = stream;
+      bumpPrep(60);
+      // video element 在 "loading" mode 就已經 mount（見下方 JSX），
+      // 所以這裡 attach 一定拿得到 ref，不用等 mode 切換。
       await attachStreamToVideo();
+      bumpPrep(95);
+      setMode("camera");
     } catch (err) {
       // 詳細錯誤只給 dev 排查，UI 顯示友善訊息 + 重新請求按鈕。
       console.error("[scan] camera init failed", err);
       // 明確把 streamRef 清掉，建立「cameraError=true ⇒ 無 stream」的不變式，
       // 之後 render 就只需檢查 `cameraError`，不必讀 ref（React 19 不允許）。
       streamRef.current = null;
+      bumpPrep(100);
       setCameraError(true);
       setMode("camera");
     }
-  }, [attachStreamToVideo]);
+  }, [attachStreamToVideo, bumpPrep]);
 
   useEffect(() => {
     if (!adminName) return;
@@ -184,6 +205,25 @@ export default function CheckinScanPage() {
       stopStream();
     };
   }, [adminName, startCamera, stopStream]);
+
+  // 在 loading 期間以 ~16fps 把 prepPercent 朝「target」貼合。
+  // baseline = 70%（asymptotic ~1.1s 充滿七成），確保即使外部 milestone
+  // 沒更新進度條也會自己慢慢往上爬，不會卡死讓使用者覺得當機。
+  useEffect(() => {
+    if (mode !== "loading") return;
+    const start = performance.now();
+    const id = window.setInterval(() => {
+      const elapsed = performance.now() - start;
+      const baseline = Math.round(70 * (1 - Math.exp(-elapsed / 1100)));
+      const target = Math.max(prepTargetRef.current, baseline);
+      setPrepPercent((p) => {
+        if (p >= target) return p;
+        const step = Math.max(1, Math.ceil((target - p) * 0.2));
+        return Math.min(target, p + step);
+      });
+    }, 60);
+    return () => window.clearInterval(id);
+  }, [mode]);
 
   useEffect(() => {
     if (mode === "camera" && streamRef.current) {
@@ -549,22 +589,34 @@ export default function CheckinScanPage() {
   return (
     <div className="fixed inset-0 bg-black text-white flex flex-col">
       <div className="relative flex-1 overflow-hidden">
+        {/* video 元素要在 loading 階段就 mount，attachStreamToVideo 才能拿到
+            videoRef。loading overlay 用 z-20 蓋在上面，視覺上仍是黑色等待畫面。 */}
+        {(mode === "loading" ||
+          mode === "camera" ||
+          mode === "processing") && (
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            autoPlay
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
+
         {mode === "loading" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-            <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mb-4" />
-            <p className="text-sm text-white/80">啟動相機中</p>
+          <div className="absolute inset-0 z-20 bg-black flex flex-col items-center justify-center text-center px-6">
+            {/* w-9 對齊整站 fullscreen loader（app/loading.tsx、CheckinEntryClient、
+                AdminShell 第一次載入），切頁時就不會看到 spinner 尺寸跳動。 */}
+            <div className="w-9 h-9 border-2 border-white/20 border-t-white rounded-full animate-spin mb-4" />
+            <p className="text-sm text-white/80 mb-1">啟動相機中</p>
+            <p className="text-xs text-white/55 tabular-nums">
+              準備中 {Math.round(prepPercent)}%
+            </p>
           </div>
         )}
 
         {(mode === "camera" || mode === "processing") && (
           <>
-            <video
-              ref={videoRef}
-              playsInline
-              muted
-              autoPlay
-              className="absolute inset-0 w-full h-full object-cover"
-            />
             {/* 不做即時 highlight：避免四角持續變形讓使用者抓不準時機；
                 校正全部交給拍完後的手動四點調整 sheet。 */}
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
