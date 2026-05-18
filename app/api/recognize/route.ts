@@ -3,9 +3,121 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isOrgLocked } from "@/lib/billing/lock";
 import { loadOrgBillingState } from "@/lib/billing/state";
-import { AI_RECOGNIZE_MONTHLY_QUOTA, getOrgPeriod } from "@/lib/plans";
+import {
+  AI_RECOGNIZE_MONTHLY_QUOTA,
+  getOrgPeriod,
+  loadAppSettings,
+} from "@/lib/plans";
 
 export const runtime = "nodejs";
+
+/**
+ * 呼叫 Anthropic /v1/messages 並嘗試解析「主書名」與分類。
+ *
+ * 拆成獨立函式是為了讓主流程能用「primary 失敗 → fallback 重打一次」的
+ * 韌性策略，每個 model 都走同一份 prompt / 解析邏輯。
+ */
+async function callClaude(args: {
+  model: string;
+  apiKey: string;
+  mediaType: string;
+  data: string;
+  systemPrompt: string;
+  userText: string;
+  categories: string[];
+}): Promise<
+  | {
+      ok: true;
+      title: string;
+      category: string | null;
+      usage: { input_tokens?: number; output_tokens?: number } | undefined;
+    }
+  | { ok: false; status?: number; errText?: string }
+> {
+  let response: Response;
+  try {
+    response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": args.apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: args.model,
+        // JSON 答案非常短（書名 + 可選分類）。80 tokens 對中文書名綽綽有餘。
+        max_tokens: args.categories.length > 0 ? 120 : 80,
+        system: args.systemPrompt,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: args.mediaType,
+                  data: args.data,
+                },
+              },
+              { type: "text", text: args.userText },
+            ],
+          },
+        ],
+      }),
+    });
+  } catch (err) {
+    console.error("[recognize] fetch exception", args.model, err);
+    return { ok: false };
+  }
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    console.error(
+      "[recognize] claude error",
+      args.model,
+      response.status,
+      errText,
+    );
+    return { ok: false, status: response.status, errText };
+  }
+
+  const json = (await response.json().catch(() => ({}))) as {
+    content?: Array<{ type: string; text?: string }>;
+    usage?: { input_tokens?: number; output_tokens?: number };
+  };
+  const raw =
+    json.content
+      ?.filter((c) => c.type === "text")
+      .map((c) => c.text ?? "")
+      .join("")
+      .trim() ?? "";
+
+  let title = "無法識別";
+  let category: string | null = null;
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (match) {
+    try {
+      const parsed = JSON.parse(match[0]) as {
+        title?: string;
+        category?: string | null;
+      };
+      if (typeof parsed.title === "string" && parsed.title.trim()) {
+        title = parsed.title.trim().slice(0, 80);
+      }
+      if (parsed.category && typeof parsed.category === "string") {
+        const c = parsed.category.trim();
+        if (args.categories.includes(c)) category = c;
+      }
+    } catch (err) {
+      console.warn("[recognize] failed to parse claude json", err, raw);
+    }
+  } else if (raw) {
+    // 沒包 JSON：legacy 行為，整段視為書名。
+    title = raw.slice(0, 80);
+  }
+  return { ok: true, title, category, usage: json.usage };
+}
 
 type RecognizeBody = {
   imageBase64?: string;
@@ -167,138 +279,79 @@ export async function POST(req: NextRequest) {
     userText = '回傳 {"title": "..."}。';
   }
 
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        // Opus 4.7 對中文藝術字 / 毛筆字辨識力比 Sonnet 4 強，但每張貴 ~5x。
-        // 童書 / 設計感封面常見 OCR 失敗，先用 Opus 觀察效果；若可接受
-        // 再考慮做「Sonnet 失敗才 fallback Opus」的 adaptive retry。
-        model: "claude-opus-4-7",
-        // JSON 答案非常短（書名 + 可選分類）。80 tokens 對中文書名綽綽有餘。
-        max_tokens: categories.length > 0 ? 120 : 80,
-        system: systemPrompt,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image",
-                source: {
-                  type: "base64",
-                  media_type: mediaType,
-                  data,
-                },
-              },
-              {
-                type: "text",
-                text: userText,
-              },
-            ],
-          },
-        ],
-      }),
+  // 讀取要使用的主要 / 備用模型。兩者都可由 super-admin 線上調整（app_settings），
+  // 不需 redeploy。預設值與 lib/plans.ts 內 DEFAULT_AI_PRIMARY_MODEL 對齊。
+  const { aiRecognizeModelPrimary, aiRecognizeModelFallback } =
+    await loadAppSettings(admin);
+
+  const callArgs = {
+    apiKey,
+    mediaType,
+    data,
+    systemPrompt,
+    userText,
+    categories,
+  };
+
+  // primary 跑一次；失敗（fetch 例外 / Claude 非 2xx）才動 fallback。
+  // 「無法識別」這種品質型失敗刻意不觸發 fallback——備用模型也很可能讀錯，
+  // 重打只是再吃一份 token。
+  let result = await callClaude({
+    ...callArgs,
+    model: aiRecognizeModelPrimary,
+  });
+  if (!result.ok && aiRecognizeModelFallback) {
+    console.warn(
+      "[recognize] primary failed, retrying with fallback",
+      aiRecognizeModelPrimary,
+      "→",
+      aiRecognizeModelFallback,
+      result.status,
+    );
+    result = await callClaude({
+      ...callArgs,
+      model: aiRecognizeModelFallback,
     });
+  }
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("[recognize] claude error", response.status, errText);
-      return NextResponse.json(
-        {
-          error: "claude request failed",
-          status: response.status,
-          title: "無法識別",
-          category: null,
-          source: "claude",
-          // Claude 沒回成功 → 不寫 ai_usage_logs，剩餘額度不扣。
-          skipped: false,
-          remaining: remainingBefore,
-        },
-        { status: 502 }
-      );
-    }
-
-    const json = (await response.json()) as {
-      content?: Array<{ type: string; text?: string }>;
-      usage?: { input_tokens?: number; output_tokens?: number };
-    };
-    const raw =
-      json.content
-        ?.filter((c) => c.type === "text")
-        .map((c) => c.text ?? "")
-        .join("")
-        .trim() ?? "";
-
-    let title = "無法識別";
-    let category: string | null = null;
-    // Attempt to extract a JSON object even if Claude wrapped it.
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (match) {
-      try {
-        const parsed = JSON.parse(match[0]) as {
-          title?: string;
-          category?: string | null;
-        };
-        if (typeof parsed.title === "string" && parsed.title.trim()) {
-          title = parsed.title.trim().slice(0, 80);
-        }
-        if (parsed.category && typeof parsed.category === "string") {
-          const c = parsed.category.trim();
-          // Only accept values from the provided category list.
-          if (categories.includes(c)) {
-            category = c;
-          }
-        }
-      } catch (err) {
-        console.warn("[recognize] failed to parse claude json", err, raw);
-      }
-    } else if (raw) {
-      // Backwards-compat: if Claude didn't return JSON, treat the whole
-      // body as the title (legacy behaviour).
-      title = raw.slice(0, 80);
-    }
-
-    void admin
-      .from("ai_usage_logs")
-      .insert({
-        user_id: userData.user.id,
-        organization_id: organizationId,
-        kind: "recognize_book_cover",
-        input_tokens: json.usage?.input_tokens ?? null,
-        output_tokens: json.usage?.output_tokens ?? null,
-      })
-      .then(({ error }) => {
-        if (error) console.error("[recognize] log insert error", error);
-      });
-
-    // 本次成功計入用量 → 剩餘額度 -1。clamp 到 0 避免極端值。
-    const remainingAfter = quotaApplies
-      ? Math.max(0, remainingBefore - 1)
-      : remainingBefore;
-    return NextResponse.json({
-      title,
-      category,
-      source: "claude",
-      skipped: false,
-      remaining: remainingAfter,
-    });
-  } catch (err) {
-    console.error("[recognize] exception", err);
+  if (!result.ok) {
+    // 兩個模型都失敗（或沒設 fallback）→ 回 502。剩餘額度不扣。
     return NextResponse.json(
       {
-        error: "claude request exception",
+        error: "claude request failed",
+        status: result.status,
         title: "無法識別",
         category: null,
         source: "claude",
         skipped: false,
         remaining: remainingBefore,
       },
-      { status: 500 }
+      { status: 502 },
     );
   }
+
+  void admin
+    .from("ai_usage_logs")
+    .insert({
+      user_id: userData.user.id,
+      organization_id: organizationId,
+      kind: "recognize_book_cover",
+      input_tokens: result.usage?.input_tokens ?? null,
+      output_tokens: result.usage?.output_tokens ?? null,
+    })
+    .then(({ error }) => {
+      if (error) console.error("[recognize] log insert error", error);
+    });
+
+  // 本次成功計入用量 → 剩餘額度 -1。clamp 到 0 避免極端值。
+  const remainingAfter = quotaApplies
+    ? Math.max(0, remainingBefore - 1)
+    : remainingBefore;
+  return NextResponse.json({
+    title: result.title,
+    category: result.category,
+    source: "claude",
+    skipped: false,
+    remaining: remainingAfter,
+  });
 }

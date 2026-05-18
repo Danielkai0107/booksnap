@@ -627,6 +627,81 @@ export async function setBillingEnabled(
   return { ok: true };
 }
 
+/**
+ * 更新智能辨識使用的 Claude 模型 ID（主要 + 可選備用）。
+ *
+ * 主要與備用儲存於 `app_settings`，`/api/recognize` 每次呼叫都會經 60s 快取讀取，
+ * 因此調整後最遲 1 分鐘生效（無需 redeploy）。備用模型只在「主要呼叫 fetch
+ * 失敗或非 2xx」時自動跑一次，純韌性 fallback，不處理「無法識別」這種品質失敗。
+ *
+ * 驗證採寬鬆策略：trim 後僅要求 `claude-` 前綴（避免手滑打到 gpt-4o 之類），
+ * 實際模型是否存在交給 Anthropic API 回應檢查。
+ */
+export async function setAiRecognizeModels(
+  primary: string,
+  fallback: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { userId } = await assertSuperAdmin();
+
+  const primaryTrim = primary.trim();
+  const fallbackTrim = fallback.trim();
+  if (!primaryTrim) {
+    return { ok: false, error: "主要模型不可為空" };
+  }
+  if (!primaryTrim.toLowerCase().startsWith("claude-")) {
+    return { ok: false, error: "主要模型需以 claude- 開頭" };
+  }
+  if (primaryTrim.length > 80) {
+    return { ok: false, error: "主要模型 ID 過長" };
+  }
+  if (fallbackTrim) {
+    if (!fallbackTrim.toLowerCase().startsWith("claude-")) {
+      return { ok: false, error: "備用模型需以 claude- 開頭" };
+    }
+    if (fallbackTrim.length > 80) {
+      return { ok: false, error: "備用模型 ID 過長" };
+    }
+    if (fallbackTrim === primaryTrim) {
+      return { ok: false, error: "備用模型不能與主要模型相同" };
+    }
+  }
+
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+  const rows = [
+    {
+      key: "ai_recognize_model_primary",
+      value: primaryTrim,
+      updated_at: now,
+      updated_by: userId,
+    },
+    {
+      // 空字串代表「清除備用」。jsonb 接受空字串，coerceModelName 也會
+      // 退回成 null，讓 /api/recognize 自動關掉 fallback。
+      key: "ai_recognize_model_fallback",
+      value: fallbackTrim,
+      updated_at: now,
+      updated_by: userId,
+    },
+  ];
+  const { error } = await admin
+    .from("app_settings")
+    .upsert(rows, { onConflict: "key" });
+  if (error) {
+    return { ok: false, error: toUserMessage(error, "儲存失敗") };
+  }
+  invalidateAppSettingsCache();
+  await writeAuditLog(admin, {
+    actor_id: userId,
+    actor_role: "super_admin",
+    action: "settings.ai_recognize_models_changed",
+    target_org_id: null,
+    meta: { primary: primaryTrim, fallback: fallbackTrim || null },
+  });
+  revalidatePath("/super-admin/settings");
+  return { ok: true };
+}
+
 export async function setOrganizationBypassQuota(
   orgId: string,
   bypass: boolean,

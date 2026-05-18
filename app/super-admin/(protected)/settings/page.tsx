@@ -5,6 +5,7 @@ import { loadAppSettings } from "@/lib/plans";
 import type { OrganizationRow } from "@/lib/supabase/types";
 import TrialDaysForm from "./TrialDaysForm";
 import BillingEnabledForm from "./BillingEnabledForm";
+import AiModelsForm from "./AiModelsForm";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,12 @@ export default async function SuperAdminSettingsPage() {
   const provider = process.env.BILLING_PROVIDER ?? "instant";
 
   const admin = createAdminClient();
-  const { trialDays, billingEnabled } = await loadAppSettings(admin, {
+  const {
+    trialDays,
+    billingEnabled,
+    aiRecognizeModelPrimary,
+    aiRecognizeModelFallback,
+  } = await loadAppSettings(admin, {
     bypassCache: true,
   });
 
@@ -46,6 +52,32 @@ export default async function SuperAdminSettingsPage() {
           </p>
           <div className="mt-4">
             <TrialDaysForm initialDays={trialDays} />
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-neutral-200 bg-white p-5">
+          <h2 className="text-sm font-medium text-neutral-900">智能辨識模型</h2>
+          <p className="mt-1.5 text-xs text-neutral-500 leading-relaxed">
+            拍照書封辨識使用的 Claude 模型。每月 500 次配額共用，不分模型。
+            主要模型 fetch 失敗或 Anthropic 回非 2xx 時，自動改用備用模型一次；
+            「無法識別」這種品質失敗不會觸發 fallback。
+            模型 ID 採 Anthropic 官方格式（4.6 起為無日期版本，如{" "}
+            <code>claude-opus-4-7</code>），完整清單見{" "}
+            <a
+              href="https://docs.anthropic.com/en/docs/about-claude/models/all-models"
+              target="_blank"
+              rel="noreferrer"
+              className="text-neutral-900 underline underline-offset-2 hover:no-underline"
+            >
+              Anthropic 文件
+            </a>
+            。儲存後 60 秒內快取失效，無需重新部署。
+          </p>
+          <div className="mt-4">
+            <AiModelsForm
+              initialPrimary={aiRecognizeModelPrimary}
+              initialFallback={aiRecognizeModelFallback ?? ""}
+            />
           </div>
         </section>
 

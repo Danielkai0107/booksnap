@@ -84,10 +84,21 @@ export type AppSettings = {
    * context. Lets us ship to early users before any real gateway is wired up.
    */
   billingEnabled: boolean;
+  /**
+   * Claude model 用於 `/api/recognize`。主要模型 + 可選的備用模型——備用會在
+   * 主要模型回傳非 2xx 或 fetch 整個 reject 時被自動使用一次（純資安／韌性
+   * fallback，不處理「無法識別」這種品質失敗）。設定來自 super-admin 設定頁，
+   * 不需 redeploy 即可換模型，方便應對 Anthropic 模型生命週期更新。
+   */
+  aiRecognizeModelPrimary: string;
+  aiRecognizeModelFallback: string | null;
 };
 
 const DEFAULT_TRIAL_DAYS = 30;
 const DEFAULT_BILLING_ENABLED = false;
+/** 與 commit 4656155 對齊。Anthropic 模型 ID 自 4.6 起改 dateless 格式。 */
+const DEFAULT_AI_PRIMARY_MODEL = "claude-opus-4-7";
+const DEFAULT_AI_FALLBACK_MODEL: string | null = null;
 
 export function formatPriceLabel(plan: OrgPlan, monthly: number): string {
   if (plan === "trial" || monthly === 0) return "免費體驗";
@@ -98,6 +109,8 @@ const FALLBACK_PLAN_CONFIGS: PlanConfigs = { prices: PLAN_PRICE };
 const FALLBACK_APP_SETTINGS: AppSettings = {
   trialDays: DEFAULT_TRIAL_DAYS,
   billingEnabled: DEFAULT_BILLING_ENABLED,
+  aiRecognizeModelPrimary: DEFAULT_AI_PRIMARY_MODEL,
+  aiRecognizeModelFallback: DEFAULT_AI_FALLBACK_MODEL,
 };
 
 type CacheEntry<T> = { value: T; loadedAt: number };
@@ -167,7 +180,12 @@ export async function loadAppSettings(
   const { data, error } = await admin
     .from("app_settings")
     .select("key, value")
-    .in("key", ["trial_days", "billing_enabled"]);
+    .in("key", [
+      "trial_days",
+      "billing_enabled",
+      "ai_recognize_model_primary",
+      "ai_recognize_model_fallback",
+    ]);
   if (error) {
     console.warn("[plans] loadAppSettings error, falling back", error);
     return FALLBACK_APP_SETTINGS;
@@ -179,7 +197,18 @@ export async function loadAppSettings(
     coerceTrialDays(byKey.get("trial_days")) ?? DEFAULT_TRIAL_DAYS;
   const billingEnabled =
     coerceBool(byKey.get("billing_enabled")) ?? DEFAULT_BILLING_ENABLED;
-  const value: AppSettings = { trialDays, billingEnabled };
+  const aiRecognizeModelPrimary =
+    coerceModelName(byKey.get("ai_recognize_model_primary")) ??
+    DEFAULT_AI_PRIMARY_MODEL;
+  const aiRecognizeModelFallback =
+    coerceModelName(byKey.get("ai_recognize_model_fallback")) ??
+    DEFAULT_AI_FALLBACK_MODEL;
+  const value: AppSettings = {
+    trialDays,
+    billingEnabled,
+    aiRecognizeModelPrimary,
+    aiRecognizeModelFallback,
+  };
   settingsCache = { value, loadedAt: Date.now() };
   return value;
 }
@@ -206,6 +235,22 @@ function coerceBool(raw: unknown): boolean | null {
     if (raw === "false") return false;
   }
   return null;
+}
+
+/**
+ * 把 `app_settings.value` 轉成 Anthropic model ID。空字串／null／非字串都當成
+ * 「未設定」回 null，由呼叫端決定是否套用 hardcoded default。
+ *
+ * 最寬鬆規則：trim 後僅要求 `claude-` 前綴 + 長度上限，避免使用者手滑打到
+ * gpt-4o 之類錯模型。實際是否有效會在 Anthropic API 回應時自然顯現。
+ */
+function coerceModelName(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const s = raw.trim();
+  if (!s) return null;
+  if (s.length > 80) return null;
+  if (!s.toLowerCase().startsWith("claude-")) return null;
+  return s;
 }
 
 /**
