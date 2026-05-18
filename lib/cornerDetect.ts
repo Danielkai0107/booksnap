@@ -2,9 +2,16 @@
  * 書封四角偵測 / 透視校正。
  *
  * jscanify 內建的 findPaperContour 只是「取面積最大的 contour」，沒做形狀
- * 篩選，背景一有干擾就抓錯。這層改成自己跑 OpenCV pipeline，明確找
- * 「四邊形 + 接近畫面中心 + 不貼邊」的書封型輪廓。extractPaper 透視校正
- * 那段仍走 jscanify 的 helper（純包裝 cv.getPerspectiveTransform）。
+ * 篩選、背景一有干擾就抓錯。這層改成自己跑 OpenCV pipeline，並用多輪
+ * 不同參數重試，命中率比單次 Canny 高很多：
+ *
+ *   Pass 1：標準 Canny 50/150（亮、對比清楚的書封）
+ *   Pass 2：Otsu 二值化 → Canny（書封 / 背景顏色接近、低對比）
+ *   Pass 3：寬鬆 Canny 30/120 + 大 kernel close（弱光、模糊邊）
+ *   Pass 4：minAreaRect 兜底（找不到四邊形時取最大 contour 的最小外接矩形）
+ *
+ * extractPaper 透視校正那段仍走 jscanify（純包裝 cv 的
+ * getPerspectiveTransform / warpPerspective）。
  */
 
 import type {
@@ -15,10 +22,14 @@ import type {
 } from "@/lib/jscanify";
 
 // OpenCv 完整介面太大，我們只列用到的；其他用 unknown 收尾，呼叫時必要時 cast。
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+/* eslint-disable @typescript-eslint/no-explicit-any */
 type CvMat = any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type CvMatVector = any;
+type CvRotatedRect = {
+  center: { x: number; y: number };
+  size: { width: number; height: number };
+  angle: number;
+};
 
 type CvFull = OpenCv & {
   cvtColor: (src: CvMat, dst: CvMat, code: number) => void;
@@ -36,7 +47,13 @@ type CvFull = OpenCv & {
     threshold1: number,
     threshold2: number,
   ) => void;
-  dilate: (src: CvMat, dst: CvMat, kernel: CvMat) => void;
+  threshold: (
+    src: CvMat,
+    dst: CvMat,
+    thresh: number,
+    maxval: number,
+    type: number,
+  ) => number;
   morphologyEx: (
     src: CvMat,
     dst: CvMat,
@@ -59,16 +76,19 @@ type CvFull = OpenCv & {
     closed: boolean,
   ) => void;
   isContourConvex: (contour: CvMat) => boolean;
+  minAreaRect: (contour: CvMat) => CvRotatedRect;
   Size: new (w: number, h: number) => { width: number; height: number };
   MatVector: new () => CvMatVector;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   Mat: any;
   COLOR_RGBA2GRAY: number;
   RETR_EXTERNAL: number;
   CHAIN_APPROX_SIMPLE: number;
   MORPH_CLOSE: number;
   CV_8U: number;
+  THRESH_BINARY: number;
+  THRESH_OTSU: number;
 };
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 type Candidate = {
   corners: Corners;
@@ -76,20 +96,27 @@ type Candidate = {
   score: number;
 };
 
+type PassParams =
+  | {
+      method: "canny";
+      lo: number;
+      hi: number;
+      closeSize: number;
+      epsRatio: number;
+    }
+  | {
+      method: "otsu";
+      closeSize: number;
+      epsRatio: number;
+    };
+
 /**
- * 從 canvas 偵測書封四角。
+ * 從 canvas 偵測書封四角。Caller 必須已透過 `loadJscanify` 拿到 cv namespace。
  *
- * Pipeline：
- *   1. 灰階 → 5×5 高斯模糊（壓掉文字 / 紋理噪點）
- *   2. Canny 50/150（書封硬邊適中閾值）
- *   3. 3×3 dilate → 接起書封邊上斷掉的小縫
- *   4. RETR_EXTERNAL 抓最外層輪廓（過濾內部文字 / 插圖）
- *   5. 每個輪廓跑 approxPolyDP 簡化 → 只留剛好 4 個頂點且凸的
- *   6. 排除：面積 < 5% 或 > 95%、任一角貼邊（< 1.5% 邊距）
- *      → 桌面 / 整張底色這類「假大框」會被擋掉
- *   7. 候選依分數排序：area × 中心度 × aspect 加權
+ * 多輪策略：每輪用不同前處理找四邊形候選；累積到任何一個 pass 找到就停，
+ * 全部沒中時用 minAreaRect 兜底。最後從所有候選中按分數最高選一個。
  *
- * 任一例外或無候選 → 回 null（由 caller 顯示預設內縮矩形讓使用者拉）。
+ * 失敗 / 例外 → 回 null（caller fallback 成預設內縮矩形）。
  */
 export function detectCornersFromCanvas(
   canvas: HTMLCanvasElement,
@@ -98,93 +125,247 @@ export function detectCornersFromCanvas(
   const cvf = cv as CvFull;
   let src: CvMat | null = null;
   let gray: CvMat | null = null;
-  let blurred: CvMat | null = null;
-  let edges: CvMat | null = null;
-  let closed: CvMat | null = null;
-  let kernel: CvMat | null = null;
-  let contours: CvMatVector | null = null;
-  let hierarchy: CvMat | null = null;
-
   try {
     src = cv.imread(canvas);
     gray = new cvf.Mat();
     cvf.cvtColor(src, gray, cvf.COLOR_RGBA2GRAY);
 
-    blurred = new cvf.Mat();
-    cvf.GaussianBlur(gray, blurred, new cvf.Size(5, 5), 0);
-
-    edges = new cvf.Mat();
-    cvf.Canny(blurred, edges, 50, 150);
-
-    // 3×3 dilate＋close 把斷邊接起來，效果比單純 dilate 好（不會把背景紋理連成一片）。
-    kernel = cvf.Mat.ones(3, 3, cvf.CV_8U);
-    closed = new cvf.Mat();
-    cvf.morphologyEx(edges, closed, cvf.MORPH_CLOSE, kernel);
-
-    contours = new cvf.MatVector();
-    hierarchy = new cvf.Mat();
-    cvf.findContours(
-      closed,
-      contours,
-      hierarchy,
-      cvf.RETR_EXTERNAL,
-      cvf.CHAIN_APPROX_SIMPLE,
-    );
-
     const W = canvas.width;
     const H = canvas.height;
-    const imgArea = W * H;
-    const minArea = imgArea * 0.05;
-    const maxArea = imgArea * 0.95;
-    const edgeMargin = Math.min(W, H) * 0.015;
+    const all: Candidate[] = [];
 
-    const candidates: Candidate[] = [];
-    const n = contours.size();
-    for (let i = 0; i < n; i++) {
-      const cnt = contours.get(i);
-      const area = cvf.contourArea(cnt);
-      if (area < minArea || area > maxArea) {
-        cnt.delete();
-        continue;
-      }
-      const peri = cvf.arcLength(cnt, true);
-      const approx = new cvf.Mat();
-      // epsilon = 2% 邊長：書封通常有清楚直邊，這個 ε 能穩定簡化成 4 點。
-      cvf.approxPolyDP(cnt, approx, 0.02 * peri, true);
+    // Pass 1：標準 Canny。中等對比書封多半這輪就中。
+    all.push(
+      ...runContourPass(gray, cvf, W, H, {
+        method: "canny",
+        lo: 50,
+        hi: 150,
+        closeSize: 3,
+        epsRatio: 0.02,
+      }),
+    );
 
-      if (approx.rows === 4 && cvf.isContourConvex(approx)) {
-        const pts = readQuad(approx);
-        // 排除「整張畫面四個角」這種桌面 / 背景假框
-        const touchesEdge = pts.some(
-          (p) =>
-            p.x < edgeMargin ||
-            p.y < edgeMargin ||
-            p.x > W - edgeMargin ||
-            p.y > H - edgeMargin,
-        );
-        if (!touchesEdge) {
-          const corners = orderQuad(pts);
-          candidates.push({
-            corners,
-            area,
-            score: scoreCandidate(corners, area, W, H),
-          });
-        }
-      }
-
-      approx.delete();
-      cnt.delete();
+    // Pass 2：Otsu 二值化後再 Canny。對「書封 / 背景顏色接近」效果好。
+    if (all.length === 0) {
+      all.push(
+        ...runContourPass(gray, cvf, W, H, {
+          method: "otsu",
+          closeSize: 3,
+          epsRatio: 0.02,
+        }),
+      );
     }
 
-    if (candidates.length === 0) return null;
-    candidates.sort((a, b) => b.score - a.score);
-    return candidates[0].corners;
+    // Pass 3：寬鬆 Canny + 大 kernel + 較鬆的 epsilon。
+    // 弱光或模糊邊讓 contour 抖動成 5–6 點時還能簡化成四邊形。
+    if (all.length === 0) {
+      all.push(
+        ...runContourPass(gray, cvf, W, H, {
+          method: "canny",
+          lo: 30,
+          hi: 120,
+          closeSize: 5,
+          epsRatio: 0.035,
+        }),
+      );
+    }
+
+    // Pass 4：完全找不到四邊形 → 對最大 contour 取最小外接矩形（minAreaRect）。
+    // 一定會回 4 點，總比讓使用者從預設內縮矩形拉好。
+    if (all.length === 0) {
+      const fb = runMinAreaRectFallback(gray, cvf, W, H);
+      if (fb) all.push(fb);
+    }
+
+    if (all.length === 0) return null;
+    all.sort((a, b) => b.score - a.score);
+    return all[0].corners;
   } catch (err) {
     console.warn("[cornerDetect] detect failed", err);
     return null;
   } finally {
     src?.delete();
     gray?.delete();
+  }
+}
+
+/** 單輪偵測：依參數做前處理 → 找 contour → 篩四邊形 → 評分。 */
+function runContourPass(
+  gray: CvMat,
+  cv: CvFull,
+  W: number,
+  H: number,
+  params: PassParams,
+): Candidate[] {
+  let blurred: CvMat | null = null;
+  let pre: CvMat | null = null;
+  let edges: CvMat | null = null;
+  let closed: CvMat | null = null;
+  let kernel: CvMat | null = null;
+  let contours: CvMatVector | null = null;
+  let hierarchy: CvMat | null = null;
+  const out: Candidate[] = [];
+
+  try {
+    blurred = new cv.Mat();
+    cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+
+    edges = new cv.Mat();
+    if (params.method === "canny") {
+      cv.Canny(blurred, edges, params.lo, params.hi);
+    } else {
+      // Otsu：先二值化再 Canny 取輪廓（單純 threshold 結果直接 findContours
+      // 也行，但 Canny 的單像素輪廓對 approxPolyDP 更友善）。
+      pre = new cv.Mat();
+      cv.threshold(
+        blurred,
+        pre,
+        0,
+        255,
+        cv.THRESH_BINARY | cv.THRESH_OTSU,
+      );
+      cv.Canny(pre, edges, 50, 150);
+    }
+
+    kernel = cv.Mat.ones(params.closeSize, params.closeSize, cv.CV_8U);
+    closed = new cv.Mat();
+    cv.morphologyEx(edges, closed, cv.MORPH_CLOSE, kernel);
+
+    contours = new cv.MatVector();
+    hierarchy = new cv.Mat();
+    cv.findContours(
+      closed,
+      contours,
+      hierarchy,
+      cv.RETR_EXTERNAL,
+      cv.CHAIN_APPROX_SIMPLE,
+    );
+
+    const imgArea = W * H;
+    const minArea = imgArea * 0.05;
+    const maxArea = imgArea * 0.96;
+    const edgeMargin = Math.min(W, H) * 0.015;
+
+    const n = contours.size();
+    for (let i = 0; i < n; i++) {
+      const cnt = contours.get(i);
+      const area = cv.contourArea(cnt);
+      if (area < minArea || area > maxArea) {
+        cnt.delete();
+        continue;
+      }
+      const peri = cv.arcLength(cnt, true);
+      const approx = new cv.Mat();
+      cv.approxPolyDP(cnt, approx, params.epsRatio * peri, true);
+
+      if (approx.rows === 4 && cv.isContourConvex(approx)) {
+        const pts = readQuad(approx);
+        const edgeCount = pts.filter(
+          (p) =>
+            p.x < edgeMargin ||
+            p.y < edgeMargin ||
+            p.x > W - edgeMargin ||
+            p.y > H - edgeMargin,
+        ).length;
+        // 3+ 角貼邊才當作整張畫面 / 桌面外框剔除（保留只有 1-2 角壓邊
+        // 的書封——書本拍滿框很常見）。
+        if (edgeCount < 3) {
+          const corners = orderQuad(pts);
+          out.push({
+            corners,
+            area,
+            score: scoreCandidate(corners, area, W, H),
+          });
+        }
+      }
+      approx.delete();
+      cnt.delete();
+    }
+  } catch (err) {
+    console.warn("[cornerDetect] pass failed", params, err);
+  } finally {
+    blurred?.delete();
+    pre?.delete();
+    edges?.delete();
+    closed?.delete();
+    kernel?.delete();
+    contours?.delete();
+    hierarchy?.delete();
+  }
+  return out;
+}
+
+/**
+ * 兜底：對最大合理 contour 取 minAreaRect（一定能回 4 個點）。
+ * 比讓使用者從預設內縮矩形拉強很多。
+ */
+function runMinAreaRectFallback(
+  gray: CvMat,
+  cv: CvFull,
+  W: number,
+  H: number,
+): Candidate | null {
+  let blurred: CvMat | null = null;
+  let edges: CvMat | null = null;
+  let closed: CvMat | null = null;
+  let kernel: CvMat | null = null;
+  let contours: CvMatVector | null = null;
+  let hierarchy: CvMat | null = null;
+  let bestCnt: CvMat | null = null;
+
+  try {
+    blurred = new cv.Mat();
+    cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+    edges = new cv.Mat();
+    cv.Canny(blurred, edges, 30, 120);
+    kernel = cv.Mat.ones(5, 5, cv.CV_8U);
+    closed = new cv.Mat();
+    cv.morphologyEx(edges, closed, cv.MORPH_CLOSE, kernel);
+
+    contours = new cv.MatVector();
+    hierarchy = new cv.Mat();
+    cv.findContours(
+      closed,
+      contours,
+      hierarchy,
+      cv.RETR_EXTERNAL,
+      cv.CHAIN_APPROX_SIMPLE,
+    );
+
+    const imgArea = W * H;
+    let bestArea = 0;
+    const n = contours.size();
+    for (let i = 0; i < n; i++) {
+      const cnt = contours.get(i);
+      const area = cv.contourArea(cnt);
+      if (area < imgArea * 0.05 || area > imgArea * 0.96) {
+        cnt.delete();
+        continue;
+      }
+      if (area > bestArea) {
+        bestCnt?.delete();
+        bestCnt = cnt;
+        bestArea = area;
+      } else {
+        cnt.delete();
+      }
+    }
+
+    if (!bestCnt) return null;
+    const rect = cv.minAreaRect(bestCnt);
+    const pts = rotatedRectToCorners(rect);
+    const corners = orderQuad(pts);
+    return {
+      corners,
+      area: bestArea,
+      // minAreaRect 結果天生 score 給較低（×0.7）—— 真有四邊形候選優先。
+      score: scoreCandidate(corners, bestArea, W, H) * 0.7,
+    };
+  } catch (err) {
+    console.warn("[cornerDetect] minAreaRect fallback failed", err);
+    return null;
+  } finally {
+    bestCnt?.delete();
     blurred?.delete();
     edges?.delete();
     closed?.delete();
@@ -240,9 +421,9 @@ export function extractPaperDataUrl(
 
 /**
  * 三項加權平均：
- *   - area（線性）：越大越像主體，但已被 minArea / maxArea 卡住範圍
+ *   - area（線性）：越大越像主體
  *   - centerScore：四邊形重心離畫面中心越近分數越高（避免抓到邊上小東西）
- *   - aspectScore：寬高比靠近 0.65（一般書封 2:3）的給滿分；極端比例壓分
+ *   - aspectScore：寬高比靠近 0.67（一般書封 2:3）的給滿分；極端比例壓分
  */
 function scoreCandidate(
   corners: Corners,
@@ -264,7 +445,6 @@ function scoreCandidate(
   const w = avgEdge(pts[0], pts[1], pts[3], pts[2]);
   const h = avgEdge(pts[0], pts[3], pts[1], pts[2]);
   const aspect = w > 0 && h > 0 ? Math.min(w, h) / Math.max(w, h) : 0;
-  // 書封多在 0.6~0.75 區間；其他奇怪比例給較低分但不歸零。
   const aspectScore = 1 - Math.min(1, Math.abs(aspect - 0.67) * 2.5);
 
   return area * (0.5 + 0.5 * centerScore) * (0.5 + 0.5 * aspectScore);
@@ -272,7 +452,6 @@ function scoreCandidate(
 
 // --- 通用 helpers ---
 
-/** 從 4 點 cv.Mat 取出 {x, y} 陣列。Mat 的 data32S 是 [x0, y0, x1, y1, ...]。 */
 function readQuad(approx: CvMat): CornerPoint[] {
   const data = approx.data32S as Int32Array;
   return [
@@ -305,7 +484,27 @@ function orderQuad(pts: CornerPoint[]): Corners {
   };
 }
 
-/** 把 corner 物件轉成順時針順序 [TL, TR, BR, BL] 方便算面積 / 邊長。 */
+/** RotatedRect → 4 個 CornerPoint。手算 cos/sin 比賭 cv.boxPoints 簽名穩。 */
+function rotatedRectToCorners(rect: CvRotatedRect): CornerPoint[] {
+  const cx = rect.center.x;
+  const cy = rect.center.y;
+  const hw = rect.size.width / 2;
+  const hh = rect.size.height / 2;
+  const rad = (rect.angle * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const local: CornerPoint[] = [
+    { x: -hw, y: -hh },
+    { x: +hw, y: -hh },
+    { x: +hw, y: +hh },
+    { x: -hw, y: +hh },
+  ];
+  return local.map((p) => ({
+    x: cx + p.x * cos - p.y * sin,
+    y: cy + p.x * sin + p.y * cos,
+  }));
+}
+
 function orderedCorners(
   c: Corners,
 ): [CornerPoint, CornerPoint, CornerPoint, CornerPoint] {
@@ -343,7 +542,6 @@ function dist(a: CornerPoint, b: CornerPoint): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-/** 兩條對邊長度平均（更穩定的估算）。 */
 function avgEdge(
   a1: CornerPoint,
   a2: CornerPoint,
