@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { toUserMessage } from "@/lib/errors/user-message";
 import Toast, { type ToastKind } from "./Toast";
 
@@ -63,16 +64,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [show]
   );
 
+  const toastNode = (
+    <Toast
+      key={seq}
+      open={open}
+      message={message}
+      kind={kind}
+      onClose={() => setOpen(false)}
+    />
+  );
+
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <Toast
-        key={seq}
-        open={open}
-        message={message}
-        kind={kind}
-        onClose={() => setOpen(false)}
-      />
+      {typeof document !== "undefined"
+        ? createPortal(toastNode, document.body)
+        : toastNode}
     </ToastContext.Provider>
   );
 }

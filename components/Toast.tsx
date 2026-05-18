@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Z_INDEX } from "@/lib/ui/z-index";
 
 export type ToastKind = "success" | "error" | "info";
 
@@ -48,10 +49,13 @@ export default function Toast({
 
   return (
     <div
-      className={`fixed inset-x-0 z-[70] flex justify-center px-4 pointer-events-none transition-all duration-200 ${
+      className={`fixed inset-x-0 flex justify-center px-4 pointer-events-none transition-all duration-200 ${
         open ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"
       }`}
-      style={{ top: "calc(env(safe-area-inset-top) + 68px)" }}
+      style={{
+        zIndex: Z_INDEX.toast,
+        top: "calc(env(safe-area-inset-top) + 68px)",
+      }}
       role="status"
       aria-live="polite"
     >

@@ -8,6 +8,7 @@ import { useToast } from "@/components/ToastProvider";
 import { signOutAction } from "@/app/auth/actions";
 import SignOutButton, { signOutOutlineClass } from "@/components/SignOutButton";
 import { useAdminOrgInfo } from "@/lib/admin-org-info";
+import IssueReportSheet from "@/components/IssueReportSheet";
 import { EXPERIENCE_TAG_CLASS, PLAN_META } from "@/lib/plans";
 
 type IconProps = SVGProps<SVGSVGElement>;
@@ -237,6 +238,29 @@ function NavLinkItem({
   );
 }
 
+function IssueReportNavItem({ onItemClick }: { onItemClick?: () => void }) {
+  const [open, setOpen] = useState(false);
+
+  function handleClose() {
+    setOpen(false);
+    onItemClick?.();
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`${navLinkClass(false)} w-full text-left`}
+      >
+        <MessageSquareIcon className="shrink-0" width={18} height={18} aria-hidden />
+        <span className="truncate">問題回報</span>
+      </button>
+      <IssueReportSheet open={open} onClose={handleClose} />
+    </>
+  );
+}
+
 function NavLinks({ onItemClick }: { onItemClick?: () => void }) {
   return (
     <>
@@ -245,6 +269,7 @@ function NavLinks({ onItemClick }: { onItemClick?: () => void }) {
       ))}
       <NavLinkItem item={publicLinkItem} onItemClick={onItemClick} />
       <NavLinkItem item={settingsItem} onItemClick={onItemClick} />
+      <IssueReportNavItem onItemClick={onItemClick} />
     </>
   );
 }
@@ -415,6 +440,15 @@ function LogOutIcon(props: IconProps) {
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
       <polyline points="16 17 21 12 16 7" />
       <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  );
+}
+
+/** lucide `message-square` */
+function MessageSquareIcon(props: IconProps) {
+  return (
+    <svg {...svgProps(props)}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   );
 }
