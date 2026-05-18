@@ -235,7 +235,6 @@ export default function CheckinScanPage() {
       if (!res.ok) {
         setCandidates([]);
         setCandidatesError("failed");
-        toast.error("比對服務暫時無回應");
         return;
       }
       const data = (await res.json()) as {
@@ -244,16 +243,16 @@ export default function CheckinScanPage() {
       };
       setCandidates(data.candidates?.slice(0, 5) ?? []);
       setCandidatesError(data.error ?? null);
+      // 「比對服務暫時無回應 / 查無對應」這類軟失敗只在 sheet 內顯示灰色提示，
+      // 不再彈 toast 干擾入庫節奏。rate_limited 比較嚴重（要等隔天才會恢復）
+      // 才仍跳 toast 提醒。
       if (data.error === "rate_limited") {
         toast.error("Google Books 今日配額已用完");
-      } else if (data.error === "failed") {
-        toast.error("比對服務暫時無回應");
       }
     } catch (err) {
       console.warn("[checkin] lookup failed", err);
       setCandidates([]);
       setCandidatesError("failed");
-      toast.error("比對服務暫時無回應");
     } finally {
       setCandidatesLoading(false);
     }
