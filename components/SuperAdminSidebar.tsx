@@ -61,7 +61,7 @@ const settingsItem: NavItem = {
 };
 
 function navLinkClass(active: boolean) {
-  return `flex items-center gap-2.5 px-2 py-2.5 rounded-lg text-sm transition mb-5 ${
+  return `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition mb-5 ${
     active
       ? "bg-neutral-900 text-white"
       : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
@@ -107,11 +107,7 @@ function NavLinkItem({
   const { href, label, matchExact, Icon } = item;
   const active = matchExact ? pathname === href : pathname.startsWith(href);
   return (
-    <Link
-      href={href}
-      onClick={onItemClick}
-      className={navLinkClass(active)}
-    >
+    <Link href={href} onClick={onItemClick} className={navLinkClass(active)}>
       <Icon className="shrink-0" width={18} height={18} aria-hidden />
       <span className="truncate">{label}</span>
     </Link>
