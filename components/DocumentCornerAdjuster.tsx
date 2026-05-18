@@ -28,15 +28,10 @@ const LOUPE_SIZE = 128;
 
 /**
  * 四角拖曳可達的「最大範圍」— 從圖片每一邊內縮的百分比。
+ * 在 `clientToImage` clamp 時使用，防止 handle 被拖到極端邊緣導致
+ * 觸控目標被螢幕邊切掉、或四角擠成退化形狀（凹/共線）。
  *
- * 用意：
- * - 防止 handle 被拖到極端邊緣導致觸控目標被螢幕邊切掉、或四角擠成
- *   退化形狀（凹/共線）；
- * - 給 jscanify 自動偵測一個合理性閾值：偵測結果只要有任一角超出這個
- *   範圍，整組視為失敗，直接 fallback 到 `defaultCorners` 的正矩形。
- *
- * 0.02 表示每邊內縮 2%（corner 可達 [2%, 98%]）。書封通常不會占滿整張
- * frame，2% 已經很寬鬆，不會妨礙正常框選。
+ * 0.02 表示每邊內縮 2%（corner 可達 [2%, 98%]）。
  */
 const MAX_RANGE_INSET_PERCENT = 0.02;
 
@@ -61,7 +56,6 @@ type Props = {
  * - 拖曳時 clamp 在 `MAX_RANGE_INSET_PERCENT` 內縮後的安全範圍內，且
  *   即時用 isConvex 驗證；非凸 quad 時確認按鈕 disable，避免送出沒用
  *   的 corner 給 warpPerspective。
- * - 自動偵測結果若有任一角越界，整組捨棄，退回預設正矩形。
  */
 export default function DocumentCornerAdjuster({
   imageDataUrl,
@@ -81,17 +75,11 @@ export default function DocumentCornerAdjuster({
   } | null>(null);
 
   // corners 永遠以「原圖 pixel 座標」存（送出時不用換算）。
-  // 自動偵測若有任一角越界（< MAX_RANGE_INSET_PERCENT），整組視為失敗，
-  // 直接退回正矩形，讓使用者從合理位置開始手動微調。
-  const [corners, setCorners] = useState<Corners>(() => {
-    if (
-      initialCorners &&
-      isCornersWithinRange(initialCorners, imageWidth, imageHeight)
-    ) {
-      return initialCorners;
-    }
-    return defaultCorners(imageWidth, imageHeight);
-  });
+  // 自動偵測結果直接採用；拖曳時 `clientToImage` 已經 clamp 在安全範圍，
+  // 不在 init 階段做合理性驗證（避免合理偵測結果被誤判成「越界」整組打回預設）。
+  const [corners, setCorners] = useState<Corners>(() =>
+    initialCorners ?? defaultCorners(imageWidth, imageHeight),
+  );
   const [draggingKey, setDraggingKey] = useState<CornerKey | null>(null);
 
   useEffect(() => {
@@ -344,30 +332,6 @@ export default function DocumentCornerAdjuster({
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
-}
-
-/**
- * 檢查四個 corner 是否全部落在「允許範圍」內。
- * 任一角越界就回 false，呼叫端通常會 fallback 到 `defaultCorners`。
- */
-function isCornersWithinRange(
-  corners: Corners,
-  w: number,
-  h: number,
-): boolean {
-  const minX = w * MAX_RANGE_INSET_PERCENT;
-  const maxX = w - minX;
-  const minY = h * MAX_RANGE_INSET_PERCENT;
-  const maxY = h - minY;
-  const pts = [
-    corners.topLeftCorner,
-    corners.topRightCorner,
-    corners.bottomRightCorner,
-    corners.bottomLeftCorner,
-  ];
-  return pts.every(
-    (p) => p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY,
-  );
 }
 
 /** 預設四角：在圖片內側 12% 留邊處的矩形。 */

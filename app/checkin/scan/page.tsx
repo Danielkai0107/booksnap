@@ -642,7 +642,7 @@ export default function CheckinScanPage() {
             {/* 不做即時 highlight：避免四角持續變形讓使用者抓不準時機；
                 校正全部交給拍完後的手動四點調整 sheet。 */}
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="focus-frame w-72 h-96 max-w-[78%] max-h-[58%]">
+              <div className="focus-frame w-60 h-80 max-w-[64%] max-h-[48%]">
                 <span className="focus-bl" />
                 <span className="focus-br" />
               </div>
