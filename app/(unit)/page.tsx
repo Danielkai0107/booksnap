@@ -18,6 +18,13 @@ import { useAdminOrgInfo } from "@/lib/admin-org-info";
 
 type EditTarget = BookRow | null;
 
+const DESKTOP_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+type DesktopPageSize = (typeof DESKTOP_PAGE_SIZE_OPTIONS)[number];
+const DEFAULT_DESKTOP_PAGE_SIZE: DesktopPageSize = 25;
+// 手機端用「分批載入」而非分頁，避免使用者切換頁碼時失去滾動位置。
+const MOBILE_INITIAL_COUNT = 20;
+const MOBILE_LOAD_STEP = 20;
+
 export default function AdminPage() {
   const router = useRouter();
   const [books, setBooks] = useState<BookRow[]>([]);
@@ -31,6 +38,15 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
   const [deleteTarget, setDeleteTarget] = useState<EditTarget>(null);
+  // 桌機分頁狀態。pageSize 影響 totalPages，需與 currentPage 一起 clamp，
+  // 否則篩選後資料變少時 currentPage 會落在空白頁。
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<DesktopPageSize>(
+    DEFAULT_DESKTOP_PAGE_SIZE,
+  );
+  const [mobileVisibleCount, setMobileVisibleCount] = useState(
+    MOBILE_INITIAL_COUNT,
+  );
   // 桌機沒有相機，按「新書入庫」走手動表單彈窗。手機 FAB 仍走 /checkin 拍照。
   const [manualCheckinOpen, setManualCheckinOpen] = useState(false);
   const toast = useToast();
@@ -128,6 +144,29 @@ export default function AdminPage() {
       );
     });
   }, [books, query, categoryFilter, statusFilter]);
+
+  // 篩選條件變動時，桌機回到第一頁、手機重置已載入數，避免使用者卡在空白頁。
+  useEffect(() => {
+    setCurrentPage(1);
+    setMobileVisibleCount(MOBILE_INITIAL_COUNT);
+  }, [query, categoryFilter, statusFilter, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  // currentPage 可能因外部資料減少而超出範圍（例如刪書），這裡 clamp 一次。
+  const safePage = Math.min(currentPage, totalPages);
+  const desktopPageStart = (safePage - 1) * pageSize;
+  const desktopPageEnd = Math.min(desktopPageStart + pageSize, filtered.length);
+  const desktopPaged = useMemo(
+    () => filtered.slice(desktopPageStart, desktopPageEnd),
+    [filtered, desktopPageStart, desktopPageEnd],
+  );
+
+  const mobileVisible = Math.min(mobileVisibleCount, filtered.length);
+  const mobilePaged = useMemo(
+    () => filtered.slice(0, mobileVisible),
+    [filtered, mobileVisible],
+  );
+  const mobileHasMore = mobileVisible < filtered.length;
 
   const availableCount = books.filter((b) => b.status === "available").length;
   const borrowedCount = books.length - availableCount;
@@ -247,7 +286,7 @@ export default function AdminPage() {
           <>
             {/* 手機卡片 */}
             <ul className="md:hidden divide-y divide-neutral-100 border-y border-neutral-100">
-              {filtered.map((b) => (
+              {mobilePaged.map((b) => (
                 <li key={b.id} className="py-4 flex gap-3 items-start">
                   <Link
                     href={`/books/${encodeURIComponent(b.book_id)}`}
@@ -298,6 +337,24 @@ export default function AdminPage() {
               ))}
             </ul>
 
+            {/* 手機分批載入：滾動到底時手動觸發，避免一次渲染上千張卡片。 */}
+            <div className="md:hidden mt-4 flex flex-col items-center gap-2">
+              <p className="text-xs text-neutral-500 tabular-nums">
+                已顯示 {mobileVisible} / {filtered.length} 本
+              </p>
+              {mobileHasMore && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMobileVisibleCount((n) => n + MOBILE_LOAD_STEP)
+                  }
+                  className="press-feedback inline-flex items-center justify-center text-sm font-medium text-neutral-800 hover:text-neutral-900 px-4 h-10 rounded-full bg-white border border-neutral-200 hover:border-neutral-400"
+                >
+                  載入更多
+                </button>
+              )}
+            </div>
+
             {/* 桌機表格 */}
             <div className="hidden md:block overflow-x-auto border border-neutral-100 rounded-xl">
               {/* `table-fixed` + 明確欄寬：書名、持有人才會真的 truncate；
@@ -330,7 +387,7 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
-                  {filtered.map((b) => (
+                  {desktopPaged.map((b) => (
                     <tr
                       key={b.id}
                       onClick={() =>
@@ -415,6 +472,43 @@ export default function AdminPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* 桌機分頁器：每頁筆數切換 + 上/下頁 + 頁碼。
+              `tabular-nums` 讓頁碼按鈕在頁數變化時不會位移。 */}
+            <div className="hidden md:flex mt-4 items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-neutral-500">
+                <span>
+                  顯示 {filtered.length === 0 ? 0 : desktopPageStart + 1}–
+                  {desktopPageEnd}，共 {filtered.length} 本
+                </span>
+                <span className="text-neutral-300">·</span>
+                <label className="flex items-center gap-1.5">
+                  <span>每頁</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) =>
+                      setPageSize(
+                        Number(e.target.value) as DesktopPageSize,
+                      )
+                    }
+                    className="h-8 rounded-md border border-neutral-200 bg-white px-2 text-sm text-neutral-700 focus:outline-none focus:border-neutral-900"
+                  >
+                    {DESKTOP_PAGE_SIZE_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                  <span>筆</span>
+                </label>
+              </div>
+
+              <Pagination
+                page={safePage}
+                totalPages={totalPages}
+                onChange={setCurrentPage}
+              />
             </div>
           </>
         )}
@@ -573,6 +667,142 @@ function StatusFilterChip({
       }`}
     >
       {dotColor && <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />}
+      {children}
+    </button>
+  );
+}
+
+// 產生像 [1, '…', 4, 5, 6, '…', 12] 的頁碼序列。
+// `siblings` 控制目前頁兩側顯示幾個頁碼；首尾固定顯示，避免頁數很多時
+// 整列頁碼把分頁器撐爆。
+function buildPageRange(
+  page: number,
+  totalPages: number,
+  siblings = 1,
+): Array<number | "ellipsis"> {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  const first = 1;
+  const last = totalPages;
+  const left = Math.max(page - siblings, first + 1);
+  const right = Math.min(page + siblings, last - 1);
+
+  const items: Array<number | "ellipsis"> = [first];
+  if (left > first + 1) items.push("ellipsis");
+  for (let i = left; i <= right; i++) items.push(i);
+  if (right < last - 1) items.push("ellipsis");
+  items.push(last);
+  return items;
+}
+
+function Pagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (next: number) => void;
+}) {
+  if (totalPages <= 1) {
+    return <div className="h-9" aria-hidden />;
+  }
+  const items = buildPageRange(page, totalPages);
+  const prevDisabled = page <= 1;
+  const nextDisabled = page >= totalPages;
+
+  return (
+    <nav className="flex items-center gap-1" aria-label="分頁">
+      <PaginationButton
+        onClick={() => onChange(page - 1)}
+        disabled={prevDisabled}
+        ariaLabel="上一頁"
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+      </PaginationButton>
+
+      {items.map((item, idx) =>
+        item === "ellipsis" ? (
+          <span
+            key={`ellipsis-${idx}`}
+            className="inline-flex h-9 min-w-9 items-center justify-center text-sm text-neutral-400"
+          >
+            …
+          </span>
+        ) : (
+          <PaginationButton
+            key={item}
+            onClick={() => onChange(item)}
+            active={item === page}
+            ariaLabel={`第 ${item} 頁`}
+          >
+            <span className="tabular-nums">{item}</span>
+          </PaginationButton>
+        ),
+      )}
+
+      <PaginationButton
+        onClick={() => onChange(page + 1)}
+        disabled={nextDisabled}
+        ariaLabel="下一頁"
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </PaginationButton>
+    </nav>
+  );
+}
+
+function PaginationButton({
+  children,
+  onClick,
+  disabled,
+  active,
+  ariaLabel,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  active?: boolean;
+  ariaLabel?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      aria-current={active ? "page" : undefined}
+      className={`inline-flex h-9 min-w-9 items-center justify-center px-2.5 text-sm font-medium rounded-md border transition ${
+        active
+          ? "bg-neutral-900 text-white border-neutral-900"
+          : "bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400"
+      } disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-neutral-200`}
+    >
       {children}
     </button>
   );
