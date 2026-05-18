@@ -272,21 +272,6 @@ textarea {
   opacity: 0.25;
 }
 
-/* jscanify 即時偵測四邊形覆蓋層。high = 信心高（綠色），low = 信心低（淡色）。
-   stroke 用 non-scaling 才不會被 SVG slice 轉換放大成方塊邊。 */
-.scan-quad-hi,
-.scan-quad-lo {
-  fill: rgba(34, 197, 94, 0.16);
-  stroke: #22c55e;
-  stroke-width: 6;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-  transition: fill 120ms ease, stroke 120ms ease;
-}
-.scan-quad-lo {
-  fill: rgba(255, 255, 255, 0.08);
-  stroke: rgba(255, 255, 255, 0.55);
-}
 
 @keyframes scan-sweep {
   0% {

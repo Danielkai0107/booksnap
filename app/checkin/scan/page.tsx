@@ -17,7 +17,6 @@ import { useToast } from "@/components/ToastProvider";
 import ZoomableImage from "@/components/ZoomableImage";
 import { loadJscanify, type Corners, type Jscanify } from "@/lib/jscanify";
 import {
-  cornerConfidence,
   detectCornersFromCanvas,
   extractPaperDataUrl,
 } from "@/lib/cornerDetect";
@@ -27,7 +26,6 @@ type Mode =
   | "camera"
   | "processing"
   | "adjusting"
-  | "previewing"
   | "confirming";
 
 type CurrentCapture = {
@@ -79,20 +77,8 @@ export default function CheckinScanPage() {
   const [currentCapture, setCurrentCapture] = useState<CurrentCapture | null>(
     null,
   );
-  // 相機快門按下後、進入 adjusting / previewing 前需要保留的原始 frame。
+  // 相機快門按下後、進入 adjusting 前需要保留的原始 frame。
   const [pendingCapture, setPendingCapture] = useState<PendingCapture | null>(
-    null,
-  );
-  // 拉正後的封面（也是最終要丟給 Claude + 寫進 cart 的圖）。
-  const [extractedDataUrl, setExtractedDataUrl] = useState<string | null>(null);
-  // 即時偵測畫面顯示用的四角（video 像素座標）。
-  const [liveCorners, setLiveCorners] = useState<Corners | null>(null);
-  const [liveConfidence, setLiveConfidence] = useState<"high" | "low" | null>(
-    null,
-  );
-  // video 原始解析度。用 state 才能讓 SVG overlay 在 render 期間用，
-  // 而不去碰 ref.current（React 19 的 react-hooks/refs 規範）。
-  const [videoSize, setVideoSize] = useState<{ w: number; h: number } | null>(
     null,
   );
   const [editedTitle, setEditedTitle] = useState("");
@@ -230,72 +216,6 @@ export default function CheckinScanPage() {
     };
   }, []);
 
-  // 相機開著時每 250ms 偵測一次四角（downsample 到 320 寬，避免吃 CPU）。
-  // 注意：detectCornersFromCanvas 內部會 new cv.Mat()，每幀都 delete，
-  // 沒做 throttle 的話 WASM heap 會緩慢膨脹；間隔 + downsample 就夠了。
-  useEffect(() => {
-    if (mode !== "camera" || !scannerReady) return;
-    const probeCanvas = document.createElement("canvas");
-    const probeCtx = probeCanvas.getContext("2d", { willReadFrequently: true });
-    if (!probeCtx) return;
-
-    let cancelled = false;
-    const tick = () => {
-      if (cancelled) return;
-      const j = scannerRef.current;
-      const video = videoRef.current;
-      if (!j || !video || video.videoWidth === 0) return;
-      const targetW = 320;
-      const scale = targetW / video.videoWidth;
-      const targetH = Math.round(video.videoHeight * scale);
-      if (probeCanvas.width !== targetW) probeCanvas.width = targetW;
-      if (probeCanvas.height !== targetH) probeCanvas.height = targetH;
-      try {
-        probeCtx.drawImage(video, 0, 0, targetW, targetH);
-      } catch {
-        return;
-      }
-      const c = detectCornersFromCanvas(probeCanvas, j.scanner, j.cv);
-      if (!c) {
-        setLiveCorners(null);
-        setLiveConfidence(null);
-        return;
-      }
-      // 把 corner 從 320 寬縮回 video 原始像素，再交給 SVG（overlay 也用
-      // video 像素 viewBox + preserveAspectRatio="slice" 對齊 object-cover）。
-      const inv = 1 / scale;
-      const scaled: Corners = {
-        topLeftCorner: {
-          x: c.topLeftCorner.x * inv,
-          y: c.topLeftCorner.y * inv,
-        },
-        topRightCorner: {
-          x: c.topRightCorner.x * inv,
-          y: c.topRightCorner.y * inv,
-        },
-        bottomRightCorner: {
-          x: c.bottomRightCorner.x * inv,
-          y: c.bottomRightCorner.y * inv,
-        },
-        bottomLeftCorner: {
-          x: c.bottomLeftCorner.x * inv,
-          y: c.bottomLeftCorner.y * inv,
-        },
-      };
-      setLiveCorners(scaled);
-      setLiveConfidence(
-        cornerConfidence(c, probeCanvas.width, probeCanvas.height),
-      );
-    };
-
-    tick();
-    const id = window.setInterval(tick, 250);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [mode, scannerReady]);
-
   // 每次拍照後只查一次 Google Books（在 handleCapture 內呼叫），
   // 之後就算使用者編輯書名也不會再打 API，避免浪費 quota。
   const fetchCandidatesOnce = useCallback(async (rawTitle: string) => {
@@ -341,7 +261,7 @@ export default function CheckinScanPage() {
 
   /**
    * 把校正後（或 raw fallback）的圖丟給 Claude 辨識，並打開確認 sheet。
-   * 從原本 handleCapture 拆出來，方便 previewing → confirming 直接重用。
+   * 從原本 handleCapture 拆出來，方便 adjusting → 套用 → 直接 reuse。
    */
   const runRecognition = useCallback(
     async (dataUrl: string) => {
@@ -412,35 +332,18 @@ export default function CheckinScanPage() {
 
     stopStream();
 
-    // 沒 scanner（CDN 載入失敗或還沒 ready）就走原本路徑，使用者無感。
+    // 沒 scanner（CDN 載入失敗或還沒 ready）就直接送 Claude，
+    // 避免使用者卡在「智慧校正準備中」。
     const j = scannerRef.current;
     if (!j) {
       void runRecognition(rawDataUrl);
       return;
     }
 
-    // 用全解析度 frame 再偵測一次（比 live loop 的 320 寬準確很多）。
+    // 用全解析度 frame 偵測一次，只當作 adjuster 的初始 hint；
+    // 不再做信心判斷 / 自動 extract（會讓使用者覺得「沒得選」），
+    // 一律進手動調整流程。
     const detected = detectCornersFromCanvas(canvas, j.scanner, j.cv);
-    const confidence = detected
-      ? cornerConfidence(detected, canvas.width, canvas.height)
-      : null;
-
-    if (detected && confidence === "high") {
-      const extracted = extractPaperDataUrl(canvas, detected, j.scanner);
-      if (extracted) {
-        setPendingCapture({
-          rawDataUrl,
-          width: canvas.width,
-          height: canvas.height,
-          detectedCorners: detected,
-        });
-        setExtractedDataUrl(extracted);
-        setMode("previewing");
-        return;
-      }
-      // extract 失敗（罕見）→ 落到手動調整。
-    }
-
     setPendingCapture({
       rawDataUrl,
       width: canvas.width,
@@ -467,26 +370,14 @@ export default function CheckinScanPage() {
         toast.error("校正失敗，請重新調整或重拍");
         return;
       }
-      setExtractedDataUrl(extracted);
-      setMode("previewing");
+      // 套用即送出：拉正後直接進辨識，不再多一層預覽確認。
+      void runRecognition(extracted);
     },
     [pendingCapture, runRecognition, toast],
   );
 
-  const handleConfirmExtracted = useCallback(() => {
-    if (!extractedDataUrl) return;
-    void runRecognition(extractedDataUrl);
-  }, [extractedDataUrl, runRecognition]);
-
-  const handleReAdjust = useCallback(() => {
-    if (!pendingCapture) return;
-    setExtractedDataUrl(null);
-    setMode("adjusting");
-  }, [pendingCapture]);
-
   const handleAdjusterCancel = useCallback(() => {
     setPendingCapture(null);
-    setExtractedDataUrl(null);
     startCamera();
   }, [startCamera]);
 
@@ -544,7 +435,6 @@ export default function CheckinScanPage() {
       });
       setCurrentCapture(null);
       setPendingCapture(null);
-      setExtractedDataUrl(null);
       setEditedTitle("");
       setEditedCategoryId("");
       setEditedIsbn("");
@@ -613,7 +503,6 @@ export default function CheckinScanPage() {
   const handleRetake = useCallback(() => {
     setCurrentCapture(null);
     setPendingCapture(null);
-    setExtractedDataUrl(null);
     setEditedTitle("");
     setEditedCategoryId("");
     setEditedIsbn("");
@@ -630,7 +519,6 @@ export default function CheckinScanPage() {
     setDuplicateBase("");
     setCurrentCapture(null);
     setPendingCapture(null);
-    setExtractedDataUrl(null);
     setEditedTitle("");
     setEditedCategoryId("");
     setEditedIsbn("");
@@ -691,45 +579,16 @@ export default function CheckinScanPage() {
               playsInline
               muted
               autoPlay
-              onLoadedMetadata={(e) => {
-                const v = e.currentTarget;
-                setVideoSize({ w: v.videoWidth, h: v.videoHeight });
-              }}
               className="absolute inset-0 w-full h-full object-cover"
             />
-            {/* 即時偵測到的書封四邊形。SVG viewBox 跟 video 原始像素一致、
-                preserveAspectRatio="xMidYMid slice" 跟 CSS object-cover 對齊，
-                這樣畫出來的四角會精準貼在書封邊緣上。 */}
-            {mode === "camera" && liveCorners && videoSize && (
-              <svg
-                className="absolute inset-0 w-full h-full pointer-events-none"
-                viewBox={`0 0 ${videoSize.w} ${videoSize.h}`}
-                preserveAspectRatio="xMidYMid slice"
-              >
-                <polygon
-                  className={
-                    liveConfidence === "high" ? "scan-quad-hi" : "scan-quad-lo"
-                  }
-                  points={[
-                    liveCorners.topLeftCorner,
-                    liveCorners.topRightCorner,
-                    liveCorners.bottomRightCorner,
-                    liveCorners.bottomLeftCorner,
-                  ]
-                    .map((p) => `${p.x},${p.y}`)
-                    .join(" ")}
-                />
-              </svg>
-            )}
-            {/* 沒有 liveCorners 才顯示對焦框，避免兩個框打架。 */}
-            {mode === "camera" && !liveCorners && (
-              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                <div className="focus-frame w-72 h-96 max-w-[78%] max-h-[58%]">
-                  <span className="focus-bl" />
-                  <span className="focus-br" />
-                </div>
+            {/* 不做即時 highlight：避免四角持續變形讓使用者抓不準時機；
+                校正全部交給拍完後的手動四點調整 sheet。 */}
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+              <div className="focus-frame w-72 h-96 max-w-[78%] max-h-[58%]">
+                <span className="focus-bl" />
+                <span className="focus-br" />
               </div>
-            )}
+            </div>
             {cameraError && (
               <CameraErrorDialog
                 onRetry={() => startCamera()}
@@ -785,41 +644,6 @@ export default function CheckinScanPage() {
             onCancel={handleAdjusterCancel}
             onConfirm={handleAdjusterConfirm}
           />
-        )}
-
-        {mode === "previewing" && extractedDataUrl && (
-          <div className="fixed inset-0 z-40 bg-black flex flex-col">
-            <div className="flex-1 flex items-center justify-center px-6 py-6 overflow-hidden">
-              <img
-                src={extractedDataUrl}
-                alt="extracted cover"
-                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-              />
-            </div>
-            <div className="px-6 pt-3 pb-8 bg-black flex gap-2">
-              <button
-                type="button"
-                onClick={handleRetake}
-                className="flex-1 bg-white/10 hover:bg-white/15 text-white text-sm font-medium py-3 rounded-lg transition"
-              >
-                重拍
-              </button>
-              <button
-                type="button"
-                onClick={handleReAdjust}
-                className="flex-1 bg-white/10 hover:bg-white/15 text-white text-sm font-medium py-3 rounded-lg transition"
-              >
-                重新框選
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmExtracted}
-                className="flex-1 bg-white hover:bg-neutral-100 text-neutral-900 text-sm font-medium py-3 rounded-lg transition"
-              >
-                確認辨識
-              </button>
-            </div>
-          </div>
         )}
 
         {mode === "confirming" && currentCapture && (
