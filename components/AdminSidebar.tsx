@@ -45,9 +45,9 @@ const settingsItem: NavItem = {
 };
 
 function navLinkClass(active: boolean) {
-  return `flex items-center gap-2.5 px-2 py-2.5 rounded-lg text-sm transition mb-5 ${
+  return `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition mb-5 ${
     active
-      ? "bg-brand text-white"
+      ? "bg-brand text-white font-semibold"
       : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
   }`;
 }
