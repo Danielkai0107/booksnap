@@ -57,7 +57,7 @@ export function isOrgLocked(
  * `trial_ends_at` set (e.g. a paid org whose trial column was cleared).
  *
  * Returns `0` when the trial has expired (today is past `trial_ends_at`). The
- * billing page renders this as "試用已結束" rather than "剩 0 天" so callers
+ * billing page renders this as "體驗已結束" rather than "剩 0 天" so callers
  * should also consult `trialState()` when wording the UI.
  */
 export function trialDaysRemaining(

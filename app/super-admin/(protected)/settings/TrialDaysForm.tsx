@@ -26,7 +26,7 @@ export default function TrialDaysForm({ initialDays }: { initialDays: number }) 
         toast.error(res.error);
         return;
       }
-      toast.success(`預設試用天數已更新為 ${n} 天`);
+      toast.success(`預設體驗天數已更新為 ${n} 天`);
       router.refresh();
     });
   }
@@ -38,7 +38,7 @@ export default function TrialDaysForm({ initialDays }: { initialDays: number }) 
   return (
     <div className="flex flex-wrap items-end gap-3">
       <label className="block flex-1 min-w-[200px] max-w-xs">
-        <span className="text-xs text-neutral-500">試用天數</span>
+        <span className="text-xs text-neutral-500">體驗天數</span>
         <div
           className={`mt-1.5 flex items-center gap-2 rounded-lg border bg-white px-3 h-10 ${
             busy

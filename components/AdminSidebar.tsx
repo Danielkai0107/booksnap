@@ -8,7 +8,7 @@ import { useToast } from "@/components/ToastProvider";
 import { signOutAction } from "@/app/auth/actions";
 import SignOutButton, { signOutOutlineClass } from "@/components/SignOutButton";
 import { useAdminOrgInfo } from "@/lib/admin-org-info";
-import { PLAN_META } from "@/lib/plans";
+import { EXPERIENCE_TAG_CLASS, PLAN_META } from "@/lib/plans";
 
 type IconProps = SVGProps<SVGSVGElement>;
 type NavItem = {
@@ -61,19 +61,20 @@ function BrandHeader({
 }) {
   const { orgName, plan, trialState, trialDaysRemaining } = useAdminOrgInfo();
   const meta = plan ? PLAN_META[plan] : null;
-  // 試用結束＋未付費才顯示升級。Pro 與試用中不顯示。
+  // 體驗結束＋未付費才顯示升級。Pro 與體驗中不顯示。
   const showUpgrade = trialState === "expired_trial";
+  const isExperienceState =
+    trialState === "active_trial" || trialState === "expired_trial";
   const pillLabel =
     trialState === "active_trial" && typeof trialDaysRemaining === "number"
-      ? `試用剩 ${trialDaysRemaining} 天`
+      ? `體驗剩 ${trialDaysRemaining} 天`
       : trialState === "expired_trial"
-        ? "試用已結束"
+        ? "體驗已結束"
         : meta?.label;
-  const pillClass =
-    trialState === "expired_trial"
-      ? "bg-red-50 text-red-700 border-red-100"
-      : (meta?.pillClass ??
-        "bg-neutral-100 text-neutral-700 border-neutral-200");
+  const pillClass = isExperienceState
+    ? EXPERIENCE_TAG_CLASS
+    : (meta?.pillClass ??
+      "bg-neutral-100 text-neutral-700 border-neutral-200");
   return (
     <div
       className={`relative mb-6 border-b border-neutral-100 pb-4 ${className}`}

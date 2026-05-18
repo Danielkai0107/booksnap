@@ -29,13 +29,17 @@ export const PLAN_ORDER: readonly OrgPlan[] = ["trial", "pro"] as const;
 
 export type PlanPriceConfig = { monthly: number; label: string };
 
+/** 體驗相關狀態 tag：白底灰框，低調不施壓。 */
+export const EXPERIENCE_TAG_CLASS =
+  "bg-white text-neutral-600 border-neutral-200";
+
 export const PLAN_META: Record<
   OrgPlan,
   { label: string; pillClass: string }
 > = {
   trial: {
-    label: "試用中",
-    pillClass: "bg-blue-50 text-blue-700 border-blue-100",
+    label: "體驗中",
+    pillClass: EXPERIENCE_TAG_CLASS,
   },
   pro: {
     label: "Pro",
@@ -48,7 +52,7 @@ export const PLAN_META: Record<
  * when the DB is unreachable. Keep in sync with the migration.
  */
 export const PLAN_PRICE: Record<OrgPlan, PlanPriceConfig> = {
-  trial: { monthly: 0, label: "免費試用" },
+  trial: { monthly: 0, label: "免費體驗" },
   pro: { monthly: 990, label: "NT$ 990／月" },
 };
 
@@ -73,7 +77,7 @@ const DEFAULT_TRIAL_DAYS = 30;
 const DEFAULT_BILLING_ENABLED = false;
 
 export function formatPriceLabel(plan: OrgPlan, monthly: number): string {
-  if (plan === "trial" || monthly === 0) return "免費試用";
+  if (plan === "trial" || monthly === 0) return "免費體驗";
   return `NT$ ${monthly.toLocaleString()}／月`;
 }
 

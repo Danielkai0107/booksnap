@@ -403,7 +403,7 @@ export async function extendOrganizationTrial(
     .maybeSingle();
   if (!org) return { ok: false, error: "找不到單位" };
   if (org.plan === "pro") {
-    return { ok: false, error: "Pro 單位不需要延長試用" };
+    return { ok: false, error: "Pro 單位不需要延長體驗" };
   }
 
   const now = Date.now();
@@ -464,7 +464,7 @@ export async function endOrganizationTrial(
     .update({ trial_ends_at: nowIso })
     .eq("id", orgId);
   if (error) {
-    return { ok: false, error: toUserMessage(error, "結束試用失敗") };
+    return { ok: false, error: toUserMessage(error, "結束體驗失敗") };
   }
 
   await writeAuditLog(admin, {
@@ -523,7 +523,7 @@ export async function resetOrganizationTrial(
     .update({ plan: "trial", trial_ends_at: next.toISOString() })
     .eq("id", orgId);
   if (error) {
-    return { ok: false, error: toUserMessage(error, "重置試用失敗") };
+    return { ok: false, error: toUserMessage(error, "重置體驗失敗") };
   }
 
   await writeAuditLog(admin, {

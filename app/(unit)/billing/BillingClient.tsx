@@ -4,7 +4,7 @@ import { useEffect, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import AdminShell from "@/components/AdminShell";
 import { useToast } from "@/components/ToastProvider";
-import type { PlanPriceConfig } from "@/lib/plans";
+import { EXPERIENCE_TAG_CLASS, type PlanPriceConfig } from "@/lib/plans";
 import type { TrialState } from "@/lib/billing/lock";
 
 export type SubscriptionView = {
@@ -208,15 +208,17 @@ function StatusCard({
         <p className="text-xs text-neutral-500">目前狀態</p>
         <div className="mt-3 flex items-center gap-2.5 flex-wrap">
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
-            試用還剩 {days} 天
+            體驗還剩 {days} 天
           </h1>
-          <span className="inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium bg-blue-50 text-blue-700 border-blue-100">
-            試用中
+          <span
+            className={`inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium ${EXPERIENCE_TAG_CLASS}`}
+          >
+            體驗中
           </span>
         </div>
         {trialEndsAt && (
           <p className="mt-3 text-sm text-neutral-700">
-            試用至{" "}
+            體驗至{" "}
             <strong className="text-neutral-900">
               {formatDateTW(trialEndsAt)}
             </strong>
@@ -247,14 +249,16 @@ function StatusCard({
         <p className="text-xs text-neutral-500">目前狀態</p>
         <div className="mt-3 flex items-center gap-2.5 flex-wrap">
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
-            試用已結束
+            體驗已結束
           </h1>
-          <span className="inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium bg-red-50 text-red-700 border-red-100">
-            未訂閱
+          <span
+            className={`inline-flex items-center h-[26px] px-2.5 rounded-full border text-xs font-medium ${EXPERIENCE_TAG_CLASS}`}
+          >
+            體驗結束
           </span>
         </div>
         <p className="mt-3 text-sm text-neutral-700">
-          您的試用期已結束，新書入庫與借閱連結已暫停。升級後即可繼續使用，原有資料不會遺失。
+          您的體驗期已結束，新書入庫與借閱連結已暫停。升級後即可繼續使用，原有資料不會遺失。
         </p>
         <button
           type="button"

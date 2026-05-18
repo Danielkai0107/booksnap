@@ -91,8 +91,8 @@ export default function OrgRowActions({
   const toast = useToast();
 
   // 關閉 dialog 並強制 client 重新拉伺服器 tree。Server action 雖然有
-  // revalidatePath，但仍偶有 client tree 沒即時更新的情況（看到舊的試用狀態、
-  // 「結束試用」按鈕沒出現），這裡明確 refresh 一次保險。
+  // revalidatePath，但仍偶有 client tree 沒即時更新的情況（看到舊的體驗狀態、
+  // 「結束體驗」按鈕沒出現），這裡明確 refresh 一次保險。
   function close() {
     setDialog(null);
     router.refresh();
@@ -155,7 +155,7 @@ export default function OrgRowActions({
               onClick={() => setDialog("extend")}
               disabled={pending}
             >
-              延長試用
+              延長體驗
             </SecondaryBtn>
           )}
           {isTrial && (
@@ -163,12 +163,12 @@ export default function OrgRowActions({
               onClick={() => setDialog("resetTrial")}
               disabled={pending}
             >
-              重置試用
+              重置體驗
             </SecondaryBtn>
           )}
           {isTrial && trialState === "active_trial" && (
             <DangerBtn onClick={() => setDialog("endTrial")} disabled={pending}>
-              結束試用
+              結束體驗
             </DangerBtn>
           )}
           {isPaid && (
@@ -241,7 +241,7 @@ export default function OrgRowActions({
         </Modal>
       )}
       {dialog === "extend" && (
-        <Modal title={`延長「${orgName}」的試用`} onClose={close}>
+        <Modal title={`延長「${orgName}」的體驗`} onClose={close}>
           <ExtendDialog
             orgId={orgId}
             trialEndsAt={trialEndsAt}
@@ -251,7 +251,7 @@ export default function OrgRowActions({
         </Modal>
       )}
       {dialog === "endTrial" && (
-        <Modal title={`立即結束「${orgName}」的試用？`} onClose={close}>
+        <Modal title={`立即結束「${orgName}」的體驗？`} onClose={close}>
           <EndTrialDialog
             orgId={orgId}
             trialEndsAt={trialEndsAt}
@@ -261,7 +261,7 @@ export default function OrgRowActions({
         </Modal>
       )}
       {dialog === "resetTrial" && (
-        <Modal title={`重置「${orgName}」的試用期？`} onClose={close}>
+        <Modal title={`重置「${orgName}」的體驗期？`} onClose={close}>
           <ResetTrialDialog
             orgId={orgId}
             trialEndsAt={trialEndsAt}
@@ -370,7 +370,7 @@ function CancelDialog({
           checked={mode === "immediate"}
           onCheck={() => setMode("immediate")}
           title="立即取消"
-          desc="馬上把訂閱期截斷，effective plan 立即降回試用狀態。"
+          desc="馬上把訂閱期截斷，effective plan 立即降回體驗狀態。"
         />
       </div>
       <div className="mt-5 flex gap-2 justify-end">
@@ -439,13 +439,13 @@ function ExtendDialog({
   return (
     <>
       <p className="text-sm text-neutral-600 leading-relaxed">
-        延長後的新試用截止日為「
-        <strong>max(今天, 目前試用結束) + N 天</strong>
-        」。已過期的試用會從今天起算，不會回溯補償。
+        延長後的新體驗截止日為「
+        <strong>max(今天, 目前體驗結束) + N 天</strong>
+        」。已過期的體驗會從今天起算，不會回溯補償。
       </p>
       {trialEndsAt && (
         <p className="mt-2 text-xs text-neutral-500">
-          目前試用截止：{new Date(trialEndsAt).toLocaleString("zh-TW")}
+          目前體驗截止：{new Date(trialEndsAt).toLocaleString("zh-TW")}
         </p>
       )}
       <label className="mt-4 block">
@@ -499,11 +499,11 @@ function EndTrialDialog({
   return (
     <>
       <p className="text-sm text-neutral-600 leading-relaxed">
-        把試用截止時間設為「現在」，下一次請求就會被鎖。常用於暫停免費使用、要求對方升級或停用。
+        把體驗截止時間設為「現在」，下一次請求就會被鎖。常用於暫停免費使用、要求對方升級或停用。
       </p>
       {trialEndsAt && (
         <p className="mt-2 text-xs text-neutral-500">
-          目前試用截止：{new Date(trialEndsAt).toLocaleString("zh-TW")}
+          目前體驗截止：{new Date(trialEndsAt).toLocaleString("zh-TW")}
         </p>
       )}
       <div className="mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-800 leading-relaxed">
@@ -523,7 +523,7 @@ function EndTrialDialog({
           }}
           disabled={pending}
         >
-          {pending ? "處理中…" : "立即結束試用"}
+          {pending ? "處理中…" : "立即結束體驗"}
         </DangerBtn>
       </div>
     </>
@@ -550,15 +550,15 @@ function ResetTrialDialog({
       <ul className="mt-2 text-xs text-neutral-600 leading-relaxed space-y-0.5 list-disc list-inside">
         <li>刪除目前訂閱列（付款紀錄會保留作為稽核）</li>
         <li>方案重設為 trial</li>
-        <li>試用截止 = 今天 + 預設試用天數（覆寫舊值，不會疊加）</li>
+        <li>體驗截止 = 今天 + 預設體驗天數（覆寫舊值，不會疊加）</li>
       </ul>
       {trialEndsAt && (
         <p className="mt-2 text-xs text-neutral-500">
-          目前試用截止：{new Date(trialEndsAt).toLocaleString("zh-TW")}
+          目前體驗截止：{new Date(trialEndsAt).toLocaleString("zh-TW")}
         </p>
       )}
       <div className="mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-800 leading-relaxed">
-        預設試用天數可在「營運設定」調整，此處會即時讀取最新值。
+        預設體驗天數可在「營運設定」調整，此處會即時讀取最新值。
       </div>
       <div className="mt-5 flex gap-2 justify-end">
         <SecondaryBtn onClick={onDone} disabled={pending}>
@@ -574,7 +574,7 @@ function ResetTrialDialog({
           }}
           disabled={pending}
         >
-          {pending ? "處理中…" : "重置試用期"}
+          {pending ? "處理中…" : "重置體驗期"}
         </PrimaryBtn>
       </div>
     </>
@@ -598,8 +598,8 @@ function BypassDialog({
     <>
       <p className="text-sm text-neutral-600 leading-relaxed">
         {next
-          ? "此單位將不受升級鎖影響，即使試用結束也能無限使用全部功能。常用於 VIP／合作夥伴。"
-          : "取消後此單位回到一般試用／付費邏輯，試用結束後會被鎖住。"}
+          ? "此單位將不受升級鎖影響，即使體驗結束也能無限使用全部功能。常用於 VIP／合作夥伴。"
+          : "取消後此單位回到一般體驗／付費邏輯，體驗結束後會被鎖住。"}
         操作會記入 audit log。
       </p>
       <div className="mt-5 flex gap-2 justify-end">

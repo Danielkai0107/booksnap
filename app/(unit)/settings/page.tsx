@@ -178,7 +178,7 @@ function MenuList({
       <MenuRow
         href="/billing"
         label="訂閱管理"
-        hint="查看試用倒數、升級 Pro、帳單記錄"
+        hint="查看體驗倒數、升級 Pro、帳單記錄"
         right={
           <SubscriptionPill
             plan={plan}
@@ -193,7 +193,7 @@ function MenuList({
 
 /**
  * 訂閱管理列右側狀態膠囊。優先讀 `trialState` 來決定文案／顏色，因為
- * 直接讀 `plan` 沒辦法區分「試用中」與「試用過期但 plan 還是 trial」。
+ * 直接讀 `plan` 沒辦法區分「體驗中」與「體驗結束但 plan 還是 trial」。
  */
 function SubscriptionPill({
   plan,
@@ -210,12 +210,12 @@ function SubscriptionPill({
   if (trialState === "active_trial") {
     label =
       typeof trialDaysRemaining === "number"
-        ? `試用剩 ${trialDaysRemaining} 天`
-        : "試用中";
+        ? `體驗剩 ${trialDaysRemaining} 天`
+        : "體驗中";
     pillClass = PLAN_META.trial.pillClass;
   } else if (trialState === "expired_trial") {
-    label = "試用已結束";
-    pillClass = "bg-red-50 text-red-700 border-red-100";
+    label = "體驗已結束";
+    pillClass = PLAN_META.trial.pillClass;
   } else if (trialState === "cancelled_in_period") {
     label = "到期取消";
     pillClass = "bg-amber-50 text-amber-700 border-amber-100";

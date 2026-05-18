@@ -6,7 +6,11 @@ import type {
   SubscriptionRow,
   SubscriptionStatus,
 } from "@/lib/supabase/types";
-import { PLAN_META, effectivePlan } from "@/lib/plans";
+import {
+  EXPERIENCE_TAG_CLASS,
+  PLAN_META,
+  effectivePlan,
+} from "@/lib/plans";
 import { trialDaysRemaining, trialState } from "@/lib/billing/lock";
 import OrgRowActions from "./OrgRowActions";
 
@@ -116,7 +120,7 @@ export default async function OrganizationsPage({
         單位管理
       </h1>
       <p className="mt-2 text-sm text-neutral-500">
-        審核、停用、重設單位密碼、啟用付費、延長試用。
+        審核、停用、重設單位密碼、啟用付費、延長體驗。
       </p>
 
       <div className="mt-6 flex gap-1 border-b border-neutral-200">
@@ -155,16 +159,17 @@ export default async function OrganizationsPage({
             const ePlan = effectivePlan(o, sub);
             const state = trialState(o, sub);
             const daysLeft = trialDaysRemaining(o);
+            const isExperienceState =
+              state === "active_trial" || state === "expired_trial";
             const planPillLabel =
               state === "active_trial" && typeof daysLeft === "number"
-                ? `試用剩 ${daysLeft} 天`
+                ? `體驗剩 ${daysLeft} 天`
                 : state === "expired_trial"
-                  ? "試用過期"
+                  ? "體驗已結束"
                   : PLAN_META[ePlan].label;
-            const planPillClass =
-              state === "expired_trial"
-                ? "bg-red-50 text-red-700 border-red-100"
-                : PLAN_META[ePlan].pillClass;
+            const planPillClass = isExperienceState
+              ? EXPERIENCE_TAG_CLASS
+              : PLAN_META[ePlan].pillClass;
             return (
               <li
                 key={o.id}
@@ -222,7 +227,7 @@ export default async function OrganizationsPage({
                       )}
                       {o.trial_ends_at && state !== "paid" && (
                         <Pair
-                          k="試用到期"
+                          k="體驗到期"
                           v={new Date(o.trial_ends_at).toLocaleString("zh-TW")}
                         />
                       )}

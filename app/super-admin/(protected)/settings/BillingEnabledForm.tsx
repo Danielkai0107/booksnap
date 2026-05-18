@@ -46,7 +46,7 @@ export default function BillingEnabledForm({
         <p className="mt-1 text-xs text-neutral-500 leading-relaxed">
           關閉時，所有「升級 Pro」按鈕都會改成「booksnap 金流準備中，敬請期待」彈窗，
           不會打到 <code className="text-[11px]">/api/billing/subscribe</code>。
-          試用倒數、付費中、取消後等顯示不受影響。
+          體驗倒數、付費中、取消後等顯示不受影響。
         </p>
       </div>
       <button
