@@ -10,7 +10,12 @@ import { PLAN_META, type OrgPlan } from "@/lib/plans";
 import type { TrialState } from "@/lib/billing/lock";
 
 type UsageInfo = {
-  ai: { used: number; periodEnd: string };
+  ai: {
+    used: number;
+    quota: number;
+    remaining: number;
+    periodEnd: string;
+  };
   books: { count: number };
 } | null;
 
@@ -97,7 +102,8 @@ export default function SettingsHubPage() {
 
 function UsageCard({ usage }: { usage: UsageInfo }) {
   if (!usage) return null;
-  // 配額移除後，這張卡單純呈現「本月辨識了幾次／館藏總冊數」，沒有上限、沒有警告色。
+  // 智能辨識行顯示「剩餘 N／500 次」，達 0 時 UI 唯一影響是
+  // scan 頁拍照後跳過 AI 直接進確認頁，不彈通知、不擋其他功能。
   const periodEndLabel = (() => {
     try {
       return new Date(usage.ai.periodEnd).toLocaleDateString("zh-TW", {
@@ -113,18 +119,18 @@ function UsageCard({ usage }: { usage: UsageInfo }) {
     <section className="rounded-2xl p-3 mb-12">
       <h2 className="text-base font-semibold text-neutral-900">使用紀錄</h2>
       <p className="mt-1 text-xs text-neutral-500">
-        本期的智能辨識次數與目前館藏總冊數，純資訊參考。
+        本期的智能辨識剩餘次數與目前館藏總冊數，純資訊參考。
       </p>
       <div className="mt-5 space-y-4">
         <UsageRow
-          label="智能辨識"
-          value={usage.ai.used}
+          label="智能辨識剩餘"
+          value={`${usage.ai.remaining.toLocaleString()} / ${usage.ai.quota.toLocaleString()}`}
           unit="次"
-          hint={periodEndLabel ? `本期至 ${periodEndLabel}` : null}
+          hint={periodEndLabel ? `本期至 ${periodEndLabel}（屆期自動重置）` : null}
         />
         <UsageRow
           label="館藏"
-          value={usage.books.count}
+          value={usage.books.count.toLocaleString()}
           unit="冊"
           hint={null}
         />
@@ -140,7 +146,7 @@ function UsageRow({
   hint,
 }: {
   label: string;
-  value: number;
+  value: string | number;
   unit: string;
   hint: string | null;
 }) {
@@ -149,7 +155,7 @@ function UsageRow({
       <div className="flex items-baseline justify-between text-sm">
         <span className="text-neutral-700">{label}</span>
         <span className="tabular-nums text-neutral-900 font-medium">
-          {value.toLocaleString()} {unit}
+          {value} {unit}
         </span>
       </div>
       {hint && (

@@ -56,6 +56,19 @@ export const PLAN_PRICE: Record<OrgPlan, PlanPriceConfig> = {
   pro: { monthly: 990, label: "NT$ 990／月" },
 };
 
+/**
+ * 每月智能辨識（書封 OCR）次數軟上限。
+ *
+ * 達上限後僅「拍照入庫時跳過 AI 辨識、直接帶空書名進確認頁」，
+ * 不阻擋手動入庫、不阻擋其他功能，不彈升級提示——刻意維持低噪音。
+ * 計算窗口跟著訂閱 / 體驗期週期走（見 `getOrgPeriod`），週期翻頁時
+ * `ai_usage_logs` 的 created_at 過濾會自動讓 used count 歸零。
+ *
+ * 數字選 500 是基於 Opus 4.7 單張 ~NT$0.23 的成本，500 次約 NT$115，
+ * 占 NT$ 990 月費約 12%，留出毛利空間給其他成本（Supabase、頻寬、Google Books quota）。
+ */
+export const AI_RECOGNIZE_MONTHLY_QUOTA = 500;
+
 export type PlanConfigs = {
   /** Single editable paid price; trial is always 0. */
   prices: Record<OrgPlan, PlanPriceConfig>;

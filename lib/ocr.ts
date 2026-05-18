@@ -2,6 +2,17 @@ export type RecognizeResult = {
   title: string;
   category: string | null;
   source: "claude" | "tesseract";
+  /**
+   * 本期智能辨識剩餘次數（含本次扣除後的結果）。
+   *   - 數值 ≥ 0：拍照確認頁可顯示「剩餘 N 次」灰字。
+   *   - `null`：本次未取得（多半是 401 / 網路錯誤），UI 隱藏字串即可。
+   */
+  remaining: number | null;
+  /**
+   * 是否因配額用盡而被伺服器跳過 Claude 呼叫。
+   * 為 true 時 title/category 一定是空值，前端應直接進入確認頁讓使用者手動輸入。
+   */
+  skipped: boolean;
 };
 
 /**
@@ -28,21 +39,38 @@ export async function recognizeBookCover(
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       console.warn("[ocr] /api/recognize not ok", response.status, data);
-      return { title: "", category: null, source: "claude" };
+      return {
+        title: "",
+        category: null,
+        source: "claude",
+        remaining: null,
+        skipped: false,
+      };
     }
     const data = (await response.json()) as {
       title?: string;
       category?: string | null;
       source?: "claude" | "tesseract";
+      remaining?: number | null;
+      skipped?: boolean;
     };
     const title = (data.title ?? "").trim();
     return {
       title: title === "無法識別" ? "" : title,
       category: data.category ?? null,
       source: data.source ?? "claude",
+      remaining:
+        typeof data.remaining === "number" ? data.remaining : null,
+      skipped: data.skipped === true,
     };
   } catch (err) {
     console.error("[ocr] recognize request failed", err);
-    return { title: "", category: null, source: "claude" };
+    return {
+      title: "",
+      category: null,
+      source: "claude",
+      remaining: null,
+      skipped: false,
+    };
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  AI_RECOGNIZE_MONTHLY_QUOTA,
   effectivePlan,
   getOrgPeriod,
   loadAppSettings,
@@ -19,11 +20,16 @@ import type { SubscriptionRow } from "@/lib/supabase/types";
 export const runtime = "nodejs";
 
 /**
- * "Usage" here is purely informational — no plan cap, no progress bar.
- * The settings page renders "本月已辨識 X 次 · 館藏 Y 冊" as a record card.
+ * 2026-05 改：智能辨識每月軟上限 500 次，settings / scan 確認頁需要顯示
+ * 剩餘次數。`quota` / `remaining` 跟 `/api/recognize` 的計算口徑一致。
  */
 type UsagePayload = {
-  ai: { used: number; periodEnd: string };
+  ai: {
+    used: number;
+    quota: number;
+    remaining: number;
+    periodEnd: string;
+  };
   books: { count: number };
 };
 
@@ -85,9 +91,12 @@ export async function GET() {
         .eq("organization_id", org.id),
     ]);
 
+    const aiUsed = aiRes.count ?? 0;
     usage = {
       ai: {
-        used: aiRes.count ?? 0,
+        used: aiUsed,
+        quota: AI_RECOGNIZE_MONTHLY_QUOTA,
+        remaining: Math.max(0, AI_RECOGNIZE_MONTHLY_QUOTA - aiUsed),
         periodEnd: end.toISOString(),
       },
       books: {

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isOrgLocked } from "@/lib/billing/lock";
 import { loadOrgBillingState } from "@/lib/billing/state";
+import { AI_RECOGNIZE_MONTHLY_QUOTA, getOrgPeriod } from "@/lib/plans";
 
 export const runtime = "nodejs";
 
@@ -41,6 +42,12 @@ export async function POST(req: NextRequest) {
   // Lock guard: external UI already prevents trial / expired-trial orgs from
   // reaching the camera, but we double-check server-side so anyone hitting
   // the endpoint directly gets a clean 403 instead of consuming Claude credit.
+  //
+  // 同時順手把本期使用量算出來，這樣下面的配額判斷不用再多打一次 DB。
+  // `usedThisPeriod` 只在有 organizationId 時才有意義；沒組織就視為無限制
+  // （理論上不會發生，因為 profile 一定要綁 org，純粹防守）。
+  let usedThisPeriod = 0;
+  let quotaApplies = false;
   if (organizationId) {
     const { org, subscription } = await loadOrgBillingState(
       organizationId,
@@ -55,7 +62,22 @@ export async function POST(req: NextRequest) {
         { status: 403 },
       );
     }
+    if (org) {
+      quotaApplies = true;
+      const { start } = getOrgPeriod(org, subscription);
+      const { count } = await admin
+        .from("ai_usage_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", organizationId)
+        .gte("created_at", start.toISOString());
+      usedThisPeriod = count ?? 0;
+    }
   }
+
+  // 計算剩餘額度。clamp 到 0 避免極端 race condition 下出現負值。
+  const remainingBefore = quotaApplies
+    ? Math.max(0, AI_RECOGNIZE_MONTHLY_QUOTA - usedThisPeriod)
+    : AI_RECOGNIZE_MONTHLY_QUOTA;
 
   let body: RecognizeBody;
   try {
@@ -75,6 +97,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // 配額用盡：直接 200 回 skipped，前端就讓使用者手動輸入。
+  // 不寫 ai_usage_logs（沒呼叫 Claude），不彈 toast、不擋功能（依需求設計）。
+  if (quotaApplies && remainingBefore <= 0) {
+    return NextResponse.json({
+      title: "",
+      category: null,
+      source: "claude",
+      skipped: true,
+      remaining: 0,
+    });
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -84,6 +118,8 @@ export async function POST(req: NextRequest) {
         title: "無法識別",
         category: null,
         source: "claude",
+        skipped: false,
+        remaining: remainingBefore,
       },
       { status: 500 }
     );
@@ -179,6 +215,9 @@ export async function POST(req: NextRequest) {
           title: "無法識別",
           category: null,
           source: "claude",
+          // Claude 沒回成功 → 不寫 ai_usage_logs，剩餘額度不扣。
+          skipped: false,
+          remaining: remainingBefore,
         },
         { status: 502 }
       );
@@ -237,7 +276,17 @@ export async function POST(req: NextRequest) {
         if (error) console.error("[recognize] log insert error", error);
       });
 
-    return NextResponse.json({ title, category, source: "claude" });
+    // 本次成功計入用量 → 剩餘額度 -1。clamp 到 0 避免極端值。
+    const remainingAfter = quotaApplies
+      ? Math.max(0, remainingBefore - 1)
+      : remainingBefore;
+    return NextResponse.json({
+      title,
+      category,
+      source: "claude",
+      skipped: false,
+      remaining: remainingAfter,
+    });
   } catch (err) {
     console.error("[recognize] exception", err);
     return NextResponse.json(
@@ -246,6 +295,8 @@ export async function POST(req: NextRequest) {
         title: "無法識別",
         category: null,
         source: "claude",
+        skipped: false,
+        remaining: remainingBefore,
       },
       { status: 500 }
     );

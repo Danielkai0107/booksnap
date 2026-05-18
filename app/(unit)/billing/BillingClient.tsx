@@ -373,7 +373,7 @@ function PlanCard({ proPrice }: { proPrice: PlanPriceConfig }) {
       <ul className="mt-4 space-y-2 text-sm text-neutral-700">
         <FeatureRow text="無限新書入庫，相機與手動入庫不再受限" />
         <FeatureRow text="啟用借閱連結，讀者可掃碼借書／還書／查書" />
-        <FeatureRow text="完整智能辨識，書封自動帶入書名與作者" />
+        <FeatureRow text="每月 500 次智能辨識（每月自動更新），書封自動帶入書名與作者" />
         <FeatureRow text="館藏匯出 Excel、標籤列印、分類管理" />
       </ul>
     </section>

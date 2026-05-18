@@ -21,18 +21,19 @@ import {
   extractPaperDataUrl,
 } from "@/lib/cornerDetect";
 
-type Mode =
-  | "loading"
-  | "camera"
-  | "processing"
-  | "adjusting"
-  | "confirming";
+type Mode = "loading" | "camera" | "processing" | "adjusting" | "confirming";
 
 type CurrentCapture = {
   imageDataUrl: string;
   detectedTitle: string;
   suggestedCategoryId: string | null;
 };
+
+/**
+ * 智能辨識本期剩餘次數，由 /api/recognize 每次回傳；初始 null = 尚未發過任何
+ * 一次 OCR。確認彈窗下方會顯示「智能辨識剩餘次數：N」灰字；達 0 後再拍照
+ * 會被伺服器跳過 Claude 呼叫，直接帶空書名進來。
+ */
 
 type DuplicateMatch = {
   book_id: string;
@@ -105,6 +106,10 @@ export default function CheckinScanPage() {
   // 使用者點選的那一張卡片（含完整 metadata）；可被「再點另一張」覆寫。
   const [pickedCandidate, setPickedCandidate] =
     useState<LookupCandidate | null>(null);
+
+  // 智能辨識本期剩餘次數。初始從 /api/me 撈一次，之後每次 /api/recognize 回傳
+  // 都會更新；達 0 後伺服器會跳過 Claude 呼叫，前端只是純顯示。
+  const [aiRemaining, setAiRemaining] = useState<number | null>(null);
 
   // 重複偵測：分為「館藏中已有」與「目前清單中已有」兩段，序號要兩者一起算。
   const [duplicateOpen, setDuplicateOpen] = useState(false);
@@ -310,11 +315,14 @@ export default function CheckinScanPage() {
 
       try {
         const categoryNames = categories.map((c) => c.name);
-        const { title, category } = await recognizeBookCover(
-          compressed,
-          categoryNames,
-        );
-        const finalTitle = title?.trim() ?? "";
+        const { title, category, remaining, skipped } =
+          await recognizeBookCover(compressed, categoryNames);
+        // 不管是辨識成功還是被伺服器跳過，remaining 都會更新；只有網路錯誤才會
+        // 是 null，這時保留前一次的值，UI 也只是不更新而已。
+        if (typeof remaining === "number") setAiRemaining(remaining);
+        // skipped = true 時 title 一定是空字串，這裡直接讓使用者手動輸入；
+        // 流程不彈額外通知（依需求設計，UI 只剩下方剩餘次數灰字 = 0 暗示）。
+        const finalTitle = skipped ? "" : (title?.trim() ?? "");
         const suggested = category
           ? (categories.find((c) => c.name === category) ?? null)
           : null;
@@ -326,8 +334,13 @@ export default function CheckinScanPage() {
         setEditedTitle(finalTitle);
         setEditedCategoryId(suggested?.id ?? "");
         setMode("confirming");
-        // 一次性查詢 Google Books 候選清單。之後使用者編輯書名不會再觸發。
-        void fetchCandidatesOnce(finalTitle);
+        // 跳過辨識時不查 Google Books（沒書名就查不到東西，省一次 API quota）。
+        if (!skipped && finalTitle) {
+          void fetchCandidatesOnce(finalTitle);
+        } else {
+          setCandidates([]);
+          setCandidatesLoading(false);
+        }
       } catch (err) {
         console.error("recognize error", err);
         setCurrentCapture({
@@ -591,9 +604,7 @@ export default function CheckinScanPage() {
       <div className="relative flex-1 overflow-hidden">
         {/* video 元素要在 loading 階段就 mount，attachStreamToVideo 才能拿到
             videoRef。loading overlay 用 z-20 蓋在上面，視覺上仍是黑色等待畫面。 */}
-        {(mode === "loading" ||
-          mode === "camera" ||
-          mode === "processing") && (
+        {(mode === "loading" || mode === "camera" || mode === "processing") && (
           <video
             ref={videoRef}
             playsInline
@@ -638,7 +649,7 @@ export default function CheckinScanPage() {
               <>
                 <div className="absolute top-4 inset-x-0 flex flex-col items-center gap-2 z-10 px-6">
                   <p className="text-xs text-white/70 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
-                    對準書封拍照辨識 · {adminName || "—"}
+                    {adminName || "—"}
                   </p>
                   <p className="text-[11px] text-white/65 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full">
                     請確保背景乾淨，邊緣才好辨識
@@ -701,71 +712,78 @@ export default function CheckinScanPage() {
               {/* 上半：固定不滾動 — 封面 + 書名 / 分類 / ISBN */}
               <div className="px-6 pt-3 pb-4 shrink-0">
                 <div className="flex gap-4 items-start">
-                {previewSrc ? (
-                  <ZoomableImage
-                    key={previewSrc}
-                    src={previewSrc}
-                    alt="cover"
-                    className="w-20 h-28 object-cover rounded-md border border-neutral-200 shrink-0"
-                  />
-                ) : (
-                  <div className="w-20 h-28 rounded-md bg-neutral-100 shrink-0" />
+                  {previewSrc ? (
+                    <ZoomableImage
+                      key={previewSrc}
+                      src={previewSrc}
+                      alt="cover"
+                      className="w-20 h-28 object-cover rounded-md border border-neutral-200 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-20 h-28 rounded-md bg-neutral-100 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0 space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-500 mb-1.5">
+                        書名
+                      </label>
+                      <input
+                        type="text"
+                        value={editedTitle}
+                        onChange={(e) => setEditedTitle(e.target.value)}
+                        className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-base focus:outline-none focus:border-neutral-900 transition"
+                        placeholder="輸入書名"
+                        autoFocus
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-500 mb-1.5">
+                        分類
+                        {currentCapture.suggestedCategoryId &&
+                          editedCategoryId ===
+                            currentCapture.suggestedCategoryId && (
+                            <span className="ml-1.5 inline-flex items-center text-[10px] text-neutral-400 font-normal">
+                              · AI 推薦
+                            </span>
+                          )}
+                      </label>
+                      <CategorySelect
+                        value={editedCategoryId}
+                        onChange={(e) => setEditedCategoryId(e.target.value)}
+                        options={categoryOptions}
+                        placeholder={
+                          categoryOptions.length === 0
+                            ? "尚無分類，請先至後台新增"
+                            : "未分類"
+                        }
+                        disabled={categoryOptions.length === 0}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-500 mb-1.5">
+                        ISBN
+                        <span className="ml-1.5 inline-flex items-center text-[10px] text-neutral-400 font-normal">
+                          {pickedCandidate ? "· 來自比對結果" : "· 選填"}
+                        </span>
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={editedIsbn}
+                        onChange={(e) => setEditedIsbn(e.target.value)}
+                        placeholder="例：9789861371955"
+                        className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm font-mono tabular-nums focus:outline-none focus:border-neutral-900 transition"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {/* 智能辨識剩餘次數：純資訊提示，0 次時不彈通知、不擋功能，
+                    僅本次 / 之後拍照會跳過 Claude 呼叫直接帶空書名進來。 */}
+                {typeof aiRemaining === "number" && (
+                  <p className="mt-3 text-[11px] text-neutral-400">
+                    智能辨識剩餘次數：{aiRemaining.toLocaleString()}
+                  </p>
                 )}
-                <div className="flex-1 min-w-0 space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-500 mb-1.5">
-                      書名
-                    </label>
-                    <input
-                      type="text"
-                      value={editedTitle}
-                      onChange={(e) => setEditedTitle(e.target.value)}
-                      className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-base focus:outline-none focus:border-neutral-900 transition"
-                      placeholder="輸入書名"
-                      autoFocus
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-500 mb-1.5">
-                      分類
-                      {currentCapture.suggestedCategoryId &&
-                        editedCategoryId ===
-                          currentCapture.suggestedCategoryId && (
-                          <span className="ml-1.5 inline-flex items-center text-[10px] text-neutral-400 font-normal">
-                            · AI 推薦
-                          </span>
-                        )}
-                    </label>
-                    <CategorySelect
-                      value={editedCategoryId}
-                      onChange={(e) => setEditedCategoryId(e.target.value)}
-                      options={categoryOptions}
-                      placeholder={
-                        categoryOptions.length === 0
-                          ? "尚無分類，請先至後台新增"
-                          : "未分類"
-                      }
-                      disabled={categoryOptions.length === 0}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-500 mb-1.5">
-                      ISBN
-                      <span className="ml-1.5 inline-flex items-center text-[10px] text-neutral-400 font-normal">
-                        {pickedCandidate ? "· 來自比對結果" : "· 選填"}
-                      </span>
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={editedIsbn}
-                      onChange={(e) => setEditedIsbn(e.target.value)}
-                      placeholder="例：9789861371955"
-                      className="w-full h-[46px] border border-neutral-200 rounded-md px-3 text-sm font-mono tabular-nums focus:outline-none focus:border-neutral-900 transition"
-                    />
-                  </div>
-                </div>
-                </div>
               </div>
 
               {/* 中間：候選結果區塊 — 標題列固定、清單可滾動 */}
@@ -860,9 +878,7 @@ export default function CheckinScanPage() {
                   </ul>
                 ) : (
                   <p className="text-[11px] text-neutral-400 px-1 py-2">
-                    {candidatesLoading
-                      ? "搜尋中…"
-                      : "暫無搜尋結果，可直接入庫"}
+                    {candidatesLoading ? "搜尋中…" : "暫無搜尋結果，可直接入庫"}
                   </p>
                 )}
               </div>
@@ -971,9 +987,7 @@ export default function CheckinScanPage() {
                     <p className="text-sm font-medium text-neutral-900 truncate">
                       {m.title}
                     </p>
-                    <p className="text-xs text-neutral-500 mt-1">
-                      {m.book_id}
-                    </p>
+                    <p className="text-xs text-neutral-500 mt-1">{m.book_id}</p>
                     <p className="text-xs text-neutral-400 mt-0.5">
                       {new Date(m.checkin_time).toLocaleString("zh-TW")}
                     </p>
@@ -994,8 +1008,7 @@ export default function CheckinScanPage() {
             </p>
             <ul className="space-y-3 pb-2">
               {duplicateInList.map((b, idx) => {
-                const inListPreview =
-                  b.remoteImageUrl ?? b.imageDataUrl ?? "";
+                const inListPreview = b.remoteImageUrl ?? b.imageDataUrl ?? "";
                 return (
                   <li
                     key={`inlist-${idx}`}
