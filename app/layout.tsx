@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, Noto_Sans_TC } from "next/font/google";
 import AuthSessionSync from "@/components/AuthSessionSync";
+import ScrollToTopOnNavigate from "@/components/ScrollToTopOnNavigate";
 import { ToastProvider } from "@/components/ToastProvider";
 import "./globals.css";
 
@@ -36,6 +37,7 @@ export default function RootLayout({
       <body className="min-h-full bg-white text-neutral-900 font-sans flex flex-col">
         <ToastProvider>
           <AuthSessionSync />
+          <ScrollToTopOnNavigate />
           {children}
         </ToastProvider>
       </body>
