@@ -141,7 +141,7 @@ function ActionButton({
 }) {
   const className = `press-feedback inline-flex ${fullWidth ? "w-full" : ""} items-center justify-center gap-2 px-4 py-4 rounded-2xl text-sm font-medium transition ${
     primary
-      ? "bg-neutral-900 hover:bg-neutral-800 text-white"
+      ? "bg-brand hover:bg-brand-hover text-white"
       : "bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900"
   } ${href === null ? "opacity-50 cursor-not-allowed" : ""}`;
   if (href === null) {
