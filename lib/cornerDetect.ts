@@ -379,15 +379,19 @@ function runMinAreaRectFallback(
  * extractPaper wrapper：自動由 corner 邊長推算輸出寬高（保留原書比例），
  * 長邊上限 maxDim 防止巨型 canvas（手機上拍 4032×3024 容易爆 GPU 記憶體）。
  * 回傳 dataURL（JPEG），方便直接餵給 OCR + 寫到 cart。
+ *
+ * enhance（預設 true）：套用「陰影提亮 + 對比 + 飽和度」濾鏡。手機常見的偏暗 /
+ * 黃光書封會被打成更接近電商商品圖的鮮明感，有助 OCR 也讓封面好看。
  */
 export function extractPaperDataUrl(
   source: HTMLCanvasElement | HTMLImageElement,
   corners: Corners,
   scanner: JscanifyScanner,
-  opts: { maxDim?: number; quality?: number } = {},
+  opts: { maxDim?: number; quality?: number; enhance?: boolean } = {},
 ): string | null {
   const maxDim = opts.maxDim ?? 1280;
   const quality = opts.quality ?? 0.92;
+  const enhance = opts.enhance ?? true;
 
   const pts = orderedCorners(corners);
   const w = Math.max(
@@ -410,11 +414,70 @@ export function extractPaperDataUrl(
   try {
     const canvas = scanner.extractPaper(source, outW, outH, corners);
     if (!canvas) return null;
+    if (enhance) enhanceCoverCanvas(canvas);
     return canvas.toDataURL("image/jpeg", quality);
   } catch (err) {
     console.warn("[cornerDetect] extractPaper failed", err);
     return null;
   }
+}
+
+/**
+ * 對 extracted 書封做色彩強化：
+ *   1) 陰影提亮：在暗部 (1-v)² 權重下加 LIFT，亮部幾乎不動，避免爆掉
+ *   2) 飽和度：以 BT.601 luminance 為灰色基準做 (color - gray) * SAT
+ *   3) 線性對比：圍繞 0.5 的小幅 S 拉伸（再強就過曝）
+ *
+ * 全部在單一 ImageData 遍歷裡完成，1024×1536 圖約 0.05–0.1s，使用者無感。
+ * jscanify extractPaper 回傳的 canvas 是 2D context，可直接 getImageData。
+ */
+function enhanceCoverCanvas(canvas: HTMLCanvasElement): void {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const W = canvas.width;
+  const H = canvas.height;
+  if (W <= 0 || H <= 0) return;
+  // 參數調得偏保守：過度後的圖會讓 OCR 把陰影邊吃成字、辨識變差。
+  const LIFT = 0.18;
+  const SAT = 1.22;
+  const CONTRAST = 0.1;
+  try {
+    const img = ctx.getImageData(0, 0, W, H);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      let r = d[i] / 255;
+      let g = d[i + 1] / 255;
+      let b = d[i + 2] / 255;
+
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+      r = gray + (r - gray) * SAT;
+      g = gray + (g - gray) * SAT;
+      b = gray + (b - gray) * SAT;
+
+      const lr = 1 - clamp01(r);
+      const lg = 1 - clamp01(g);
+      const lb = 1 - clamp01(b);
+      r += LIFT * lr * lr;
+      g += LIFT * lg * lg;
+      b += LIFT * lb * lb;
+
+      r = (r - 0.5) * (1 + CONTRAST) + 0.5;
+      g = (g - 0.5) * (1 + CONTRAST) + 0.5;
+      b = (b - 0.5) * (1 + CONTRAST) + 0.5;
+
+      d[i] = Math.round(clamp01(r) * 255);
+      d[i + 1] = Math.round(clamp01(g) * 255);
+      d[i + 2] = Math.round(clamp01(b) * 255);
+      // alpha 不動
+    }
+    ctx.putImageData(img, 0, 0);
+  } catch (err) {
+    console.warn("[cornerDetect] enhance failed", err);
+  }
+}
+
+function clamp01(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
 // --- candidate scoring ---
