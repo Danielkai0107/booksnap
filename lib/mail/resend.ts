@@ -7,9 +7,32 @@ export type SendEmailInput = {
   replyTo?: string;
 };
 
+/**
+ * Coarse failure code so we can branch on root cause without parsing
+ * Resend's free-form `message` string in callers.
+ */
+export type SendEmailErrorCode =
+  | "missing_env"
+  | "no_recipients"
+  | "unauthorized"
+  | "validation"
+  | "rate_limited"
+  | "server_error"
+  | "network_error"
+  | "unknown";
+
 export type SendEmailResult =
   | { ok: true; id?: string }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      /** User-facing zh-Hant message, safe to surface as a toast. */
+      error: string;
+      code: SendEmailErrorCode;
+      /** Upstream HTTP status from Resend (when available). */
+      status?: number;
+      /** Raw `message` from Resend, server-only details for debugging. */
+      detail?: string;
+    };
 
 /**
  * Sends transactional mail via [Resend](https://resend.com) HTTP API.
@@ -29,41 +52,73 @@ export async function sendEmail(
       !from && "RESEND_FROM",
     ].filter(Boolean);
     console.error("[mail] missing env:", missing.join(", "));
-    return { ok: false, error: "郵件服務尚未設定" };
+    return {
+      ok: false,
+      error: "郵件服務尚未設定",
+      code: "missing_env",
+      detail: `missing: ${missing.join(", ")}`,
+    };
   }
 
   const to = [...new Set(input.to.map((e) => e.trim().toLowerCase()))].filter(
     Boolean,
   );
   if (to.length === 0) {
-    return { ok: false, error: "找不到收件人" };
+    return { ok: false, error: "找不到收件人", code: "no_recipients" };
   }
 
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to,
-      subject: input.subject,
-      html: input.html,
-      ...(input.replyTo ? { reply_to: input.replyTo } : {}),
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to,
+        subject: input.subject,
+        html: input.html,
+        ...(input.replyTo ? { reply_to: input.replyTo } : {}),
+      }),
+    });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error("[mail] Resend fetch threw", detail);
+    return {
+      ok: false,
+      error: "寄信服務暫時無法連線，請稍後再試",
+      code: "network_error",
+      detail,
+    };
+  }
 
   if (!res.ok) {
     let detail = "";
+    let resendName: string | undefined;
     try {
-      const body = (await res.json()) as { message?: string };
+      const body = (await res.json()) as { message?: string; name?: string };
       detail = body.message ?? "";
+      resendName = body.name;
     } catch {
-      /* ignore */
+      /* Resend sometimes returns non-JSON on 5xx; swallow and use status only */
     }
-    console.error("[mail] Resend failed", res.status, detail);
-    return { ok: false, error: "寄信失敗，請稍後再試" };
+    console.error("[mail] Resend failed", {
+      status: res.status,
+      name: resendName,
+      message: detail,
+      from,
+      toCount: to.length,
+    });
+    const code = classifyResendError(res.status, resendName);
+    return {
+      ok: false,
+      error: userMessageFor(code),
+      code,
+      status: res.status,
+      detail,
+    };
   }
 
   let id: string | undefined;
@@ -71,9 +126,38 @@ export async function sendEmail(
     const body = (await res.json()) as { id?: string };
     id = body.id;
   } catch {
-    /* ignore */
+    /* successful response without parseable body; ignore */
   }
   return { ok: true, id };
+}
+
+function classifyResendError(
+  status: number,
+  name: string | undefined,
+): SendEmailErrorCode {
+  if (status === 401 || status === 403) return "unauthorized";
+  if (status === 422 || status === 400) return "validation";
+  if (status === 429) return "rate_limited";
+  if (status >= 500) return "server_error";
+  if (name) return "validation";
+  return "unknown";
+}
+
+function userMessageFor(code: SendEmailErrorCode): string {
+  switch (code) {
+    case "unauthorized":
+      return "寄信服務未授權，請聯絡營運方";
+    case "validation":
+      return "寄信失敗：寄件人或收件人未通過驗證";
+    case "rate_limited":
+      return "操作太頻繁，請稍後再試";
+    case "server_error":
+      return "寄信服務暫時異常，請稍後再試";
+    case "network_error":
+      return "寄信服務暫時無法連線，請稍後再試";
+    default:
+      return "寄信失敗，請稍後再試";
+  }
 }
 
 export function buildIssueReportEmailHtml(fields: {

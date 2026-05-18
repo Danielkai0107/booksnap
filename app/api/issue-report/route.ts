@@ -98,7 +98,23 @@ export async function POST(req: NextRequest) {
   });
 
   if (!sent.ok) {
-    return NextResponse.json({ error: sent.error }, { status: 503 });
+    console.error("[issue-report] send failed", {
+      code: sent.code,
+      status: sent.status,
+      detail: sent.detail,
+      orgId: org.id,
+      reporterEmail,
+      recipientCount: recipients.length,
+    });
+    const exposeDetail = process.env.NODE_ENV !== "production";
+    return NextResponse.json(
+      {
+        error: sent.error,
+        code: sent.code,
+        ...(exposeDetail && sent.detail ? { detail: sent.detail } : {}),
+      },
+      { status: sent.code === "rate_limited" ? 429 : 503 },
+    );
   }
 
   return NextResponse.json({ ok: true });
