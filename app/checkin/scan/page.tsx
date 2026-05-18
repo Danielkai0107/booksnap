@@ -243,12 +243,9 @@ export default function CheckinScanPage() {
       };
       setCandidates(data.candidates?.slice(0, 5) ?? []);
       setCandidatesError(data.error ?? null);
-      // 「比對服務暫時無回應 / 查無對應」這類軟失敗只在 sheet 內顯示灰色提示，
-      // 不再彈 toast 干擾入庫節奏。rate_limited 比較嚴重（要等隔天才會恢復）
-      // 才仍跳 toast 提醒。
-      if (data.error === "rate_limited") {
-        toast.error("Google Books 今日配額已用完");
-      }
+      // 所有 lookup 失敗（含 rate_limited / failed）一律不彈 toast：
+      // 對使用者來說是不可操作的事件，只在 sheet 內顯示灰色提示即可，
+      // 避免干擾入庫節奏。quota 監控請看 server log 或 GCP console。
     } catch (err) {
       console.warn("[checkin] lookup failed", err);
       setCandidates([]);
@@ -256,7 +253,7 @@ export default function CheckinScanPage() {
     } finally {
       setCandidatesLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   /**
    * 把校正後（或 raw fallback）的圖丟給 Claude 辨識，並打開確認 sheet。
