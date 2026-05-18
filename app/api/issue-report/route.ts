@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   ISSUE_REPORT_REASON_MAX,
   ISSUE_REPORT_REASON_MIN,
@@ -96,6 +97,22 @@ export async function POST(req: NextRequest) {
     timeZone: "Asia/Taipei",
   });
   const reporterEmail = session.email?.trim().toLowerCase() ?? null;
+
+  const admin = createAdminClient();
+  const { error: insertError } = await admin.from("issue_reports").insert({
+    organization_id: org.id,
+    category,
+    reason,
+    reporter_email: reporterEmail,
+    page_url: pageUrl || null,
+  });
+  if (insertError) {
+    console.error("[issue-report] db insert failed", insertError);
+    return NextResponse.json(
+      { error: "暫時無法送出，請稍後再試" },
+      { status: 503 },
+    );
+  }
 
   const sent = await sendEmail({
     to: recipients,
