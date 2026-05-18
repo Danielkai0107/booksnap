@@ -75,10 +75,15 @@ export default function DocumentCornerAdjuster({
   } | null>(null);
 
   // corners 永遠以「原圖 pixel 座標」存（送出時不用換算）。
-  // 自動偵測結果直接採用；拖曳時 `clientToImage` 已經 clamp 在安全範圍，
-  // 不在 init 階段做合理性驗證（避免合理偵測結果被誤判成「越界」整組打回預設）。
+  // 不在 init 做「合理性」整組驗證；但自動偵測結果可能有單一角超出圖片
+  // 範圍（jscanify 偶爾會回 x<0 / y<0），所以每個點都先 clamp 進安全範圍，
+  // 避免一進來就有 handle 跑到畫面外。
   const [corners, setCorners] = useState<Corners>(() =>
-    initialCorners ?? defaultCorners(imageWidth, imageHeight),
+    clampCorners(
+      initialCorners ?? defaultCorners(imageWidth, imageHeight),
+      imageWidth,
+      imageHeight,
+    ),
   );
   const [draggingKey, setDraggingKey] = useState<CornerKey | null>(null);
 
@@ -129,16 +134,13 @@ export default function DocumentCornerAdjuster({
       const y = clientY - rect.top - renderBox.offsetY;
       const sx = imageWidth / renderBox.width;
       const sy = imageHeight / renderBox.height;
-      // 限縮在圖片內側 MAX_RANGE_INSET_PERCENT 的範圍內，避免拖到極端
+      // 限縮在安全範圍內（與 init clamp 共用同一個邏輯），避免拖到極端
       // 邊緣，handle 被切掉或四角退化。
-      const minX = imageWidth * MAX_RANGE_INSET_PERCENT;
-      const maxX = imageWidth - minX;
-      const minY = imageHeight * MAX_RANGE_INSET_PERCENT;
-      const maxY = imageHeight - minY;
-      return {
-        x: clamp(x * sx, minX, maxX),
-        y: clamp(y * sy, minY, maxY),
-      };
+      return clampPointInRange(
+        { x: x * sx, y: y * sy },
+        imageWidth,
+        imageHeight,
+      );
     },
     [renderBox, imageWidth, imageHeight],
   );
@@ -332,6 +334,32 @@ export default function DocumentCornerAdjuster({
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
+}
+
+/** 把單一個 corner point 夾在 `MAX_RANGE_INSET_PERCENT` 內縮後的安全範圍內。 */
+function clampPointInRange(
+  p: CornerPoint,
+  w: number,
+  h: number,
+): CornerPoint {
+  const minX = w * MAX_RANGE_INSET_PERCENT;
+  const maxX = w - minX;
+  const minY = h * MAX_RANGE_INSET_PERCENT;
+  const maxY = h - minY;
+  return {
+    x: clamp(p.x, minX, maxX),
+    y: clamp(p.y, minY, maxY),
+  };
+}
+
+/** 把整組四角各自 clamp 到安全範圍內（給 init / 外部資料防越界用）。 */
+function clampCorners(corners: Corners, w: number, h: number): Corners {
+  return {
+    topLeftCorner: clampPointInRange(corners.topLeftCorner, w, h),
+    topRightCorner: clampPointInRange(corners.topRightCorner, w, h),
+    bottomRightCorner: clampPointInRange(corners.bottomRightCorner, w, h),
+    bottomLeftCorner: clampPointInRange(corners.bottomLeftCorner, w, h),
+  };
 }
 
 /** 預設四角：在圖片內側 12% 留邊處的矩形。 */
