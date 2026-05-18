@@ -272,6 +272,28 @@ textarea {
   opacity: 0.25;
 }
 
+/* 淺色細 scrollbar：給 sheet / 彈窗內的滾動清單用。
+   Chromium/WebKit 走 ::-webkit-scrollbar；Firefox 走 scrollbar-color。
+   兩條 selector 各跑各的，不會互相蓋掉。 */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.18);
+  border-radius: 999px;
+}
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.32);
+}
+
 /* DocumentCornerAdjuster 拖曳放大鏡。size 跟元件內 LOUPE_SIZE 常數一致。
    2× 放大相對於「畫面上看到的圖片尺寸」，能在小書名 / 細邊緣上拉出精準位置。 */
 .adjust-loupe {

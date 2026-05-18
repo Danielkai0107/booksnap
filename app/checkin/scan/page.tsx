@@ -754,7 +754,7 @@ export default function CheckinScanPage() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto px-6 pt-2 pb-3 min-h-[80px] overscroll-contain">
+              <div className="flex-1 overflow-y-auto px-6 pt-2 pb-3 min-h-[80px] overscroll-contain scroll-thin">
                 {candidates.length > 0 ? (
                   <ul className="space-y-2">
                     {candidates.map((c) => {
