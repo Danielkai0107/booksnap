@@ -195,3 +195,103 @@ function bigrams(s: string): Set<string> {
   }
   return out;
 }
+
+// --- ISBN utilities ---
+
+/**
+ * 把 ISBN 原始輸入清成只剩數字 / X 的大寫字串。
+ * 連字號、空白、其他符號都會被移除。
+ */
+export function cleanIsbn(input: string | null | undefined): string {
+  if (!input) return "";
+  return input.replace(/[^0-9Xx]/g, "").toUpperCase();
+}
+
+function isbn10Checksum(first9: string): string {
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(first9[i], 10) * (10 - i);
+  }
+  const mod = (11 - (sum % 11)) % 11;
+  return mod === 10 ? "X" : String(mod);
+}
+
+function isbn13Checksum(first12: string): string {
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    const d = parseInt(first12[i], 10);
+    sum += i % 2 === 0 ? d : d * 3;
+  }
+  const mod = (10 - (sum % 10)) % 10;
+  return String(mod);
+}
+
+/**
+ * 把 ISBN-10 轉成等價的 ISBN-13（978 字頭）。輸入需先 cleaned。
+ * 失敗回 null。
+ */
+export function isbn10To13(isbn10: string): string | null {
+  if (!/^\d{9}[\dX]$/.test(isbn10)) return null;
+  const first12 = `978${isbn10.slice(0, 9)}`;
+  return first12 + isbn13Checksum(first12);
+}
+
+/**
+ * 把 ISBN-13 轉成等價的 ISBN-10。只有 978 字頭可轉，其餘（如 979）回 null。
+ */
+export function isbn13To10(isbn13: string): string | null {
+  if (!/^\d{13}$/.test(isbn13)) return null;
+  if (!isbn13.startsWith("978")) return null;
+  const first9 = isbn13.slice(3, 12);
+  return first9 + isbn10Checksum(first9);
+}
+
+/**
+ * 給一個 ISBN（可能是 10 或 13 碼），回傳所有「同一本書」的合法 ISBN 表示。
+ *
+ * - ISBN-13 (978 字頭) → [13, 10]
+ * - ISBN-13 (其他字頭，例如 979) → [13]
+ * - ISBN-10 → [10, 13]
+ * - 其他無法判斷的字串 → [cleaned] 或 []
+ *
+ * 用途：DB 查詢時用 `.in("isbn", isbnVariants(x))`，避免 10 碼和 13 碼互查不到。
+ */
+export function isbnVariants(input: string | null | undefined): string[] {
+  const cleaned = cleanIsbn(input);
+  if (!cleaned) return [];
+  const out = new Set<string>([cleaned]);
+  if (/^\d{9}[\dX]$/.test(cleaned)) {
+    const v13 = isbn10To13(cleaned);
+    if (v13) out.add(v13);
+  } else if (/^\d{13}$/.test(cleaned)) {
+    const v10 = isbn13To10(cleaned);
+    if (v10) out.add(v10);
+  }
+  return Array.from(out);
+}
+
+// --- 重複偵測 ---
+
+/**
+ * 判斷「兩個書名是不是同一本書」。比 findBestBookMatch 更嚴格，專給去重複用：
+ * 寧可漏判（讓使用者多點一次「新添購」）也不要把不同書名誤判為同本。
+ *
+ * 命中規則（任一即視為同本）：
+ *  1. normalize（去 (N) 副本 / 大小寫 / 空白）後完全相等
+ *  2. coreTitle（再去副標 / 標點 / 全形）後完全相等
+ *  3. 雙向 coreTitle 包含，且短的一側 ≥ 4 字
+ *     - 4 字門檻是為了避開「三國」⊂「三國演義」這種短共同前綴的誤判
+ */
+export function isSameBookTitle(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const na = normalizeTitle(stripCopySuffix(a));
+  const nb = normalizeTitle(stripCopySuffix(b));
+  if (na && na === nb) return true;
+  const ca = coreTitle(a);
+  const cb = coreTitle(b);
+  if (!ca || !cb) return false;
+  if (ca === cb) return true;
+  const short = ca.length < cb.length ? ca : cb;
+  const long = ca.length < cb.length ? cb : ca;
+  return short.length >= 4 && long.includes(short);
+}

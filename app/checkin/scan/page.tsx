@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { recognizeBookCover } from "@/lib/ocr";
 import { type CategoryRow } from "@/lib/supabase";
-import { normalizeForGoogleSearch, stripCopySuffix } from "@/lib/titleMatch";
+import {
+  isSameBookTitle,
+  isbnVariants,
+  normalizeForGoogleSearch,
+  stripCopySuffix,
+} from "@/lib/titleMatch";
 import { compressImageDataUrl } from "@/lib/imageCompress";
 import { useKeyboardInset } from "@/lib/useKeyboardInset";
 import { useCheckinCart, type ConfirmedBook } from "@/lib/useCheckinCart";
@@ -498,9 +503,15 @@ export default function CheckinScanPage() {
     const raw = editedTitle.trim() || "未命名書籍";
     const baseFromInput = stripCopySuffix(raw);
 
+    // 入庫清單去重複：
+    //  - 兩邊都有 ISBN：用 10/13 變體比對，避免館藏存 10 碼、輸入是 13 碼。
+    //  - 任一邊缺 ISBN：退回書名比對（normalize + coreTitle + 雙向包含）。
+    const isbnSet = effectiveIsbn
+      ? new Set(isbnVariants(effectiveIsbn))
+      : null;
     const inList = confirmedBooks.filter((b) => {
-      if (effectiveIsbn && b.isbn) return b.isbn === effectiveIsbn;
-      return stripCopySuffix(b.title) === baseFromInput;
+      if (isbnSet && b.isbn) return isbnSet.has(b.isbn);
+      return isSameBookTitle(baseFromInput, b.title);
     });
 
     let dbMatches: DuplicateMatch[] = [];
@@ -789,12 +800,13 @@ export default function CheckinScanPage() {
               {/* 中間：候選結果區塊 — 標題列固定、清單可滾動 */}
               <div className="px-6 pt-3 pb-1 shrink-0 border-t border-neutral-100">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-neutral-500">
-                    Google Books 搜尋 · 點擊下方直接帶入資料
+                  <p className="text-xs font-medium text-neutral-500 inline-flex items-center gap-1.5">
+                    <span>Google Books 搜尋 · 點擊下方直接帶入資料</span>
                     {candidatesLoading && (
-                      <span className="ml-1.5 text-neutral-400 font-normal">
-                        · 搜尋中
-                      </span>
+                      <span
+                        aria-hidden
+                        className="w-3 h-3 border-2 border-neutral-200 border-t-neutral-700 rounded-full animate-spin"
+                      />
                     )}
                   </p>
                   {pickedCandidate && (
@@ -809,7 +821,14 @@ export default function CheckinScanPage() {
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto px-6 pt-2 pb-3 min-h-[80px] overscroll-contain scroll-thin">
-                {candidates.length > 0 ? (
+                {candidatesLoading && candidates.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-6 gap-2">
+                    <div className="w-6 h-6 border-2 border-neutral-200 border-t-neutral-900 rounded-full animate-spin" />
+                    <p className="text-[11px] text-neutral-400">
+                      搜尋 Google Books 中…
+                    </p>
+                  </div>
+                ) : candidates.length > 0 ? (
                   <ul className="space-y-2">
                     {candidates.map((c) => {
                       const key = candidateKey(c);
@@ -878,7 +897,7 @@ export default function CheckinScanPage() {
                   </ul>
                 ) : (
                   <p className="text-[11px] text-neutral-400 px-1 py-2">
-                    {candidatesLoading ? "搜尋中…" : "暫無搜尋結果，可直接入庫"}
+                    暫無搜尋結果，可直接入庫
                   </p>
                 )}
               </div>

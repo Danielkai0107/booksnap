@@ -264,9 +264,15 @@ export default function ManualCheckinSheet({
               type="button"
               onClick={handleLookup}
               disabled={lookupLoading || !isbn.trim()}
-              className="h-[46px] px-4 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-xs font-medium rounded-md transition disabled:bg-neutral-50 disabled:text-neutral-300"
+              className="h-[46px] px-4 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-900 text-xs font-medium rounded-md transition disabled:bg-neutral-50 disabled:text-neutral-300 inline-flex items-center justify-center gap-1.5"
             >
-              {lookupLoading ? "查詢中" : "查 ISBN"}
+              {lookupLoading && (
+                <span
+                  aria-hidden
+                  className="w-3 h-3 border-2 border-neutral-300 border-t-neutral-700 rounded-full animate-spin"
+                />
+              )}
+              <span>{lookupLoading ? "查詢中" : "查 ISBN"}</span>
             </button>
           </div>
         </div>
