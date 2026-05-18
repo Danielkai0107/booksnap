@@ -154,7 +154,7 @@ export default function AdminPage() {
           <button
             type="button"
             onClick={handleDesktopCheckin}
-            className="press-feedback hidden md:inline-flex items-center gap-1 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 px-3 h-9 rounded-full"
+            className="press-feedback hidden md:inline-flex items-center gap-1 text-sm font-medium text-white bg-brand hover:bg-brand-hover px-3 h-9 rounded-full"
           >
             <svg
               width="14"
@@ -430,7 +430,7 @@ export default function AdminPage() {
           <Link
             href="/checkin"
             onClick={handleMobileCheckin}
-            className="press-feedback pointer-events-auto inline-flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 text-white text-base font-medium px-7 py-4 rounded-full shadow-lg shadow-neutral-900/20"
+            className="press-feedback pointer-events-auto inline-flex items-center justify-center gap-2 bg-brand hover:bg-brand-hover active:bg-brand-active text-white text-base font-medium px-7 py-4 rounded-full shadow-lg shadow-brand/25"
           >
             <svg
               width="18"

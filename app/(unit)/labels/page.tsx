@@ -246,7 +246,7 @@ export default function LabelsPage() {
           type="button"
           onClick={() => setShowLabels(true)}
           disabled={selected.size === 0}
-          className="press-feedback hidden md:inline-flex items-center gap-1 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed px-3 h-9 rounded-full"
+          className="press-feedback hidden md:inline-flex items-center gap-1 text-sm font-medium text-white bg-brand hover:bg-brand-hover disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed px-3 h-9 rounded-full"
         >
           <svg
             width="14"
@@ -359,7 +359,7 @@ export default function LabelsPage() {
           type="button"
           onClick={() => setShowLabels(true)}
           disabled={selected.size === 0}
-          className="pointer-events-auto inline-flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 active:bg-neutral-700 text-white text-base font-medium px-7 py-4 rounded-full shadow-lg shadow-neutral-900/20 transition disabled:bg-neutral-300 disabled:shadow-none"
+          className="pointer-events-auto inline-flex items-center justify-center gap-2 bg-brand hover:bg-brand-hover active:bg-brand-active text-white text-base font-medium px-7 py-4 rounded-full shadow-lg shadow-brand/25 transition disabled:bg-neutral-300 disabled:shadow-none"
         >
           <svg
             width="18"
