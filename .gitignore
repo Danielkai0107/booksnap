@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# vendored static assets (downloaded by scripts/fetch-jscanify.mjs)
+/public/vendor/
