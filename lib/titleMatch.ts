@@ -281,6 +281,10 @@ export function isbnVariants(input: string | null | undefined): string[] {
  *  2. coreTitle（再去副標 / 標點 / 全形）後完全相等
  *  3. 雙向 coreTitle 包含，且短的一側 ≥ 4 字
  *     - 4 字門檻是為了避開「三國」⊂「三國演義」這種短共同前綴的誤判
+ *  4. Bigram 覆蓋率 ≥ 80%、短側 ≥ 5 字
+ *     - 容忍中間插入幾個字元，例如 OCR「SDG超入門」與 Google
+ *       「SDGs系列講堂 SDGs超入門：…」，差個 's' 子字串會破功，
+ *       但 bigram 集合幾乎完全被長側涵蓋。
  */
 export function isSameBookTitle(a: string, b: string): boolean {
   if (!a || !b) return false;
@@ -293,5 +297,24 @@ export function isSameBookTitle(a: string, b: string): boolean {
   if (ca === cb) return true;
   const short = ca.length < cb.length ? ca : cb;
   const long = ca.length < cb.length ? cb : ca;
-  return short.length >= 4 && long.includes(short);
+  if (short.length >= 4 && long.includes(short)) return true;
+  // 0.80 = 5-bigram 短字串允許掉 1 個（例如 SDG vs SDGs，中間多一個 's'
+  // 讓「g超」這個 bigram 被切掉）。再低就容易把不同書誤判為同一本。
+  if (short.length >= 5 && bigramCoverage(short, long) >= 0.8) return true;
+  return false;
+}
+
+/**
+ * 短字串的 bigram 有多少比例出現在長字串裡（0~1）。
+ * 用在 isSameBookTitle 的模糊比對，處理「中間插入少量字元」的情境。
+ */
+function bigramCoverage(short: string, long: string): number {
+  const S = bigrams(short);
+  const L = bigrams(long);
+  if (S.size === 0) return 0;
+  let hits = 0;
+  S.forEach((g) => {
+    if (L.has(g)) hits++;
+  });
+  return hits / S.size;
 }
