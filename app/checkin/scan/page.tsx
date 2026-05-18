@@ -872,7 +872,7 @@ export default function CheckinScanPage() {
                             {selected && (
                               <span
                                 aria-hidden
-                                className="w-5 h-5 rounded-full bg-neutral-900 text-white flex items-center justify-center shrink-0 mt-1"
+                                className="w-5 h-5 rounded-full bg-brand text-white flex items-center justify-center shrink-0 mt-1"
                               >
                                 <svg
                                   width="10"
@@ -913,7 +913,7 @@ export default function CheckinScanPage() {
                   </button>
                   <button
                     onClick={handleConfirm}
-                    className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+                    className="flex-1 bg-brand hover:bg-brand-hover text-white text-sm font-medium py-3 rounded-lg transition"
                   >
                     加入入庫書單
                   </button>
@@ -976,7 +976,7 @@ export default function CheckinScanPage() {
             </button>
             <button
               onClick={handleDuplicateNewCopy}
-              className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition"
+              className="flex-1 bg-brand hover:bg-brand-hover text-white text-sm font-medium py-3 rounded-lg transition"
             >
               新添購（序號{" "}
               {duplicateMatches.length + duplicateInList.length + 1}）
@@ -1074,7 +1074,7 @@ export default function CheckinScanPage() {
             <button
               onClick={handleSubmit}
               disabled={totalCount === 0 || submitting}
-              className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3.5 rounded-lg transition disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
+              className="flex-1 bg-brand hover:bg-brand-hover text-white text-sm font-medium py-3.5 rounded-lg transition disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
             >
               {submitting ? "送出中…" : "完成入庫"}
             </button>

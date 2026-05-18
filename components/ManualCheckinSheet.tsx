@@ -206,7 +206,7 @@ export default function ManualCheckinSheet({
             type="button"
             onClick={handleSubmit}
             disabled={submitting || !title.trim()}
-            className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-medium py-3 rounded-lg transition disabled:bg-neutral-300"
+            className="flex-1 bg-brand hover:bg-brand-hover text-white text-sm font-medium py-3 rounded-lg transition disabled:bg-neutral-300"
           >
             {submitting ? "新增中…" : "確認入庫"}
           </button>
