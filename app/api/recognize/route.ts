@@ -91,24 +91,44 @@ export async function POST(req: NextRequest) {
 
   const { mediaType, data } = parseImageBase64(imageBase64);
 
-  // Build a prompt that asks Claude to both recognize the title and pick
-  // the best-fitting category from the org's category list (if provided).
-  // We require strict JSON so the client can parse reliably.
-  const promptParts: string[] = [];
-  promptParts.push(
-    "你是一位圖書館員。請從這張書封圖片辨識「書名」。"
-  );
+  // 把固定的角色與消歧規則放到 system，動態的分類清單與輸出格式留在 user。
+  // 童書 / 繪本是最容易踩坑的情境（系列名比書名大、注音、推薦語、套書編號），
+  // 所以規則寫得偏向童書；對一般書籍仍是「不要把副標 / 作者 / 出版社當書名」
+  // 這種通用原則，不會傷準確率。
+  const systemPrompt = [
+    "你是專精於華文童書、繪本與兒少讀物的圖書館員，協助辨識書封上的「主書名」。",
+    "",
+    "【主書名定義】",
+    "- 主書名 = 此本書獨立識別的標題，不含系列名、副標、宣傳語。",
+    "- 系列名（例如「小行星巴士系列」「貓巧可」「小熊維尼」「我的第一本」）若與主書名同時出現，只回主書名。",
+    "- 整本書若只有系列名而無獨立標題，才以系列名為書名。",
+    "- 套書冊號（第3集、Vol.2、下集、Book 1）不納入主書名。",
+    "",
+    "【排除項】",
+    "- 作者、繪者、譯者、出版社、Logo 文字。",
+    "- 注音符號（ㄅㄆㄇㄈ⋯）不納入書名。",
+    "- 得獎標記、推薦語、年齡標示（如「3 歲＋」「適合 K-2」「金鼎獎」）。",
+    "- 條碼、ISBN、價格、促銷標籤。",
+    "",
+    "【語言偏好】",
+    "- 同時出現繁中與英文時，回繁體中文書名。",
+    "- 只有英文時回英文原書名。",
+    "- 出現簡體字時自動轉繁體後回傳。",
+    "",
+    "【輸出】",
+    "- 僅回 JSON，無 markdown、無多餘文字、無前言後語。",
+    "- 無法辨識書名時 title 填「無法識別」。",
+  ].join("\n");
+
+  // user message 只放動態部分：分類清單（如果有）+ 輸出 schema 提醒。
+  let userText: string;
   if (categories.length > 0) {
-    promptParts.push(
-      `另外，請從下列分類清單中挑選一個最適合此書的分類（必須完全等於清單中的某個名稱，不能自創）：\n${categories.map((c) => `- ${c}`).join("\n")}`
-    );
-    promptParts.push(
-      '請僅回傳 JSON，格式為 {"title": "書名", "category": "分類名稱"}。若無法辨識書名，title 請填「無法識別」；若無法判斷分類，category 請填 null。不要任何多餘文字或 markdown。'
-    );
+    userText =
+      `另請從下列分類中挑選最適合此書的一個（必須完全等於清單中的某個名稱，不能自創；若無法判斷填 null）：\n${categories
+        .map((c) => `- ${c}`)
+        .join("\n")}\n\n回傳 {"title": "...", "category": "..."}。`;
   } else {
-    promptParts.push(
-      '請僅回傳 JSON，格式為 {"title": "書名"}。若無法辨識，title 請填「無法識別」。不要任何多餘文字或 markdown。'
-    );
+    userText = '回傳 {"title": "..."}。';
   }
 
   try {
@@ -123,6 +143,7 @@ export async function POST(req: NextRequest) {
         model: "claude-sonnet-4-20250514",
         // JSON 答案非常短（書名 + 可選分類）。80 tokens 對中文書名綽綽有餘。
         max_tokens: categories.length > 0 ? 120 : 80,
+        system: systemPrompt,
         messages: [
           {
             role: "user",
@@ -137,7 +158,7 @@ export async function POST(req: NextRequest) {
               },
               {
                 type: "text",
-                text: promptParts.join("\n\n"),
+                text: userText,
               },
             ],
           },

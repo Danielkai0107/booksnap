@@ -256,7 +256,7 @@ export default function CheckinScanPage() {
       // 壓縮給 OCR（省 Claude tokens）也順便當儲存圖檔，省 Supabase storage。
       const compressed = await compressImageDataUrl(dataUrl, {
         maxDimension: 768,
-        quality: 0.7,
+        quality: 0.85,
       });
       setMode("processing");
       setCandidates([]);
