@@ -2,6 +2,7 @@ import Link from "next/link";
 import SuperAdminShell from "@/components/SuperAdminShell";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadAppSettings } from "@/lib/plans";
+import { fetchVisionModels } from "@/lib/anthropic-models";
 import type { OrganizationRow } from "@/lib/supabase/types";
 import TrialDaysForm from "./TrialDaysForm";
 import BillingEnabledForm from "./BillingEnabledForm";
@@ -13,14 +14,19 @@ export default async function SuperAdminSettingsPage() {
   const provider = process.env.BILLING_PROVIDER ?? "instant";
 
   const admin = createAdminClient();
-  const {
-    trialDays,
-    billingEnabled,
-    aiRecognizeModelPrimary,
-    aiRecognizeModelFallback,
-  } = await loadAppSettings(admin, {
-    bypassCache: true,
-  });
+  // 兩個查詢互相獨立，並行縮短設定頁初始載入時間（Anthropic 模型 API 偶爾較慢）。
+  const [
+    {
+      trialDays,
+      billingEnabled,
+      aiRecognizeModelPrimary,
+      aiRecognizeModelFallback,
+    },
+    visionModels,
+  ] = await Promise.all([
+    loadAppSettings(admin, { bypassCache: true }),
+    fetchVisionModels(),
+  ]);
 
   const { data: bypassRows } = await admin
     .from("organizations")
@@ -77,6 +83,7 @@ export default async function SuperAdminSettingsPage() {
             <AiModelsForm
               initialPrimary={aiRecognizeModelPrimary}
               initialFallback={aiRecognizeModelFallback ?? ""}
+              models={visionModels}
             />
           </div>
         </section>

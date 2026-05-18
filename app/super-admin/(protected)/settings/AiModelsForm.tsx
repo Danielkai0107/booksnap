@@ -1,24 +1,36 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
+import {
+  formatModelDate,
+  type AnthropicVisionModel,
+} from "@/lib/anthropic-models";
 import { setAiRecognizeModels } from "../../actions";
 
 type Props = {
   initialPrimary: string;
   initialFallback: string;
+  /** Anthropic 目前可用、支援 image input 的模型清單。 */
+  models: AnthropicVisionModel[];
 };
 
+const FALLBACK_OFF_VALUE = "";
+
 /**
- * 智能辨識模型編輯表單。主要模型必填，備用模型選填（清空 = 關閉 fallback）。
+ * 智能辨識模型編輯表單（下拉版）。
  *
- * 驗證僅做最低限度（claude- 前綴 + 長度 + 不可同名）；實際模型是否有效
- * 交給 Anthropic API 回應檢查。儲存後 60s 內快取會自動失效。
+ * - 主要模型必選
+ * - 備用模型可選「不啟用備用」（空字串值）
+ * - 若目前儲存的 id 不在 Anthropic 回傳清單中（罕見：模型剛被下架但設定還是舊值），
+ *   會把該值補進選項並標示「（清單未列出）」，避免下拉「漏選」現有值
+ * - 備用模型清單會排除目前選定的主要模型，避免兩邊指向同一個
  */
 export default function AiModelsForm({
   initialPrimary,
   initialFallback,
+  models,
 }: Props) {
   const router = useRouter();
   const toast = useToast();
@@ -26,40 +38,38 @@ export default function AiModelsForm({
   const [primary, setPrimary] = useState(initialPrimary);
   const [fallback, setFallback] = useState(initialFallback);
 
-  const primaryTrim = primary.trim();
-  const fallbackTrim = fallback.trim();
+  // 目前儲存的值若不在 Anthropic 回傳清單，補成「未列出」選項顯示。
+  const primaryOptions = useMemo(
+    () => augmentWithCurrent(models, primary),
+    [models, primary],
+  );
+  const fallbackOptions = useMemo(
+    () =>
+      augmentWithCurrent(models, fallback).filter((m) => m.id !== primary),
+    [models, primary, fallback],
+  );
+
   const dirty =
-    primaryTrim !== initialPrimary.trim() ||
-    fallbackTrim !== initialFallback.trim();
-  const primaryValid =
-    primaryTrim.length > 0 &&
-    primaryTrim.length <= 80 &&
-    primaryTrim.toLowerCase().startsWith("claude-");
-  const fallbackValid =
-    fallbackTrim.length === 0 ||
-    (fallbackTrim.length <= 80 &&
-      fallbackTrim.toLowerCase().startsWith("claude-") &&
-      fallbackTrim !== primaryTrim);
-  const valid = primaryValid && fallbackValid;
+    primary.trim() !== initialPrimary.trim() ||
+    fallback.trim() !== initialFallback.trim();
 
   function save() {
-    if (!valid) {
-      if (!primaryValid) toast.error("主要模型需以 claude- 開頭，長度 ≤ 80");
-      else if (fallbackTrim === primaryTrim)
-        toast.error("備用模型不能與主要模型相同");
-      else toast.error("備用模型需以 claude- 開頭，長度 ≤ 80（或留空關閉）");
+    if (!primary.trim()) {
+      toast.error("請選擇主要模型");
+      return;
+    }
+    if (fallback && fallback === primary) {
+      toast.error("備用模型不能與主要模型相同");
       return;
     }
     startTransition(async () => {
-      const res = await setAiRecognizeModels(primaryTrim, fallbackTrim);
+      const res = await setAiRecognizeModels(primary, fallback);
       if (!res.ok) {
         toast.error(res.error);
         return;
       }
       toast.success(
-        fallbackTrim
-          ? "已更新主要 / 備用模型"
-          : "已更新主要模型，備用模型已關閉",
+        fallback ? "已更新主要 / 備用模型" : "已更新主要模型，備用模型已關閉",
       );
       router.refresh();
     });
@@ -72,21 +82,26 @@ export default function AiModelsForm({
 
   return (
     <div className="space-y-4">
-      <Field
+      <ModelSelect
         label="主要模型"
-        hint="必填。每次拍照辨識預設使用此模型。"
+        hint="必選。每次拍照辨識預設使用此模型。"
         value={primary}
-        onChange={setPrimary}
+        onChange={(v) => {
+          setPrimary(v);
+          // 主要變了之後若跟備用撞，自動清空備用避免存進去再被擋。
+          if (v === fallback) setFallback(FALLBACK_OFF_VALUE);
+        }}
+        options={primaryOptions}
         busy={busy}
-        placeholder="claude-opus-4-7"
       />
-      <Field
+      <ModelSelect
         label="備用模型"
-        hint="選填。主要模型 API 失敗（fetch 例外或非 2xx）時自動改用此模型。留空可關閉備用機制。"
+        hint="選填。主要模型 API 失敗（fetch 例外或非 2xx）時自動改用此模型。「不啟用備用」可關閉此機制。"
         value={fallback}
         onChange={setFallback}
+        options={fallbackOptions}
         busy={busy}
-        placeholder="例：claude-sonnet-4-20250514（留空關閉）"
+        allowOff
       />
       <div className="flex items-center gap-3 pt-1">
         {dirty && (
@@ -102,7 +117,7 @@ export default function AiModelsForm({
         <button
           type="button"
           onClick={save}
-          disabled={busy || !dirty || !valid}
+          disabled={busy || !dirty || !primary.trim()}
           className="bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-200 disabled:text-neutral-400 text-white text-sm font-medium px-4 h-10 rounded-lg transition"
         >
           {busy ? "儲存中…" : "儲存"}
@@ -112,20 +127,22 @@ export default function AiModelsForm({
   );
 }
 
-function Field({
+function ModelSelect({
   label,
   hint,
   value,
   onChange,
+  options,
   busy,
-  placeholder,
+  allowOff,
 }: {
   label: string;
   hint: string;
   value: string;
   onChange: (next: string) => void;
+  options: AugmentedModel[];
   busy: boolean;
-  placeholder: string;
+  allowOff?: boolean;
 }) {
   return (
     <label className="block">
@@ -137,20 +154,52 @@ function Field({
             : "border-neutral-200 focus-within:border-neutral-900"
         }`}
       >
-        <input
-          type="text"
+        <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={busy}
-          placeholder={placeholder}
-          autoComplete="off"
-          spellCheck={false}
-          className="w-full bg-transparent text-sm text-neutral-900 font-mono outline-none disabled:text-neutral-500"
-        />
+          className="w-full bg-transparent text-sm text-neutral-900 outline-none disabled:text-neutral-500 font-mono"
+        >
+          {allowOff && (
+            <option value={FALLBACK_OFF_VALUE}>不啟用備用</option>
+          )}
+          {options.map((m) => {
+            const date = formatModelDate(m.createdAt);
+            const tail = [m.displayName, date, m.notInList ? "清單未列出" : null]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              <option key={m.id} value={m.id}>
+                {m.id}
+                {tail ? `  —  ${tail}` : ""}
+              </option>
+            );
+          })}
+        </select>
       </div>
       <p className="mt-1.5 text-[11px] text-neutral-400 leading-relaxed">
         {hint}
       </p>
     </label>
   );
+}
+
+type AugmentedModel = AnthropicVisionModel & { notInList?: boolean };
+
+/**
+ * 把目前儲存的 model id 強制納入選項，避免「設定值已 deprecated → 下拉裡
+ * 選不到 → save 時被驗證擋掉」這種找不到出口的情境。標示 notInList 讓 UI
+ * 可以在 label 顯示提醒。
+ */
+function augmentWithCurrent(
+  models: AnthropicVisionModel[],
+  current: string,
+): AugmentedModel[] {
+  const trimmed = current.trim();
+  if (!trimmed) return models;
+  if (models.some((m) => m.id === trimmed)) return models;
+  return [
+    { id: trimmed, displayName: trimmed, createdAt: "", notInList: true },
+    ...models,
+  ];
 }
