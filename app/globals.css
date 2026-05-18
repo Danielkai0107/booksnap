@@ -5,10 +5,11 @@
     var(--font-dm), var(--font-noto-tc), "DM Sans", "Noto Sans TC",
     -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 
-  /* 品牌主色：logo、側欄選中、主要 CTA（新書入庫／新增分類／批次列印） */
-  --color-brand: #5fa37f;
-  --color-brand-hover: #528f6e;
-  --color-brand-active: #467d60;
+  /* 品牌主色：logo、側欄選中、主要 CTA（新書入庫／新增分類／批次列印）
+     主按鈕走黑底白字，hover 稍淡、active 稍深，維持「按下變更深」直覺。 */
+  --color-brand: #171717;
+  --color-brand-hover: #262626;
+  --color-brand-active: #0a0a0a;
 
   /* 全站「手機 / 電腦版」切換點。預設 Tailwind 的 `md` 是 768px（平板），
      但本專案 admin 後台側欄 + topbar 排版需要更寬的橫向空間才舒適，
