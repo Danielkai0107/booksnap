@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { generateUniqueOrgSlug } from "@/lib/slug";
 import { isTwCity } from "@/lib/cities";
 import { toUserMessage } from "@/lib/errors/user-message";
+import { loadAppSettings } from "@/lib/plans";
 import type { RegisterState, RegisterValues } from "./types";
 
 /**
@@ -215,7 +216,13 @@ export async function verifyRegisterOtp(
     };
   }
 
-  const nowIso = new Date().toISOString();
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const { trialDays } = await loadAppSettings(admin);
+  const trialEndsAt = new Date(
+    now.getTime() + trialDays * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
   const { data: org, error: orgErr } = await admin
     .from("organizations")
     .insert({
@@ -225,6 +232,8 @@ export async function verifyRegisterOtp(
       contact_phone: phone,
       status: "approved",
       approved_at: nowIso,
+      plan: "trial",
+      trial_ends_at: trialEndsAt,
       owner_user_id: user.id,
       public_slug: publicSlug,
     })
