@@ -26,6 +26,20 @@ const CORNER_ORDER: CornerKey[] = [
 /** 放大鏡直徑（px）。CSS 也用這個常數，保持兩邊同步。 */
 const LOUPE_SIZE = 128;
 
+/**
+ * 四角拖曳可達的「最大範圍」— 從圖片每一邊內縮的百分比。
+ *
+ * 用意：
+ * - 防止 handle 被拖到極端邊緣導致觸控目標被螢幕邊切掉、或四角擠成
+ *   退化形狀（凹/共線）；
+ * - 給 jscanify 自動偵測一個合理性閾值：偵測結果只要有任一角超出這個
+ *   範圍，整組視為失敗，直接 fallback 到 `defaultCorners` 的正矩形。
+ *
+ * 0.02 表示每邊內縮 2%（corner 可達 [2%, 98%]）。書封通常不會占滿整張
+ * frame，2% 已經很寬鬆，不會妨礙正常框選。
+ */
+const MAX_RANGE_INSET_PERCENT = 0.02;
+
 type Props = {
   /** 原始拍下的圖（dataURL 或 blob URL）。 */
   imageDataUrl: string;
@@ -44,8 +58,10 @@ type Props = {
  * - 圖片用 `object-contain` 佔滿可用空間，SVG overlay 跟著圖片實際渲染
  *   區域同尺寸（letterbox 留白不接收事件）。
  * - Handle 視覺 16px、觸控目標 44px（透明擴大），符合 iOS HIG。
- * - 拖曳時 clamp 在 [0, w/h]，且即時用 isConvex 驗證；非凸 quad 時
- *   確認按鈕 disable，避免送出沒用的 corner 給 warpPerspective。
+ * - 拖曳時 clamp 在 `MAX_RANGE_INSET_PERCENT` 內縮後的安全範圍內，且
+ *   即時用 isConvex 驗證；非凸 quad 時確認按鈕 disable，避免送出沒用
+ *   的 corner 給 warpPerspective。
+ * - 自動偵測結果若有任一角越界，整組捨棄，退回預設正矩形。
  */
 export default function DocumentCornerAdjuster({
   imageDataUrl,
@@ -65,9 +81,17 @@ export default function DocumentCornerAdjuster({
   } | null>(null);
 
   // corners 永遠以「原圖 pixel 座標」存（送出時不用換算）。
-  const [corners, setCorners] = useState<Corners>(() =>
-    initialCorners ?? defaultCorners(imageWidth, imageHeight),
-  );
+  // 自動偵測若有任一角越界（< MAX_RANGE_INSET_PERCENT），整組視為失敗，
+  // 直接退回正矩形，讓使用者從合理位置開始手動微調。
+  const [corners, setCorners] = useState<Corners>(() => {
+    if (
+      initialCorners &&
+      isCornersWithinRange(initialCorners, imageWidth, imageHeight)
+    ) {
+      return initialCorners;
+    }
+    return defaultCorners(imageWidth, imageHeight);
+  });
   const [draggingKey, setDraggingKey] = useState<CornerKey | null>(null);
 
   useEffect(() => {
@@ -117,9 +141,15 @@ export default function DocumentCornerAdjuster({
       const y = clientY - rect.top - renderBox.offsetY;
       const sx = imageWidth / renderBox.width;
       const sy = imageHeight / renderBox.height;
+      // 限縮在圖片內側 MAX_RANGE_INSET_PERCENT 的範圍內，避免拖到極端
+      // 邊緣，handle 被切掉或四角退化。
+      const minX = imageWidth * MAX_RANGE_INSET_PERCENT;
+      const maxX = imageWidth - minX;
+      const minY = imageHeight * MAX_RANGE_INSET_PERCENT;
+      const maxY = imageHeight - minY;
       return {
-        x: clamp(x * sx, 0, imageWidth),
-        y: clamp(y * sy, 0, imageHeight),
+        x: clamp(x * sx, minX, maxX),
+        y: clamp(y * sy, minY, maxY),
       };
     },
     [renderBox, imageWidth, imageHeight],
@@ -193,66 +223,60 @@ export default function DocumentCornerAdjuster({
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       <div
-        className="relative flex-1 overflow-hidden select-none touch-none p-5"
+        ref={containerRef}
+        className="relative flex-1 overflow-hidden select-none touch-none"
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
-        {/* 內縮 20px 的可繪製區。containerRef / renderBox 都以此為基準，
-            handle 拖到最邊緣時也不會壓到螢幕外緣，loupe 與提示 pill 留在
-            外層維持原視覺位置。 */}
-        <div ref={containerRef} className="relative w-full h-full">
-          <img
-            src={imageDataUrl}
-            alt="captured"
-            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-          />
-          {renderBox && (
-            // 不指定 viewBox：SVG 內部座標直接是 CSS px，跟容器尺寸 1:1，
-            // 也就是 renderBox 已經提供的座標系統。免去碰 ref.current。
-            <svg className="absolute inset-0 w-full h-full">
-              <polygon
-                points={orderedView
-                  .map((p) => `${p.x},${p.y}`)
-                  .join(" ")}
-                fill={
-                  convex
-                    ? "rgba(34, 197, 94, 0.18)"
-                    : "rgba(239, 68, 68, 0.18)"
-                }
-                stroke={convex ? "#22c55e" : "#ef4444"}
-                strokeWidth={2}
-                strokeLinejoin="round"
-              />
-              {orderedView.map((p, i) => {
-                const key = CORNER_ORDER[i];
-                const active = draggingKey === key;
-                return (
-                  <g key={key}>
-                    <circle
-                      cx={p.x}
-                      cy={p.y}
-                      r={active ? 12 : 10}
-                      fill="white"
-                      stroke={convex ? "#22c55e" : "#ef4444"}
-                      strokeWidth={2}
-                      style={{ pointerEvents: "none" }}
-                    />
-                    {/* 透明大圓接收觸控（44px hit-area）。 */}
-                    <circle
-                      cx={p.x}
-                      cy={p.y}
-                      r={22}
-                      fill="transparent"
-                      onPointerDown={handlePointerDown(key)}
-                      style={{ cursor: "grab", touchAction: "none" }}
-                    />
-                  </g>
-                );
-              })}
-            </svg>
-          )}
-        </div>
+        <img
+          src={imageDataUrl}
+          alt="captured"
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+        />
+        {renderBox && (
+          // 不指定 viewBox：SVG 內部座標直接是 CSS px，跟容器尺寸 1:1，
+          // 也就是 renderBox 已經提供的座標系統。免去碰 ref.current。
+          <svg className="absolute inset-0 w-full h-full">
+            <polygon
+              points={orderedView
+                .map((p) => `${p.x},${p.y}`)
+                .join(" ")}
+              fill={
+                convex ? "rgba(34, 197, 94, 0.18)" : "rgba(239, 68, 68, 0.18)"
+              }
+              stroke={convex ? "#22c55e" : "#ef4444"}
+              strokeWidth={2}
+              strokeLinejoin="round"
+            />
+            {orderedView.map((p, i) => {
+              const key = CORNER_ORDER[i];
+              const active = draggingKey === key;
+              return (
+                <g key={key}>
+                  <circle
+                    cx={p.x}
+                    cy={p.y}
+                    r={active ? 12 : 10}
+                    fill="white"
+                    stroke={convex ? "#22c55e" : "#ef4444"}
+                    strokeWidth={2}
+                    style={{ pointerEvents: "none" }}
+                  />
+                  {/* 透明大圓接收觸控（44px hit-area）。 */}
+                  <circle
+                    cx={p.x}
+                    cy={p.y}
+                    r={22}
+                    fill="transparent"
+                    onPointerDown={handlePointerDown(key)}
+                    style={{ cursor: "grab", touchAction: "none" }}
+                  />
+                </g>
+              );
+            })}
+          </svg>
+        )}
 
         {/* 局部放大鏡：以「螢幕顯示尺寸」為基準的 2× 放大，置中對齊
             目前拖曳的那一角。CSS background-position 算式：
@@ -320,6 +344,30 @@ export default function DocumentCornerAdjuster({
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
+}
+
+/**
+ * 檢查四個 corner 是否全部落在「允許範圍」內。
+ * 任一角越界就回 false，呼叫端通常會 fallback 到 `defaultCorners`。
+ */
+function isCornersWithinRange(
+  corners: Corners,
+  w: number,
+  h: number,
+): boolean {
+  const minX = w * MAX_RANGE_INSET_PERCENT;
+  const maxX = w - minX;
+  const minY = h * MAX_RANGE_INSET_PERCENT;
+  const maxY = h - minY;
+  const pts = [
+    corners.topLeftCorner,
+    corners.topRightCorner,
+    corners.bottomRightCorner,
+    corners.bottomLeftCorner,
+  ];
+  return pts.every(
+    (p) => p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY,
+  );
 }
 
 /** 預設四角：在圖片內側 12% 留邊處的矩形。 */
