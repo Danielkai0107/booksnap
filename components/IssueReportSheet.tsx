@@ -58,15 +58,21 @@ export default function IssueReportSheet({ open, onClose }: Props) {
             typeof window !== "undefined" ? window.location.href : undefined,
         }),
       });
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+      };
       if (!res.ok) {
-        throw new Error(data.error ?? `HTTP ${res.status}`);
+        throw new Error(data.error ?? "暫時無法送出，請稍後再試");
       }
       toast.success("已送出，感謝您的回報");
       onClose();
     } catch (err) {
       console.error("[issue-report] submit failed", err);
-      toast.error(err instanceof Error ? err.message : "送出失敗");
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "暫時無法送出，請稍後再試";
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }

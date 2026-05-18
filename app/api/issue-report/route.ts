@@ -15,14 +15,23 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { error: "請先登入後再試一次" },
+      { status: 401 },
+    );
   }
   if (session.profile.role === "super_admin") {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    return NextResponse.json(
+      { error: "目前帳號無法使用此功能" },
+      { status: 403 },
+    );
   }
   const org = session.organization;
   if (!org || org.status !== "approved") {
-    return NextResponse.json({ error: "org not approved" }, { status: 403 });
+    return NextResponse.json(
+      { error: "單位尚未開通，暫時無法送出" },
+      { status: 403 },
+    );
   }
 
   const ip = clientIp(req);
@@ -46,7 +55,10 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "invalid json" }, { status: 400 });
+    return NextResponse.json(
+      { error: "送出失敗，請重新整理後再試" },
+      { status: 400 },
+    );
   }
 
   const category = String(body.category ?? "").trim();
@@ -64,14 +76,17 @@ export async function POST(req: NextRequest) {
     );
   }
   if (reason.length > ISSUE_REPORT_REASON_MAX) {
-    return NextResponse.json({ error: "說明過長" }, { status: 400 });
+    return NextResponse.json(
+      { error: `說明過長（最多 ${ISSUE_REPORT_REASON_MAX} 字）` },
+      { status: 400 },
+    );
   }
 
   const recipients = await listSuperAdminRecipientEmails();
   if (recipients.length === 0) {
     console.error("[issue-report] no super admin recipients configured");
     return NextResponse.json(
-      { error: "目前無法寄送，請聯絡營運方" },
+      { error: "暫時無法送出，請稍後再試" },
       { status: 503 },
     );
   }
@@ -106,13 +121,11 @@ export async function POST(req: NextRequest) {
       reporterEmail,
       recipientCount: recipients.length,
     });
-    const exposeDetail = process.env.NODE_ENV !== "production";
+    // 不把 Resend 的原始 detail 回給 client（避免「You can only send testing
+    // emails to your own email address…」這種訊息漏到 toast）；要除錯就翻
+    // Vercel logs 的 `[mail] Resend failed`。
     return NextResponse.json(
-      {
-        error: sent.error,
-        code: sent.code,
-        ...(exposeDetail && sent.detail ? { detail: sent.detail } : {}),
-      },
+      { error: sent.error, code: sent.code },
       { status: sent.code === "rate_limited" ? 429 : 503 },
     );
   }

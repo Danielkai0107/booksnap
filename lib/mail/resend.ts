@@ -54,7 +54,7 @@ export async function sendEmail(
     console.error("[mail] missing env:", missing.join(", "));
     return {
       ok: false,
-      error: "郵件服務尚未設定",
+      error: "暫時無法送出，請稍後再試",
       code: "missing_env",
       detail: `missing: ${missing.join(", ")}`,
     };
@@ -64,7 +64,11 @@ export async function sendEmail(
     Boolean,
   );
   if (to.length === 0) {
-    return { ok: false, error: "找不到收件人", code: "no_recipients" };
+    return {
+      ok: false,
+      error: "暫時無法送出，請稍後再試",
+      code: "no_recipients",
+    };
   }
 
   let res: Response;
@@ -88,7 +92,7 @@ export async function sendEmail(
     console.error("[mail] Resend fetch threw", detail);
     return {
       ok: false,
-      error: "寄信服務暫時無法連線，請稍後再試",
+      error: "網路忙線中，請稍後再試",
       code: "network_error",
       detail,
     };
@@ -144,20 +148,11 @@ function classifyResendError(
 }
 
 function userMessageFor(code: SendEmailErrorCode): string {
-  switch (code) {
-    case "unauthorized":
-      return "寄信服務未授權，請聯絡營運方";
-    case "validation":
-      return "寄信失敗：寄件人或收件人未通過驗證";
-    case "rate_limited":
-      return "操作太頻繁，請稍後再試";
-    case "server_error":
-      return "寄信服務暫時異常，請稍後再試";
-    case "network_error":
-      return "寄信服務暫時無法連線，請稍後再試";
-    default:
-      return "寄信失敗，請稍後再試";
-  }
+  if (code === "rate_limited") return "操作太頻繁，請稍後再試";
+  if (code === "network_error") return "網路忙線中，請稍後再試";
+  // unauthorized / validation / server_error / unknown 都收斂到同一句中性訊息：
+  // 不洩露 Resend、寄件人/收件人/網域驗證等內部運作細節給使用者。
+  return "暫時無法送出，請稍後再試";
 }
 
 export function buildIssueReportEmailHtml(fields: {
