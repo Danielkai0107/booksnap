@@ -838,10 +838,10 @@ export default function CheckinScanPage() {
                           <button
                             type="button"
                             onClick={() => handlePickCandidate(c)}
-                            className={`w-full flex gap-3 items-start text-left rounded-lg px-3 py-2.5 transition border ${
+                            className={`w-full flex gap-3 items-start text-left rounded-lg px-3 py-2.5 transition border-2 ${
                               selected
-                                ? "border-neutral-900 bg-neutral-50"
-                                : "border-neutral-100 hover:border-neutral-300"
+                                ? "border-brand bg-neutral-50"
+                                : "border-transparent hover:border-neutral-200"
                             }`}
                           >
                             {c.thumbnail ? (
