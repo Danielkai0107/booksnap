@@ -790,7 +790,7 @@ export default function CheckinScanPage() {
               <div className="px-6 pt-3 pb-1 shrink-0 border-t border-neutral-100">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-neutral-500">
-                    Google Books 比對結果
+                    Google Books 搜尋 · 點擊下方直接帶入資料
                     {candidatesLoading && (
                       <span className="ml-1.5 text-neutral-400 font-normal">
                         · 搜尋中
