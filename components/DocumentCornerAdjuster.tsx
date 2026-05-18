@@ -189,9 +189,6 @@ export default function DocumentCornerAdjuster({
 
   // 拖曳中的那一角在「目前畫面上顯示的圖片」內的像素位置。給放大鏡用。
   const draggingCornerImagePoint = draggingKey ? corners[draggingKey] : null;
-  // 拖上面兩角時把放大鏡放下面、拖下面兩角時放上面，避免被手蓋住。
-  const loupeAtBottom =
-    draggingKey === "topLeftCorner" || draggingKey === "topRightCorner";
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
@@ -261,10 +258,8 @@ export default function DocumentCornerAdjuster({
           <div
             className="absolute z-10 pointer-events-none adjust-loupe"
             style={{
-              top: loupeAtBottom ? undefined : 16,
-              bottom: loupeAtBottom ? 16 : undefined,
-              left: "50%",
-              transform: "translateX(-50%)",
+              top: 16,
+              right: 16,
               backgroundImage: `url(${imageDataUrl})`,
               backgroundRepeat: "no-repeat",
               backgroundSize: `${renderBox.width * 2}px ${renderBox.height * 2}px`,
@@ -288,7 +283,8 @@ export default function DocumentCornerAdjuster({
           </div>
         )}
 
-        <div className="absolute top-4 inset-x-0 flex justify-center px-6 pointer-events-none">
+        {/* 提示 pill 放左上，跟右上角的 loupe 錯開不打架 */}
+        <div className="absolute top-4 left-4 pointer-events-none">
           <p className="text-xs text-white/85 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full">
             拖曳四個點對準書封邊緣
           </p>
